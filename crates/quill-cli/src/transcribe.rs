@@ -79,6 +79,13 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     };
     let stt_secs = started.elapsed().as_secs_f64();
 
+    // A recording directory keeps its transcript, for `summarize <dir>`.
+    if args.file.is_dir() {
+        let path = args.file.join("transcript.json");
+        std::fs::write(&path, serde_json::to_string_pretty(&segments)?)
+            .with_context(|| format!("writing {}", path.display()))?;
+    }
+
     match args.format {
         Format::Text => {
             for s in &segments {

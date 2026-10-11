@@ -1,0 +1,326 @@
+[
+  {
+    "start_ms": 0,
+    "end_ms": 4600,
+    "text": "Okay, let's get started. Thanks everyone for joining the weekly product sync.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 4900,
+    "end_ms": 8230,
+    "text": "We have three things on the agenda today. The onboarding redesign,",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 8230,
+    "end_ms": 11810,
+    "text": "the pricing experiment, and the Q4 hiring plan.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 12580,
+    "end_ms": 16200,
+    "text": "Sounds good. Before we dive in, quick update from engineering.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 16200,
+    "end_ms": 22520,
+    "text": "The migration to the new database cluster finished on Tuesday night with about 40 minutes of read-only time,",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 22520,
+    "end_ms": 25280,
+    "text": "which was inside the window we promised customers.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 26150,
+    "end_ms": 29510,
+    "text": "That's great news. Did we see any errors after the cutover?",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 30210,
+    "end_ms": 33580,
+    "text": "A handful of timeouts on the reporting service for the first hour,",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 33580,
+    "end_ms": 38840,
+    "text": "mostly from a cache that needed to warm up. Nothing customer-facing since Wednesday morning.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 39520,
+    "end_ms": 44070,
+    "text": "Perfect. Let's move to onboarding. Moira, you've been running the user interviews.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 44070,
+    "end_ms": 45370,
+    "text": "What are you hearing?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 46150,
+    "end_ms": 49840,
+    "text": "So we talked to 14 new customers over the last two weeks.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 50220,
+    "end_ms": 53340,
+    "text": "The biggest theme is that the setup checklist feels too long.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 53670,
+    "end_ms": 57690,
+    "text": "People get through the first three steps and then stall on connecting their calendar.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 58430,
+    "end_ms": 61080,
+    "text": "Is that a permissions problem or a motivation problem?",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 61860,
+    "end_ms": 67420,
+    "text": "Mostly permissions. On Windows especially, the admin consent screen confuses people.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 67420,
+    "end_ms": 71140,
+    "text": "Several of them thought something had gone wrong and closed the window.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 71810,
+    "end_ms": 77760,
+    "text": "We could detect when consent is pending and show a short explanation with a screenshot of what they should expect.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 78430,
+    "end_ms": 83920,
+    "text": "I like that. Let's make it an action item. Daniel, can your team scope that by next Friday?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 84670,
+    "end_ms": 87690,
+    "text": "Yes, I'll have an estimate by Friday the 20th.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 88480,
+    "end_ms": 94050,
+    "text": "The other thing we heard is that people want to skip the calendar step entirely and come back to it later.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 94050,
+    "end_ms": 96950,
+    "text": "Right now the checklist doesn't let you do that.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 97630,
+    "end_ms": 101990,
+    "text": "We should let them skip it. Forcing it is probably costing us activations.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 102720,
+    "end_ms": 108180,
+    "text": "Agreed. Decision. The calendar step becomes optional, with a reminder after three days.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 108480,
+    "end_ms": 110360,
+    "text": "Moira, will you update the design?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 111070,
+    "end_ms": 114400,
+    "text": "Will do. I'll share mock-ups in the design channel on Monday.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 115140,
+    "end_ms": 117320,
+    "text": "Great. Next topic. Pricing.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 117600,
+    "end_ms": 119620,
+    "text": "Karen, where are we on the experiment?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 120420,
+    "end_ms": 123430,
+    "text": "We've been running the annual discount test for three weeks.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 123770,
+    "end_ms": 132010,
+    "text": "The variant with 20% off annual plans is converting about 11% better than control, but average revenue per account is roughly flat.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 132670,
+    "end_ms": 137000,
+    "text": "So more people choose annual, but they pay less each, and it nets out?",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 137670,
+    "end_ms": 142190,
+    "text": "Exactly. The real benefit would be lower churn, but we won't know that for months.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 142880,
+    "end_ms": 143860,
+    "text": "What's your recommendation?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 144890,
+    "end_ms": 151110,
+    "text": "I'd keep the experiment running for another four weeks to reach significance on the retention proxy, then decide.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 151110,
+    "end_ms": 154250,
+    "text": "I don't want to roll it out based on conversion alone.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 154910,
+    "end_ms": 162090,
+    "text": "One risk. The sales team has started quoting the discount to enterprise prospects even though it's only meant for self-serve.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 162790,
+    "end_ms": 167940,
+    "text": "That's a problem. Karen, can you talk to the sales leads this week and clarify the policy?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 168710,
+    "end_ms": 170770,
+    "text": "Yes. I'll meet with them on Thursday.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 171490,
+    "end_ms": 177190,
+    "text": "Okay. Last item. Hiring. We have approval for two engineers and one designer in Q4.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 177190,
+    "end_ms": 179250,
+    "text": "Daniel, what are your priorities?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 180190,
+    "end_ms": 184260,
+    "text": "First hire should be a senior back-end engineer with infrastructure experience.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 184260,
+    "end_ms": 186940,
+    "text": "The second can be more of a generalist.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 186940,
+    "end_ms": 190700,
+    "text": "Honestly, the on-call load is the main pain point right now.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 191270,
+    "end_ms": 196840,
+    "text": "And for design, I'd really like someone who has done research before, not just visual design.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 196840,
+    "end_ms": 199280,
+    "text": "We're doing a lot more interviews now.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 199910,
+    "end_ms": 203070,
+    "text": "Makes sense. Let's open all three roles next week.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 203070,
+    "end_ms": 208780,
+    "text": "Open question for next time. Do we hire in Europe to get better time zone coverage for on-call?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 208780,
+    "end_ms": 211080,
+    "text": "I don't think we should decide that today.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 211750,
+    "end_ms": 215190,
+    "text": "Agreed. I'd want to talk to finance about the costs first.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 215870,
+    "end_ms": 220520,
+    "text": "All right. To recap, Daniel scopes the consent screen improvement by Friday.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 220520,
+    "end_ms": 222940,
+    "text": "Moira shares onboarding mock-ups Monday.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 222940,
+    "end_ms": 227740,
+    "text": "Karen talks to sales on Thursday and keeps the pricing test running for more weeks.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 227740,
+    "end_ms": 229980,
+    "text": "And we open three roles next week.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 230310,
+    "end_ms": 230990,
+    "text": "Thanks everyone.",
+    "speaker": "Me"
+  }
+]

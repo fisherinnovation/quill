@@ -6,3 +6,4 @@
 
 pub mod meeting;
 pub mod paths;
+pub mod summary;

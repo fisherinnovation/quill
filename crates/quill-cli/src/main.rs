@@ -4,8 +4,11 @@
 //! features can be exercised long before the Tauri app exists.
 
 mod bench;
+mod eval;
+mod keys;
 mod models;
 mod record;
+mod summarize;
 mod transcribe;
 
 use std::path::PathBuf;
@@ -42,6 +45,13 @@ enum Command {
     Bench(bench::Args),
     /// Record the microphone and system audio to WAV files
     Record(record::Args),
+    /// Summarize a transcript into meeting notes with an LLM
+    Summarize(summarize::Args),
+    /// Compare models' summaries: cost, latency and LLM-judged quality
+    Eval(eval::Args),
+    /// Store or remove LLM API keys in the OS keychain
+    #[command(subcommand)]
+    Keys(keys::Command),
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -62,6 +72,9 @@ fn main() -> anyhow::Result<()> {
         Command::Models(cmd) => models::run(cmd, &models_dir),
         Command::Bench(args) => bench::run(args, &models_dir),
         Command::Record(args) => record::run(args),
+        Command::Summarize(args) => summarize::run(args),
+        Command::Keys(cmd) => keys::run(cmd),
+        Command::Eval(args) => eval::run(args),
     }
 }
 

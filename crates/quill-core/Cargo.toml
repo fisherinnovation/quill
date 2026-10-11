@@ -7,10 +7,16 @@ publish.workspace = true
 
 [dependencies]
 directories.workspace = true
+futures.workspace = true
 quill-audio.workspace = true
+quill-llm.workspace = true
 quill-stt.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

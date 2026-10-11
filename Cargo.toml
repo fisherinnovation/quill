@@ -37,15 +37,36 @@ rtrb = "0.4"
 # instead of letting it print straight to stderr.
 whisper-rs = { version = "0.16", features = ["tracing_backend"] }
 # Blocking client for model downloads; rustls means no OpenSSL dependency.
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
 sha2 = "0.11"
 directories = "6"
 indicatif = "0.18"
 tempfile = "3"
+# Async runtime for LLM calls. The CLI stays synchronous and starts a runtime
+# only for commands that need one.
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+# `async fn` in a trait used as `dyn LlmProvider` needs boxing; this macro
+# writes that boilerplate (see quill-llm for details).
+async-trait = "0.1"
+futures = "0.3"
+# API keys live in the macOS Keychain / Windows Credential Manager.
+keyring = "4"
+# Read an API key from the terminal without echoing it.
+rpassword = "7"
+# Mock HTTP server for provider tests.
+wiremock = "0.6"
+# Dates and time zones (e.g. the local date in a summary title).
+jiff = "0.2"
+# SQLite, compiled in ("bundled") so there's no system library to install on
+# Windows; includes FTS5 for transcript search in M5.
+rusqlite = { version = "0.40", features = ["bundled"] }
+csv = "1"
 
 # Our own crates, so members depend on each other with `x.workspace = true`.
 quill-audio = { path = "crates/quill-audio" }
 quill-core = { path = "crates/quill-core" }
+quill-eval = { path = "crates/quill-eval" }
+quill-llm = { path = "crates/quill-llm" }
 quill-stt = { path = "crates/quill-stt" }
 
 # Lints shared by every crate (each opts in with `[lints] workspace = true`).

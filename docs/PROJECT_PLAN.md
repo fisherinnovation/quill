@@ -175,20 +175,20 @@ Each milestone ends with something runnable. Don't start the next until the acce
 **Accept:** Record a real Zoom/Meet/Teams call on both OSes; both tracks are clean, in sync and transcribable.
 
 ### M3 — Summarize via OpenRouter (CLI)
-- [ ] `quill-llm`: OpenRouter client (OpenAI-compatible chat completions), API key from `keyring`.
-- [ ] Capture token usage and cost per request (OpenRouter can return usage/cost accounting in the response — check current docs for the exact request option).
-- [ ] Provider privacy settings: prefer providers that don't collect or retain data (OpenRouter supports provider routing preferences — verify the current parameter names).
-- [ ] Ollama/LM Studio provider using the same trait.
-- [ ] Map-reduce summarization for long transcripts.
+- [x] `quill-llm`: OpenRouter client (OpenAI-compatible chat completions), API key from `keyring`. *(`quill-cli keys set openrouter`; the key is stored in the macOS Keychain or Windows Credential Manager. `QUILL_OPENROUTER_API_KEY` overrides it.)*
+- [x] Capture token usage and cost per request. *(As of 2026-10 OpenRouter always includes `usage`, with `usage.cost` in credits (USD). The old `usage: {include: true}` option is deprecated and has no effect.)*
+- [x] Provider privacy settings. *(Sent as `provider: {data_collection: "deny"}` by default; `--zdr` adds `zdr: true`, and `--allow-data-collection` turns the default off.)*
+- [x] Ollama provider using the same trait. *(LM Studio not yet. Ollama uses the native `/api/chat` endpoint with `num_ctx` 32k and `think: false`: its OpenAI-compatible endpoint can't set the context window, so input beyond the small default would be silently cut off.)*
+- [x] Map-reduce summarization for long transcripts. *(Single pass when the transcript fits the model's context minus 6k tokens; otherwise parts of ≤15k tokens, run in parallel on cloud models and one at a time locally, then a combining step.)*
 
 **Accept:** `quill-cli summarize transcript.json --model <id>` produces the template summary and prints its cost and latency.
 
 ### M4 — Evaluation harness (`quill-eval`)
-- [ ] Input: a folder of transcripts × a list of model IDs × prompt version(s).
-- [ ] Run all combinations concurrently (bounded with a semaphore); store outputs, tokens, cost and latency in SQLite plus a CSV export.
-- [ ] LLM-as-judge scoring (a strong model scores each summary 1–10 against a rubric: completeness, accuracy, action-item recall, hallucinations, formatting). Randomize order and hide model names from the judge.
-- [ ] Manual review mode: side-by-side markdown report for spot checks.
-- [ ] Output a leaderboard: quality score vs. cost per meeting-hour.
+- [x] Input: a folder of transcripts × a list of model IDs × prompt version(s). *(`quill-cli eval -m a,b,ollama:c [--prompts summary-v1,…]`; reads `eval/transcripts/*.json` and `private/*.json`.)*
+- [x] Run all combinations concurrently (bounded by `--concurrency`, using `buffer_unordered`); store outputs, tokens, cost and latency in SQLite (`eval/results/eval.sqlite`, appended on every run) plus a CSV export. A failed combination is recorded, not fatal.
+- [x] LLM-as-judge scoring against the rubric: completeness, accuracy, action items, faithfulness, formatting, overall (`prompts/judge-v1`). Per transcript, the judge sees all candidates at once under shuffled letter labels and no model names. Default judge: `anthropic/claude-opus-5.5`.
+- [x] Manual review mode: `review.md` shows each transcript's summaries side by side with scores and the judge's notes.
+- [x] Output a leaderboard: quality score vs. cost per meeting-hour (`leaderboard.md`, also printed).
 
 **Accept:** One command produces a ranked table that answers which model is best for the money. Choose the default model from this.
 
@@ -275,14 +275,14 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | M0 Foundations | ✅ Done | Workspace (6 lib crates + `quill-cli`), lint config and CI workflow; first CI run green on macOS + Windows (2026-10-11). Learning pass is ongoing alongside M1. |
 | M1 Transcribe file | 🟡 In progress | `quill-cli transcribe` / `models` / `bench` working on macOS with Metal (turbo ≈ 24× real time, see `eval/benchmarks.md`). Resampling pulled forward into `quill-audio`. Beam search is the default after greedy decoding sent large-v3 into a repetition loop. CI green on macOS + Windows (whisper.cpp builds with MSVC). Left: Windows benchmark. |
 | M2 Capture audio | 🟡 In progress | `record` / VAD / track merge working on macOS: real mic + system capture in sync, echo dropped in the merged transcript. Left: record a real Zoom/Meet/Teams call; Windows loopback test. |
-| M3 Summarize | ⬜ | |
-| M4 Eval harness | ⬜ | |
+| M3 Summarize | 🟡 In progress | `summarize` working end to end with Ollama (qwen3:8b, local, 34 s for a 4-min meeting). Prompts are in `prompts/summary-v1/`. Left: first OpenRouter run (needs a key). |
+| M4 Eval harness | 🟡 In progress | Harness complete and tested end to end with local models. Left: a cloud run with a strong judge (needs the OpenRouter key), more transcripts (real meetings in `private/`), then choose the default model. |
 | M5 Meeting MVP | ⬜ | |
 | M6 Dictation | ⬜ | |
 | M7 Distribution | ⬜ | |
 
 **Current focus:** M2 acceptance: record a real call on macOS, then test on Windows. Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
-**Open decisions:** project name; license; Svelte vs React; default summary model (decided by M4); whether `quill-eval` ships its own binary or a `quill-cli eval` subcommand (M4).
+**Open decisions:** project name; license; Svelte vs React; default summary model (decided by M4; `anthropic/claude-haiku-5.5` until then). 
 
 **Workspace notes (M0):**
 - Section 6 conventions are enforced as lints in the root `Cargo.toml`: `unsafe_code` is denied, and clippy's `unwrap_used`, `expect_used` and `undocumented_unsafe_blocks` are warnings, which CI's `-D warnings` turns into errors. `clippy.toml` allows unwrap/expect in tests; `main` setup must opt in with a local `#[allow]`.
@@ -303,3 +303,15 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - **On macOS, opening a device blocks with no timeout** while a privacy prompt waits for an answer, and fails with "Unknown property" if nobody answers. `record` prints a hint after 3 s. The real app must request permissions up front (M5 onboarding).
 - Tracks are saved at the device's native rate as 32-bit float WAV, plus a `recording.json` with each track's device name, lead-in, dropped samples and peak. A peak of exactly 0 is flagged as a likely missing permission.
 - The macOS system-audio tap delivers its first buffer only when something starts playing, then continues through silence (checked across a 4 s pause). The lead-in padding handles the late start. The shared start time is taken just before the streams start, so time spent on a permission prompt isn't recorded as silence.
+
+**Notes (M3):**
+- The default model until M4 is `anthropic/claude-haiku-5.5` ($0.10/M input, $0.50/M output tokens, 1M context), so a one-hour meeting costs well under a cent. `-m ollama:<model>` keeps everything local.
+- Prompts are compiled into the binary with `include_str!`, and rendering is strict: a placeholder without a value, or a value without a placeholder, is an error. A golden-file test covers the rendered single-pass prompt (`UPDATE_GOLDEN=1` regenerates it).
+- `transcribe <dir>` saves `transcript.json` into the recording folder; `summarize <dir>` then writes `summary.md` and `summary.json` (model, prompt version, tokens, cost, latency) next to it.
+- First local result (qwen3:8b on the synthetic meeting): accurate, and real names were inferred from context. It missed two decisions that appear in the TL;DR but not under "Decisions". That's a candidate for the M4 rubric and for summary-v2.
+
+**Notes (M4):**
+- Decided: the harness is the `quill-eval` library plus a `quill-cli eval` subcommand (one binary).
+- Rubric lesson: the first version had a "hallucinations" criterion where 10 meant *none*. The local judge read "0 hallucinations" and scored 0. Renamed to "faithfulness" so every criterion points the same way (10 = best).
+- Judge caveats: a judge that is also a candidate, or from the same family, may favour its own style. A small judge also misses subtle omissions (qwen3:8b gave itself 10/10 although its notes left two decisions out of "Decisions"). Use a strong judge from a different family than the leading candidates when choosing the default, and spot-check `review.md`.
+- One synthetic transcript isn't enough to choose a default model. Add real meetings to `eval/transcripts/private/` (from `quill-cli transcribe <recording dir>` → `transcript.json`).
