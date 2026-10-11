@@ -1,0 +1,30 @@
+Samantha|Okay, let's get started. Thanks everyone for joining the weekly product sync. We have three things on the agenda today: the onboarding redesign, the pricing experiment, and the Q4 hiring plan.
+Daniel|Sounds good. Before we dive in, quick update from engineering. The migration to the new database cluster finished on Tuesday night with about forty minutes of read-only time, which was inside the window we promised customers.
+Karen|That's great news. Did we see any errors after the cutover?
+Daniel|A handful of timeouts on the reporting service for the first hour, mostly from a cache that needed to warm up. Nothing customer facing since Wednesday morning.
+Samantha|Perfect. Let's move to onboarding. Moira, you've been running the user interviews. What are you hearing?
+Moira|So we talked to fourteen new customers over the last two weeks. The biggest theme is that the setup checklist feels too long. People get through the first three steps and then stall on connecting their calendar.
+Karen|Is that a permissions problem or a motivation problem?
+Moira|Mostly permissions. On Windows especially, the admin consent screen confuses people. Several of them thought something had gone wrong and closed the window.
+Daniel|We could detect when consent is pending and show a short explanation with a screenshot of what they should expect.
+Samantha|I like that. Let's make it an action item. Daniel, can your team scope that by next Friday?
+Daniel|Yes, I'll have an estimate by Friday the twentieth.
+Moira|The other thing we heard is that people want to skip the calendar step entirely and come back to it later. Right now the checklist doesn't let you do that.
+Karen|We should let them skip it. Forcing it is probably costing us activations.
+Samantha|Agreed. Decision: the calendar step becomes optional, with a reminder after three days. Moira, will you update the design?
+Moira|Will do. I'll share mockups in the design channel on Monday.
+Samantha|Great. Next topic, pricing. Karen, where are we on the experiment?
+Karen|We've been running the annual discount test for three weeks. The variant with twenty percent off annual plans is converting about eleven percent better than control, but average revenue per account is roughly flat.
+Daniel|So more people choose annual, but they pay less each, and it nets out?
+Karen|Exactly. The real benefit would be lower churn, but we won't know that for months.
+Samantha|What's your recommendation?
+Karen|I'd keep the experiment running for another four weeks to reach significance on the retention proxy, then decide. I don't want to roll it out based on conversion alone.
+Moira|One risk: the sales team has started quoting the discount to enterprise prospects even though it's only meant for self-serve.
+Samantha|That's a problem. Karen, can you talk to the sales leads this week and clarify the policy?
+Karen|Yes, I'll meet with them on Thursday.
+Samantha|Okay, last item, hiring. We have approval for two engineers and one designer in Q4. Daniel, what are your priorities?
+Daniel|First hire should be a senior backend engineer with infrastructure experience. The second can be more of a generalist. Honestly, the on-call load is the main pain point right now.
+Moira|And for design, I'd really like someone who has done research before, not just visual design. We're doing a lot more interviews now.
+Samantha|Makes sense. Let's open all three roles next week. Open question for next time: do we hire in Europe to get better time zone coverage for on-call? I don't think we should decide that today.
+Karen|Agreed, I'd want to talk to finance about the costs first.
+Samantha|Alright, to recap: Daniel scopes the consent screen improvement by Friday, Moira shares onboarding mockups Monday, Karen talks to sales on Thursday and keeps the pricing test running four more weeks, and we open three roles next week. Thanks everyone.

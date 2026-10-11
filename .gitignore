@@ -15,3 +15,6 @@ ggml-*.bin
 .DS_Store
 Thumbs.db
 .idea/
+
+# Generated benchmark audio (rebuild with eval/bench/make_bench_audio.sh)
+/eval/bench/*.wav

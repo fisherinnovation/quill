@@ -158,10 +158,10 @@ Each milestone ends with something runnable. Don't start the next until the acce
 **Accept:** `cargo build` and `cargo test` pass on both OSes in CI.
 
 ### M1 — Transcribe a file (CLI)
-- [ ] `quill-stt`: load a ggml Whisper model, transcribe a WAV file, print timestamped segments.
-- [ ] Model download helper (Hugging Face ggml models → app data dir, with checksum).
-- [ ] Feature flags: `metal` (macOS), `cuda` / `vulkan` (Windows), CPU fallback.
-- [ ] Benchmark tiny/base/small/turbo/large-v3 on your hardware; record the real-time factor in `eval/benchmarks.md`.
+- [x] `quill-stt`: load a ggml Whisper model, transcribe a WAV file, print timestamped segments.
+- [x] Model download helper (Hugging Face ggml models → app data dir, with checksum).
+- [x] Feature flags: Metal is always on for macOS builds (target-specific dependency, `--cpu` to compare); `cuda` / `vulkan` opt-in features (not yet tested on Windows); CPU fallback.
+- [x] Benchmark tiny/base/small/turbo/large-v3 on your hardware; record the real-time factor in `eval/benchmarks.md`. *(Mac done; Windows pending.)*
 
 **Accept:** `quill-cli transcribe meeting.wav --model turbo` produces an accurate timestamped transcript.
 
@@ -272,7 +272,7 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | Milestone | Status | Notes |
 |---|---|---|
 | M0 Foundations | ✅ Done | Workspace (6 lib crates + `quill-cli`), lint config and CI workflow; first CI run green on macOS + Windows (2026-10-11). Learning pass is ongoing alongside M1. |
-| M1 Transcribe file | ⬜ | |
+| M1 Transcribe file | 🟡 In progress | `quill-cli transcribe` / `models` / `bench` working on macOS with Metal (turbo ≈ 24× real time, see `eval/benchmarks.md`). Resampling pulled forward into `quill-audio`. Beam search is the default after greedy decoding sent large-v3 into a repetition loop. CI green on macOS + Windows (whisper.cpp builds with MSVC). Left: Windows benchmark. |
 | M2 Capture audio | ⬜ | |
 | M3 Summarize | ⬜ | |
 | M4 Eval harness | ⬜ | |
@@ -280,10 +280,16 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | M6 Dictation | ⬜ | |
 | M7 Distribution | ⬜ | |
 
-**Current focus:** M1 (primary dev machine moving to the MacBook; Windows for platform testing)
-**Open decisions:** project name; license; Svelte vs React; default summary model (decided by M4); whether `quill-eval` ships its own binary or a `quill-cli eval` subcommand (M4); whether M1 pulls WAV resampling forward from M2.
+**Current focus:** M2 (M1 only needs the Windows benchmark, which must be run on the Windows machine). Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
+**Open decisions:** project name; license; Svelte vs React; default summary model (decided by M4); whether `quill-eval` ships its own binary or a `quill-cli eval` subcommand (M4).
 
 **Workspace notes (M0):**
 - Section 6 conventions are enforced as lints in the root `Cargo.toml`: `unsafe_code` is denied, and clippy's `unwrap_used`, `expect_used` and `undocumented_unsafe_blocks` are warnings, which CI's `-D warnings` turns into errors. `clippy.toml` allows unwrap/expect in tests; `main` setup must opt in with a local `#[allow]`.
 - `.gitattributes` forces LF line endings so golden-file tests compare the same on Windows.
 - Windows needs Visual Studio 2022 Build Tools (C++ workload) for the MSVC linker.
+
+**Notes (M1):**
+- The default transcription model is `turbo` (large-v3-turbo). `turbo-q5` is just as fast on Metal at a third of the download size, so it's a candidate for dictation, where the model stays in memory.
+- The ggml Metal backend compiles its shaders the first time a model loads after a build (~6 s). macOS caches the result, and later loads take under 1 s.
+- whisper.cpp has built-in Silero VAD (`FullParams::enable_vad`, using a ggml VAD model). For M2, compare it with a separate VAD crate before adding one.
+- Building whisper.cpp needs CMake and a C++ compiler. On macOS: `brew install cmake` plus the Xcode Command Line Tools (full Xcode isn't needed, because the Metal shaders are embedded). On Windows, the VS 2022 Build Tools C++ workload includes CMake.

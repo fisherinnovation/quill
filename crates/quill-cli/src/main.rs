@@ -3,7 +3,14 @@
 //! Each milestone adds a subcommand here (M1 `transcribe`, M3 `summarize`) so
 //! features can be exercised long before the Tauri app exists.
 
-use clap::Parser;
+mod bench;
+mod models;
+mod transcribe;
+
+use std::path::PathBuf;
+
+use anyhow::Context;
+use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
 /// Local-first meeting notes and dictation.
@@ -13,7 +20,26 @@ use tracing_subscriber::EnvFilter;
 // becomes the `--help` text.
 #[derive(Debug, Parser)]
 #[command(name = "quill-cli", version)]
-struct Cli {}
+struct Cli {
+    /// Directory holding Whisper models [default: the app data dir]
+    #[arg(long, global = true, env = "QUILL_MODELS_DIR")]
+    models_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: Command,
+}
+
+// Each enum variant is a subcommand; its fields are that subcommand's args.
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Transcribe a WAV file and print timestamped segments
+    Transcribe(transcribe::Args),
+    /// List, download or locate Whisper models
+    #[command(subcommand)]
+    Models(models::Command),
+    /// Measure transcription speed of several models on one file
+    Bench(bench::Args),
+}
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
 // if an error reaches here it is printed with its chain of causes and the
@@ -21,16 +47,27 @@ struct Cli {}
 // instead; `anyhow` is only for app edges like this one.)
 fn main() -> anyhow::Result<()> {
     init_tracing();
-    let _cli = Cli::parse();
+    let cli = Cli::parse();
 
-    tracing::info!("no subcommands yet: `transcribe` arrives in M1, `summarize` in M3");
-    Ok(())
+    let models_dir = match cli.models_dir {
+        Some(dir) => dir,
+        None => quill_core::paths::models_dir().context("could not find a home directory")?,
+    };
+
+    match cli.command {
+        Command::Transcribe(args) => transcribe::run(args, &models_dir),
+        Command::Models(cmd) => models::run(cmd, &models_dir),
+        Command::Bench(args) => bench::run(args, &models_dir),
+    }
 }
 
 /// Sends log output to stderr, keeping stdout clean for command output.
-/// The level comes from `RUST_LOG` (e.g. `RUST_LOG=debug`), defaulting to info.
+/// The level comes from `RUST_LOG` (e.g. `RUST_LOG=debug`), defaulting to info
+/// for our code and errors only for whisper.cpp, which is very chatty (even
+/// its warnings are mostly informational, like which Metal features it found).
 fn init_tracing() {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,whisper_rs=error"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)

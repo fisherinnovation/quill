@@ -6,6 +6,29 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+whisper-rs.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# On macOS, always build whisper.cpp with Metal (Apple GPU). A dependency listed
+# again under a target table merges its features with the entry above, so this
+# adds `metal` only when compiling for macOS. `--cpu` on the CLI still lets you
+# compare against CPU-only at runtime.
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { workspace = true, features = ["metal"] }
+
+# GPU backends for Windows/Linux are opt-in because they need an SDK installed
+# (CUDA Toolkit or Vulkan SDK). Example: `cargo build -p quill-cli --features cuda`.
+[features]
+cuda = ["whisper-rs/cuda"]
+vulkan = ["whisper-rs/vulkan"]
+
+[dev-dependencies]
+quill-audio.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true
