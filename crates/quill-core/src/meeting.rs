@@ -4,6 +4,9 @@
 //! so that sample 0 is the same moment in both. Transcribing each track and
 //! interleaving the segments by time gives reliable speaker labels without
 //! any diarization model.
+//!
+//! Once transcribed, [`compact_recording`] replaces the WAVs with 16 kHz FLAC
+//! (`mic.flac`, `system.flac`); everything here reads either.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -11,15 +14,19 @@ use std::path::{Path, PathBuf};
 use quill_audio::capture::{Source, TrackSummary};
 use quill_stt::{Segment, SttError, TranscribeOptions, Transcriber};
 
+/// What the recorder writes.
 pub const MIC_FILE: &str = "mic.wav";
 pub const SYSTEM_FILE: &str = "system.wav";
+/// What [`compact_recording`] keeps.
+pub const MIC_FLAC: &str = "mic.flac";
+pub const SYSTEM_FLAC: &str = "system.flac";
 pub const ME: &str = "Me";
 pub const OTHERS: &str = "Others";
 
 /// Errors from processing a meeting recording.
 #[derive(Debug, thiserror::Error)]
 pub enum MeetingError {
-    #[error("no {MIC_FILE} or {SYSTEM_FILE} in {0}")]
+    #[error("no mic or system audio in {0}")]
     NoTracks(PathBuf),
     #[error("could not read {path}")]
     Audio {
@@ -70,8 +77,8 @@ pub fn transcribe_recording(
     opts: &TranscribeOptions,
     echo_cancellation: bool,
 ) -> Result<Vec<Segment>, MeetingError> {
-    let mut mic = load_track(&dir.join(MIC_FILE))?;
-    let system = load_track(&dir.join(SYSTEM_FILE))?;
+    let mut mic = load_track(track_path(dir, MIC_FLAC, MIC_FILE).as_deref())?;
+    let system = load_track(track_path(dir, SYSTEM_FLAC, SYSTEM_FILE).as_deref())?;
     if mic.is_none() && system.is_none() {
         return Err(MeetingError::NoTracks(dir.to_path_buf()));
     }
@@ -101,16 +108,87 @@ pub fn transcribe_recording(
 }
 
 /// 16 kHz mono samples of a track, or `None` if the file doesn't exist.
-fn load_track(path: &Path) -> Result<Option<Vec<f32>>, MeetingError> {
-    if !path.is_file() {
+/// The stored track: the FLAC if compacted (it's only renamed into place once
+/// complete), else the WAV, else `None`.
+fn track_path(dir: &Path, flac: &str, wav: &str) -> Option<PathBuf> {
+    [flac, wav]
+        .into_iter()
+        .map(|name| dir.join(name))
+        .find(|path| path.is_file())
+}
+
+/// Whether a recording folder has any audio.
+pub fn has_audio(dir: &Path) -> bool {
+    track_path(dir, MIC_FLAC, MIC_FILE).is_some()
+        || track_path(dir, SYSTEM_FLAC, SYSTEM_FILE).is_some()
+}
+
+/// Whether a recording folder still has uncompacted WAVs.
+pub fn has_wav(dir: &Path) -> bool {
+    dir.join(MIC_FILE).is_file() || dir.join(SYSTEM_FILE).is_file()
+}
+
+fn load_track(path: Option<&Path>) -> Result<Option<Vec<f32>>, MeetingError> {
+    let Some(path) = path else {
         return Ok(None);
-    }
+    };
     quill_audio::load_for_stt(path)
         .map(Some)
         .map_err(|source| MeetingError::Audio {
             path: path.to_path_buf(),
             source,
         })
+}
+
+/// Space saved by [`compact_recording`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Compacted {
+    pub tracks: usize,
+    pub bytes_before: u64,
+    pub bytes_after: u64,
+}
+
+/// Replaces a recording's WAVs with 16 kHz mono FLAC, the audio the
+/// pipeline actually uses (see `quill_audio::write_flac`). A WAV is deleted
+/// only after its FLAC has been written and read back with the same length.
+/// Folders already compacted are left alone. Don't run it on a recording in
+/// progress.
+pub fn compact_recording(dir: &Path) -> Result<Compacted, MeetingError> {
+    let mut done = Compacted::default();
+    for (wav, flac) in [(MIC_FILE, MIC_FLAC), (SYSTEM_FILE, SYSTEM_FLAC)] {
+        let (wav, flac) = (dir.join(wav), dir.join(flac));
+        if !wav.is_file() {
+            continue;
+        }
+        let audio_error = |path: &Path| {
+            let path = path.to_path_buf();
+            move |source| MeetingError::Audio { path, source }
+        };
+        if !flac.is_file() {
+            let pcm = quill_audio::load_for_stt(&wav).map_err(audio_error(&wav))?;
+            quill_audio::write_flac(&flac, &pcm, quill_audio::STT_SAMPLE_RATE)
+                .map_err(audio_error(&flac))?;
+            let check = quill_audio::read_flac(&flac).map_err(audio_error(&flac))?;
+            if check.samples.len() != pcm.len() {
+                let _ = std::fs::remove_file(&flac);
+                return Err(MeetingError::Audio {
+                    path: flac,
+                    source: quill_audio::AudioError::Flac(
+                        "read back a different length than was written".into(),
+                    ),
+                });
+            }
+        }
+        let size = |path: &Path| std::fs::metadata(path).map_or(0, |m| m.len());
+        done.bytes_before += size(&wav);
+        done.bytes_after += size(&flac);
+        done.tracks += 1;
+        std::fs::remove_file(&wav).map_err(|e| MeetingError::Audio {
+            path: wav.clone(),
+            source: e.into(),
+        })?;
+    }
+    Ok(done)
 }
 
 /// Labels and interleaves the two tracks, dropping echo.
@@ -235,6 +313,40 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn compaction_replaces_wavs_with_flac_that_reads_the_same() {
+        let dir = tempfile::tempdir().unwrap();
+        // A 48 kHz stereo float WAV, like the system-audio capture.
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut writer = hound::WavWriter::create(dir.path().join(SYSTEM_FILE), spec).unwrap();
+        for i in 0..48_000 {
+            let s = (i as f32 * 0.03).sin() * 0.2;
+            writer.write_sample(s).unwrap();
+            writer.write_sample(s).unwrap();
+        }
+        writer.finalize().unwrap();
+        let before = quill_audio::load_for_stt(&dir.path().join(SYSTEM_FILE)).unwrap();
+
+        let done = compact_recording(dir.path()).unwrap();
+
+        assert_eq!(done.tracks, 1);
+        assert!(done.bytes_after * 10 < done.bytes_before, "{done:?}");
+        assert!(!dir.path().join(SYSTEM_FILE).exists());
+        assert!(has_audio(dir.path()));
+        let after = load_track(track_path(dir.path(), SYSTEM_FLAC, SYSTEM_FILE).as_deref())
+            .unwrap()
+            .unwrap();
+        assert_eq!(after.len(), before.len());
+        assert!(before.iter().zip(&after).all(|(a, b)| (a - b).abs() < 1e-4));
+        // Running it again finds nothing to do.
+        assert_eq!(compact_recording(dir.path()).unwrap().tracks, 0);
     }
 
     #[test]

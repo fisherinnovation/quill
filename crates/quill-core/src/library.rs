@@ -1,6 +1,7 @@
 //! The meeting library: every recording, its transcript and its summaries.
 //!
-//! Audio stays on disk in `<recordings dir>/<id>/` (mic.wav, system.wav);
+//! Audio stays on disk in `<recordings dir>/<id>/` (mic/system .wav while
+//! recording, .flac once transcribed);
 //! the recordings folder defaults to `<data dir>/recordings` and can be moved
 //! (see [`Library::move_recordings`]). Everything you browse or search lives in SQLite
 //! (`<data dir>/quill.sqlite`), with an FTS5 full-text index over transcript
@@ -70,6 +71,31 @@ CREATE TABLE dictations (
     latency_ms   INTEGER NOT NULL,         -- key release to text typed
     pasted       INTEGER NOT NULL          -- 0: left on the clipboard
 );
+",
+    "
+-- Per-dictation numbers for the Insights page: counts only, never text, so
+-- they're kept even when history is off or cleared.
+CREATE TABLE dictation_stats (
+    id         INTEGER PRIMARY KEY,
+    created_at TEXT NOT NULL,              -- RFC 3339
+    words      INTEGER NOT NULL,
+    audio_ms   INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    polished   INTEGER NOT NULL,
+    pasted     INTEGER NOT NULL
+);
+-- Count what's already in the history (words approximated by spaces).
+INSERT INTO dictation_stats (created_at, words, audio_ms, latency_ms, polished, pasted)
+SELECT created_at,
+       LENGTH(TRIM(text)) - LENGTH(REPLACE(TRIM(text), ' ', '')) + 1,
+       audio_ms, latency_ms, polish_model IS NOT NULL, pasted
+FROM dictations;
+",
+    "
+-- The app dictated into (M6): id (bundle id / executable) and display name.
+ALTER TABLE dictation_stats ADD COLUMN app_id TEXT;
+ALTER TABLE dictation_stats ADD COLUMN app TEXT;
+ALTER TABLE dictations ADD COLUMN app TEXT;
 ",
 ];
 
@@ -144,6 +170,31 @@ pub struct DictationEntry {
     pub latency_ms: u64,
     /// False if it was left on the clipboard instead (no permission to paste).
     pub pasted: bool,
+    /// The app it was typed into, e.g. "Slack".
+    pub app: Option<String>,
+}
+
+/// One dictation's numbers, kept for insights (no text).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DictationStat {
+    pub created_at: String,
+    pub words: u64,
+    pub audio_ms: u64,
+    pub latency_ms: u64,
+    pub polished: bool,
+    pub pasted: bool,
+    /// The app dictated into: identifier and display name.
+    pub app_id: Option<String>,
+    pub app: Option<String>,
+}
+
+/// How much was dictated into one app.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct AppUsage {
+    pub app_id: String,
+    pub name: String,
+    pub dictations: u64,
+    pub words: u64,
 }
 
 /// Dictation history entries kept; older ones are deleted as new ones arrive.
@@ -469,8 +520,8 @@ impl Library {
         let raw = entry.raw.as_deref().filter(|raw| *raw != entry.text);
         let conn = self.conn();
         conn.execute(
-            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 created_at,
                 entry.text,
@@ -479,6 +530,7 @@ impl Library {
                 i64::try_from(entry.audio_ms).unwrap_or(i64::MAX),
                 i64::try_from(entry.latency_ms).unwrap_or(i64::MAX),
                 entry.pasted,
+                entry.app,
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -498,7 +550,7 @@ impl Library {
     pub fn dictations(&self, limit: usize) -> Result<Vec<DictationEntry>, LibraryError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted
+            "SELECT id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app
              FROM dictations ORDER BY id DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map([i64::try_from(limit).unwrap_or(i64::MAX)], |r| {
@@ -511,6 +563,7 @@ impl Library {
                 audio_ms: u64::try_from(r.get::<_, i64>(5)?).unwrap_or(0),
                 latency_ms: u64::try_from(r.get::<_, i64>(6)?).unwrap_or(0),
                 pasted: r.get(7)?,
+                app: r.get(8)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -525,6 +578,102 @@ impl Library {
     pub fn clear_dictations(&self) -> Result<(), LibraryError> {
         self.conn().execute("DELETE FROM dictations", [])?;
         Ok(())
+    }
+
+    /// Records a dictation's numbers (not its text) for insights.
+    pub fn record_dictation_stats(&self, stat: &DictationStat) -> Result<(), LibraryError> {
+        self.conn().execute(
+            "INSERT INTO dictation_stats
+                 (created_at, words, audio_ms, latency_ms, polished, pasted, app_id, app)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                stat.created_at,
+                i64::try_from(stat.words).unwrap_or(i64::MAX),
+                i64::try_from(stat.audio_ms).unwrap_or(i64::MAX),
+                i64::try_from(stat.latency_ms).unwrap_or(i64::MAX),
+                stat.polished,
+                stat.pasted,
+                stat.app_id,
+                stat.app,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Apps dictated into, most words first. The name is the latest one
+    /// seen for the app.
+    pub fn dictation_apps(&self) -> Result<Vec<AppUsage>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT app_id,
+                    (SELECT app FROM dictation_stats l
+                     WHERE l.app_id = s.app_id ORDER BY id DESC LIMIT 1),
+                    COUNT(*), SUM(words)
+             FROM dictation_stats s WHERE app_id IS NOT NULL
+             GROUP BY app_id ORDER BY SUM(words) DESC, COUNT(*) DESC",
+        )?;
+        let to_u64 = |v: i64| u64::try_from(v).unwrap_or(0);
+        let rows = stmt.query_map([], |r| {
+            let app_id: String = r.get(0)?;
+            let name: Option<String> = r.get(1)?;
+            Ok(AppUsage {
+                name: name.unwrap_or_else(|| app_id.clone()),
+                app_id,
+                dictations: to_u64(r.get(2)?),
+                words: to_u64(r.get(3)?),
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn dictation_stats(&self) -> Result<Vec<DictationStat>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT created_at, words, audio_ms, latency_ms, polished, pasted, app_id, app
+             FROM dictation_stats ORDER BY id",
+        )?;
+        let to_u64 = |v: i64| u64::try_from(v).unwrap_or(0);
+        let rows = stmt.query_map([], |r| {
+            Ok(DictationStat {
+                created_at: r.get(0)?,
+                words: to_u64(r.get(1)?),
+                audio_ms: to_u64(r.get(2)?),
+                latency_ms: to_u64(r.get(3)?),
+                polished: r.get(4)?,
+                pasted: r.get(5)?,
+                app_id: r.get(6)?,
+                app: r.get(7)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn clear_dictation_stats(&self) -> Result<(), LibraryError> {
+        self.conn().execute("DELETE FROM dictation_stats", [])?;
+        Ok(())
+    }
+
+    /// Approximate words spoken per speaker label across all transcripts.
+    pub fn words_by_speaker(&self) -> Result<Vec<(Option<String>, u64)>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT speaker,
+                    SUM(LENGTH(TRIM(text)) - LENGTH(REPLACE(TRIM(text), ' ', '')) + 1)
+             FROM segments WHERE TRIM(text) != '' GROUP BY speaker",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get(0)?, u64::try_from(r.get::<_, i64>(1)?).unwrap_or(0)))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Summaries written and their total cost in USD (where known).
+    pub fn summary_costs(&self) -> Result<(u64, f64), LibraryError> {
+        Ok(self.conn().query_row(
+            "SELECT COUNT(*), COALESCE(SUM(cost_usd), 0.0) FROM summaries",
+            [],
+            |r| Ok((u64::try_from(r.get::<_, i64>(0)?).unwrap_or(0), r.get(1)?)),
+        )?)
     }
 
     /// Full-text search over transcripts. Every word must match; the last
@@ -910,6 +1059,7 @@ mod tests {
             audio_ms: 3000,
             latency_ms: 300,
             pasted: true,
+            app: Some("Slack".into()),
         };
         let first = lib.add_dictation(&entry("Same.", "Same.")).unwrap();
         assert_eq!(first.raw, None);

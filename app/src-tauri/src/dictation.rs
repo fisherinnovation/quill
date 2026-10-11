@@ -22,14 +22,14 @@ use quill_audio::STT_SAMPLE_RATE;
 use quill_audio::cue::{self, Cue};
 use quill_audio::live::MicStream;
 use quill_core::dictation;
-use quill_core::library::DictationEntry;
-use quill_core::settings::DictationSettings;
+use quill_core::library::{DictationEntry, DictationStat};
+use quill_core::settings::{DictationSettings, Style};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 use crate::commands::{CommandError, CommandResult, blocking, lock};
-use crate::{AppState, pipeline, tray};
+use crate::{AppState, indicator, pipeline, tray};
 
 pub const STATE_EVENT: &str = "dictation-state";
 pub const ENTRY_EVENT: &str = "dictation-entry";
@@ -153,6 +153,7 @@ impl Shared {
 fn notify(app: &AppHandle, shared: &Shared) {
     let state = shared.state();
     tray::set_dictation(app, state.phase);
+    indicator::update(app, state.phase);
     let _ = app.emit(STATE_EVENT, state);
 }
 
@@ -172,6 +173,8 @@ struct Listening {
     since: Instant,
     /// Started by a tap: keeps listening after the key is released.
     toggled: bool,
+    /// The app in front when dictation started: where the text will go.
+    app: Option<quill_insert::FrontApp>,
 }
 
 impl Controller {
@@ -187,7 +190,13 @@ impl Controller {
 
     fn run(mut self, rx: &mpsc::Receiver<Msg>) {
         loop {
-            match rx.recv_timeout(Duration::from_millis(250)) {
+            // While listening, wake often to feed the indicator's meter.
+            let tick = if self.listening.is_some() {
+                Duration::from_millis(50)
+            } else {
+                Duration::from_millis(250)
+            };
+            match rx.recv_timeout(tick) {
                 Ok(Msg::Pressed) => match &self.listening {
                     None => self.start(),
                     Some(l) if l.toggled => self.stop(),
@@ -211,7 +220,11 @@ impl Controller {
                 }
                 Err(RecvTimeoutError::Timeout) => match &self.listening {
                     Some(l) if l.since.elapsed() >= MAX_LISTEN => self.stop(),
-                    Some(_) => {}
+                    Some(_) => {
+                        if let Some(mic) = &self.mic {
+                            indicator::level(&self.app, mic.level());
+                        }
+                    }
                     None if self.last_used.elapsed() >= KEEP_WARM => self.mic = None,
                     None => {}
                 },
@@ -267,6 +280,7 @@ impl Controller {
         self.listening = Some(Listening {
             since: Instant::now(),
             toggled: false,
+            app: quill_insert::frontmost_app(),
         });
         self.shared.listening.store(true, Ordering::SeqCst);
         // Esc cancels, but only while listening: a global Esc would steal it
@@ -303,9 +317,10 @@ impl Controller {
         notify(&self.app, &self.shared);
         let app = self.app.clone();
         let shared = Arc::clone(&self.shared);
+        let target = listening.app;
         tauri::async_runtime::spawn(async move {
             let stopped = Instant::now();
-            let result = process(&app, pcm, audio, stopped).await;
+            let result = process(&app, pcm, audio, stopped, target).await;
             shared.pending.fetch_sub(1, Ordering::SeqCst);
             if let Err(e) = result {
                 tracing::error!("dictation failed: {e}");
@@ -363,6 +378,7 @@ async fn process(
     pcm: Vec<f32>,
     audio: Duration,
     stopped: Instant,
+    target: Option<quill_insert::FrontApp>,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
     let settings = lock(&state.settings).clone();
@@ -384,6 +400,13 @@ async fn process(
         return Ok(());
     }
 
+    let style = target.as_ref().map_or(Style::Default, |app| {
+        dictation::style_for(&app.id, &settings.dictation)
+    });
+    let destination = target.as_ref().map(|app| dictation::Destination {
+        app: &app.name,
+        style,
+    });
     let mut text = raw.clone();
     let mut polish_model = None;
     if settings.dictation.polish && dictation::needs_polish(&raw) {
@@ -395,6 +418,7 @@ async fn process(
                     &quill_llm::prompts::DICTATION,
                     &raw,
                     &settings.dictation,
+                    destination,
                 )
                 .await
                 .map_err(|e| e.to_string()),
@@ -411,6 +435,7 @@ async fn process(
             Err(e) => tracing::warn!("polish failed; typing the transcript: {e}"),
         }
     }
+    let text = dictation::apply_style(&text, style);
 
     let (inserted, latency) = {
         let app = app.clone();
@@ -452,7 +477,23 @@ async fn process(
         audio_ms: u64::try_from(audio.as_millis()).unwrap_or(u64::MAX),
         latency_ms,
         pasted,
+        app: target.as_ref().map(|a| a.name.clone()),
     };
+    // Numbers only (no text), for the Insights page, whatever the history
+    // setting.
+    let stat = DictationStat {
+        created_at: jiff::Timestamp::now().to_string(),
+        words: u64::try_from(entry.text.split_whitespace().count()).unwrap_or(u64::MAX),
+        audio_ms: entry.audio_ms,
+        latency_ms,
+        polished: entry.polish_model.is_some(),
+        pasted,
+        app_id: target.as_ref().map(|a| a.id.clone()),
+        app: target.as_ref().map(|a| a.name.clone()),
+    };
+    if let Err(e) = state.library.record_dictation_stats(&stat) {
+        tracing::warn!("couldn't record dictation stats: {e}");
+    }
     if settings.dictation.keep_history {
         match state.library.add_dictation(&entry) {
             Ok(saved) => {
@@ -543,6 +584,50 @@ pub async fn request_paste_permission() -> CommandResult<bool> {
         Ok(allowed)
     })
     .await
+}
+
+/// An app dictated into, with the style in effect there.
+#[derive(Debug, Clone, Serialize)]
+pub struct AppStyleInfo {
+    pub app_id: String,
+    pub name: String,
+    pub style: Style,
+    /// The style Quill would use without a choice from the user.
+    pub built_in: Style,
+    pub words: u64,
+}
+
+/// Apps dictated into (most used first), plus any with a chosen style.
+#[tauri::command]
+pub fn dictation_apps(state: tauri::State<'_, AppState>) -> CommandResult<Vec<AppStyleInfo>> {
+    let settings = lock(&state.settings).dictation.clone();
+    let mut apps: Vec<AppStyleInfo> = state
+        .library
+        .dictation_apps()?
+        .into_iter()
+        .map(|a| AppStyleInfo {
+            style: dictation::style_for(&a.app_id, &settings),
+            built_in: dictation::built_in_style(&a.app_id.to_lowercase()),
+            app_id: a.app_id,
+            name: a.name,
+            words: a.words,
+        })
+        .collect();
+    for chosen in &settings.app_styles {
+        if !apps
+            .iter()
+            .any(|a| a.app_id.eq_ignore_ascii_case(&chosen.app_id))
+        {
+            apps.push(AppStyleInfo {
+                app_id: chosen.app_id.clone(),
+                name: chosen.name.clone(),
+                style: chosen.style,
+                built_in: dictation::built_in_style(&chosen.app_id.to_lowercase()),
+                words: 0,
+            });
+        }
+    }
+    Ok(apps)
 }
 
 /// The language dictation uses when none is set, e.g. "en".

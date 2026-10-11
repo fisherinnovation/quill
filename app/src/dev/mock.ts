@@ -3,7 +3,8 @@
 // main.tsx loads this only in dev builds and only outside Tauri.
 //
 // URL flags pick a state: ?onboarding, ?recording, ?listening, ?processing,
-// ?failed, ?nopaste, ?empty, and ?light to force the light theme.
+// ?failed, ?nopaste, ?empty, ?light to force the light theme, and ?indicator
+// for the dictation pill (with ?listening or ?processing).
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
@@ -85,13 +86,14 @@ const settings = {
     vocabulary: ["Quill", "OpenRouter", "Priya"],
     replacements: [{ from: "open router", to: "OpenRouter" }],
     keep_history: true,
+    app_styles: [],
   },
 };
 
 const dictations = [
-  { id: 3, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true },
-  { id: 2, created_at: iso(40 * 60_000), text: "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", raw: "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 9100, latency_ms: 980, pasted: true },
-  { id: 1, created_at: iso(3 * H), text: "Let's meet at 4 p.m. on Thursday in the big conference room.", raw: "Let's meet at 3, no wait, 4 p.m. on Thursday in the big conference room.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 6100, latency_ms: 940, pasted: false },
+  { id: 3, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true, app: "Slack" },
+  { id: 2, created_at: iso(40 * 60_000), text: "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", raw: "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 9100, latency_ms: 980, pasted: true, app: "Notion" },
+  { id: 1, created_at: iso(3 * H), text: "Let's meet at 4 p.m. on Thursday in the big conference room.", raw: "Let's meet at 3, no wait, 4 p.m. on Thursday in the big conference room.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 6100, latency_ms: 940, pasted: false, app: "Mail" },
 ];
 
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
@@ -138,12 +140,51 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_dictations: () => dictations,
   paste_permission: () => !flags.has("nopaste"),
   system_language: () => "en",
+  dictation_apps: () => [
+    { app_id: "com.tinyspeck.slackmacgap", name: "Slack", style: "casual", built_in: "casual", words: 5_210 },
+    { app_id: "com.apple.mail", name: "Mail", style: "formal", built_in: "formal", words: 3_380 },
+    { app_id: "com.microsoft.vscode", name: "Code", style: "technical", built_in: "technical", words: 2_140 },
+    { app_id: "com.google.chrome", name: "Google Chrome", style: "default", built_in: "default", words: 1_250 },
+  ],
   export_summary: () => "/Users/you/Documents/2026-10-11 Product sync.md",
+  get_insights: () => {
+    // Weekdays busier than weekends, a few quiet days.
+    const days = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date(now - (29 - i) * D);
+      const weekend = date.getDay() === 0 || date.getDay() === 6;
+      const busy = weekend ? 0.15 : 0.6 + 0.4 * Math.sin(i * 1.3) ** 2;
+      const words = i % 9 === 4 ? 0 : Math.round(busy * 900);
+      return {
+        date: date.toISOString().slice(0, 10),
+        words,
+        dictations: Math.round(words / 28),
+        meeting_ms: weekend ? 0 : Math.round(busy * 3) * 30 * 60_000,
+      };
+    });
+    const hours = Array.from({ length: 24 }, (_, h) =>
+      h < 8 || h > 19 ? (h === 21 ? 3 : 0) : Math.round(14 * Math.exp(-((h - 10.5) ** 2) / 6) + 9 * Math.exp(-((h - 15) ** 2) / 4)),
+    );
+    return {
+      dictation: { count: 412, words: 12_480, words_last_7_days: 2_904, speaking_wpm: 151, minutes_saved: 229, median_latency_ms: 430, polished_share: 0.27 },
+      meetings: { count: 38, total_ms: 27.5 * H, count_last_7_days: 7, ms_last_7_days: 5.2 * H, average_ms: 43 * 60_000, my_talk_share: 0.36, summaries: 41, summary_cost_usd: 0.031 },
+      streak_days: 6,
+      days,
+      hours,
+      typing_wpm: 40,
+      apps: [
+        { app_id: "com.tinyspeck.slackmacgap", name: "Slack", dictations: 188, words: 5_210 },
+        { app_id: "com.apple.mail", name: "Mail", dictations: 61, words: 3_380 },
+        { app_id: "com.microsoft.vscode", name: "Code", dictations: 97, words: 2_140 },
+        { app_id: "com.google.chrome", name: "Google Chrome", dictations: 44, words: 1_250 },
+        { app_id: "notion.id", name: "Notion", dictations: 22, words: 500 },
+      ],
+    };
+  },
 };
 
 export function installMocks() {
   if (flags.has("light")) document.documentElement.dataset.theme = "light";
-  mockWindows("main");
+  mockWindows(flags.has("indicator") ? "indicator" : "main");
   mockIPC(
     (cmd, args) => {
       const handler = handlers[cmd];
@@ -157,4 +198,12 @@ export function installMocks() {
   );
   // Let the console drive live states, e.g. mockEmit("dictation-state", {phase: "listening", error: null}).
   (window as unknown as { mockEmit: typeof emit }).mockEmit = emit;
+  if (flags.has("indicator") && phase === "listening") {
+    // A talking-like level: bursts with pauses.
+    setInterval(() => {
+      const t = Date.now() / 1000;
+      const speaking = Math.sin(t * 1.7) > -0.3;
+      void emit("dictation-level", speaking ? 0.05 + Math.random() * 0.4 : 0.004);
+    }, 50);
+  }
 }

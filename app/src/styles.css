@@ -1626,3 +1626,369 @@ button.hotkey.capturing {
 :root[data-theme="light"] {
   color-scheme: light;
 }
+
+/* ==========================================================================
+   Dictation indicator (its own transparent window; see Indicator.tsx)
+   ========================================================================== */
+html.indicator-window,
+html.indicator-window body,
+html.indicator-window #root {
+  background: transparent;
+}
+
+.indicator-stage {
+  height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 16px 0 14px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgb(22 22 28 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  box-shadow:
+    0 6px 16px rgb(0 0 0 / 0.3),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  animation: pop 0.16s cubic-bezier(0.3, 0.7, 0.4, 1.3);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(4px);
+  }
+}
+
+.indicator .rec-dot {
+  color: #ff5a60;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 3px rgb(255 90 96 / 0.25);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.indicator .meter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+}
+
+.indicator .meter span {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: #fff;
+  transform-origin: center;
+  transition: transform 0.08s linear;
+}
+
+.indicator.processing {
+  color: rgb(255 255 255 / 0.9);
+}
+
+.indicator .spinner {
+  width: 12px;
+  height: 12px;
+}
+
+/* ==========================================================================
+   Insights
+   ========================================================================== */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+
+@media (max-width: 1100px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.stat.accent {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(59 91 219 / 0.12), transparent 60%),
+    radial-gradient(120% 140% at 100% 100%, rgb(112 72 232 / 0.12), transparent 60%), var(--bg-elevated);
+}
+
+.stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.stat-label .icon {
+  color: var(--accent-text);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.stat-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg-active);
+}
+
+.segmented button {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font-size: 12px;
+  color: var(--text-2);
+  border-radius: 6px;
+}
+
+.segmented button:hover:not(:disabled) {
+  background: none;
+  color: var(--text);
+}
+
+.segmented button[aria-selected="true"] {
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.chart-card {
+  padding: 16px 18px 12px;
+}
+
+.activity-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.bars-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 140px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bar-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 4px 4px 0 0;
+}
+
+.bar-col:hover {
+  background: var(--bg-hover);
+}
+
+.bar {
+  width: 100%;
+  border-radius: 4px 4px 1px 1px;
+  background: var(--brand);
+  transition: height 0.35s cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+.bar.meetings {
+  background: var(--green);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.insight-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1000px) {
+  .insight-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.insight-card {
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 10px;
+}
+
+.mini-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.mini-value {
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.talk-share {
+  display: grid;
+  gap: 6px;
+}
+
+.talk-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-active);
+}
+
+.talk-bar .me {
+  background: var(--me);
+}
+
+.talk-bar .others {
+  background: var(--brand);
+}
+
+.legend {
+  font-weight: 600;
+}
+
+.legend.me {
+  color: var(--me);
+}
+
+.legend.others {
+  color: var(--accent-text);
+}
+
+.hours-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+}
+
+.hour {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-active);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hour > div {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.insights-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.insights-footer p {
+  flex: 1;
+}
+
+.top-apps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.top-apps li {
+  display: grid;
+  grid-template-columns: 26px minmax(80px, 160px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.app-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-bar {
+  height: 8px;
+  border-radius: 8px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+
+.app-bar > div {
+  height: 100%;
+  border-radius: 8px;
+  background: var(--brand);
+}
+
+.app-words {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  min-width: 80px;
+  text-align: right;
+}

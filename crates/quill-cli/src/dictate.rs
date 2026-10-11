@@ -8,7 +8,7 @@ use std::time::Instant;
 use anyhow::Context;
 use quill_audio::STT_SAMPLE_RATE;
 use quill_core::dictation;
-use quill_core::settings::{DEFAULT_POLISH_MODEL, DictationSettings};
+use quill_core::settings::{DEFAULT_POLISH_MODEL, DictationSettings, Style};
 use quill_llm::Privacy;
 use quill_stt::{WhisperConfig, WhisperTranscriber};
 
@@ -36,6 +36,10 @@ pub struct Args {
     /// Terms to spell exactly, comma-separated
     #[arg(long, value_delimiter = ',')]
     vocabulary: Vec<String>,
+    /// Pretend the text is going into this app (by bundle id or .exe), to
+    /// try its style, e.g. com.tinyspeck.slackmacgap
+    #[arg(long)]
+    app: Option<String>,
 }
 
 pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
@@ -70,6 +74,10 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         dictation::transcribe(&transcriber, &pcm, &settings)?;
     }
 
+    let destination = args.app.as_deref().map(|app| dictation::Destination {
+        app,
+        style: dictation::style_for(app, &settings),
+    });
     for file in &args.files {
         let pcm = quill_audio::load_for_stt(file)
             .with_context(|| format!("reading {}", file.display()))?;
@@ -91,9 +99,17 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
                 &quill_llm::prompts::DICTATION,
                 &raw,
                 &settings,
+                destination,
             ));
             match result {
                 Ok(p) => {
+                    let p = dictation::Polish {
+                        text: dictation::apply_style(
+                            &p.text,
+                            destination.map_or(Style::Default, |d| d.style),
+                        ),
+                        ..p
+                    };
                     let cost = p.cost_usd.map_or(String::new(), |c| format!(", ${c:.5}"));
                     let rejected = p
                         .rejected

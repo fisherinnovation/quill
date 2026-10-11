@@ -6,8 +6,10 @@ import {
   hotkeyLabel,
   isMac,
   shortDate,
+  type AppStyleInfo,
   type DictationEntry,
   type DictationSettings,
+  type Style,
   type DictationState,
   type Replacement,
 } from "../api";
@@ -104,6 +106,8 @@ export function DictationView({
           </Row>
         )}
       </Group>
+
+      <AppStyles settings={settings} onChange={(app_styles) => update({ app_styles })} />
 
       <Group title="Words">
         <div className="row stack">
@@ -290,6 +294,7 @@ function History() {
                 <p className="history-text">{entry.text}</p>
                 <div className="history-meta">
                   <span>{shortDate(entry.created_at)}</span>
+                  {entry.app && <span className="dot-sep">{entry.app}</span>}
                   <span className="dot-sep">{(entry.latency_ms / 1000).toFixed(1)} s</span>
                   {entry.polish_model && (
                     <span className="dot-sep row-gap" style={{ gap: 4 }}>
@@ -328,6 +333,69 @@ function History() {
         )}
       </div>
     </section>
+  );
+}
+
+const STYLES: [Style, string, string][] = [
+  ["default", "Default", "As you said it, tidied up"],
+  ["casual", "Casual", "Chat: relaxed, no period on one-liners"],
+  ["formal", "Formal", "Email and documents: complete sentences"],
+  ["technical", "Technical", "Code and terminals: names and commands kept exact"],
+];
+const styleHint = (style: Style) => STYLES.find(([s]) => s === style)?.[2] ?? "";
+
+/**
+ * How text should read in each app. Lists the apps dictated into (and any
+ * with a chosen style); picking the built-in style removes the choice.
+ */
+function AppStyles({
+  settings,
+  onChange,
+}: {
+  settings: DictationSettings;
+  onChange: (styles: DictationSettings["app_styles"]) => void;
+}) {
+  const [apps, setApps] = useState<AppStyleInfo[] | null>(null);
+  useEffect(() => {
+    void api.dictationApps().then(setApps);
+  }, []);
+  if (!apps) return null;
+
+  const chosen = (app: AppStyleInfo) =>
+    settings.app_styles.find((s) => s.app_id.toLowerCase() === app.app_id.toLowerCase())?.style ?? app.built_in;
+  function choose(app: AppStyleInfo, style: Style) {
+    const others = settings.app_styles.filter((s) => s.app_id.toLowerCase() !== app.app_id.toLowerCase());
+    onChange(style === app.built_in ? others : [...others, { app_id: app.app_id, name: app.name, style }]);
+  }
+
+  return (
+    <Group title="Style per app">
+      {apps.length === 0 ? (
+        <Row
+          label="No apps yet"
+          hint="Apps appear here after you dictate into them. Chat apps start out casual, email formal, and code editors technical."
+        />
+      ) : (
+        apps.map((app) => {
+          const style = chosen(app);
+          return (
+            <Row
+              key={app.app_id}
+              label={app.name}
+              hint={style === app.built_in ? `${styleHint(style)} (automatic)` : styleHint(style)}
+            >
+              <select value={style} onChange={(e) => choose(app, e.target.value as Style)}>
+                {STYLES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {value === app.built_in ? `${label} (automatic)` : label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          );
+        })
+      )}
+    </Group>
   );
 }
 

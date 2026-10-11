@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { App } from "./App";
+import { Indicator } from "./components/Indicator";
 import "./styles.css";
 
 async function start() {
@@ -15,11 +17,9 @@ async function start() {
 
   const root = document.getElementById("root");
   if (root) {
-    createRoot(root).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    );
+    // The same page runs in the main window and the dictation indicator.
+    const indicator = getCurrentWindow().label === "indicator";
+    createRoot(root).render(<StrictMode>{indicator ? <Indicator /> : <App />}</StrictMode>);
   }
 }
 

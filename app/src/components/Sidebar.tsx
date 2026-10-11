@@ -20,6 +20,7 @@ interface Props {
   onSelect: (id: string, atMs?: number) => void;
   onSettings: () => void;
   onDictation: () => void;
+  onInsights: () => void;
   /** Which main view is showing, to highlight its nav button. */
   current: string;
   /** Shown above the search box (the record button). */
@@ -35,6 +36,7 @@ export function Sidebar({
   onSelect,
   onSettings,
   onDictation,
+  onInsights,
   current,
   header,
 }: Props) {
@@ -136,6 +138,9 @@ export function Sidebar({
               <span className="spinner" style={{ width: 10, height: 10 }} /> Typing
             </span>
           )}
+        </button>
+        <button className={`nav-item${current === "insights" ? " selected" : ""}`} onClick={onInsights}>
+          <Icon name="chart" size={16} /> Insights
         </button>
         <button className={`nav-item${current === "settings" ? " selected" : ""}`} onClick={onSettings}>
           <Icon name="settings" size={16} /> Settings

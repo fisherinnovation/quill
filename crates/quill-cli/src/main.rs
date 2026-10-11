@@ -4,6 +4,7 @@
 //! features can be exercised long before the Tauri app exists.
 
 mod bench;
+mod compact;
 mod dictate;
 mod eval;
 mod import;
@@ -54,6 +55,8 @@ enum Command {
     Summarize(summarize::Args),
     /// Add a recording folder made elsewhere to the meeting library
     Import(import::Args),
+    /// Shrink recordings by replacing their WAVs with 16 kHz FLAC
+    Compact(compact::Args),
     /// Compare models' summaries: cost, latency and LLM-judged quality
     Eval(eval::Args),
     /// Store or remove LLM API keys in the OS keychain
@@ -84,6 +87,7 @@ fn main() -> anyhow::Result<()> {
         Command::Keys(cmd) => keys::run(cmd),
         Command::Eval(args) => eval::run(args),
         Command::Import(args) => import::run(args),
+        Command::Compact(args) => compact::run(args),
     }
 }
 
@@ -93,7 +97,7 @@ fn main() -> anyhow::Result<()> {
 /// its warnings are mostly informational, like which Metal features it found).
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,whisper_rs=error"));
+        .unwrap_or_else(|_| EnvFilter::new("info,whisper_rs=error,flacenc=warn"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)

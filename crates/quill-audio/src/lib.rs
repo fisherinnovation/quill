@@ -5,8 +5,9 @@
 //! - [`check`]: a short test recording that confirms both sources are heard.
 //! - [`live`]: microphone capture into memory, for dictation.
 //! - [`cue`]: short start/stop sounds.
-//! - [`load_for_stt`]: read a WAV, downmix to mono and resample to the 16 kHz
-//!   that Whisper expects.
+//! - [`load_for_stt`]: read a WAV or FLAC, downmix to mono and resample to
+//!   the 16 kHz that Whisper expects.
+//! - [`write_flac`]: store a finished recording compactly.
 //!
 //! Audio callbacks must never block or allocate heavily; they hand samples to
 //! a worker thread through a lock-free ring buffer.
@@ -15,10 +16,12 @@ pub mod aec;
 pub mod capture;
 pub mod check;
 pub mod cue;
+mod flac;
 pub mod live;
 mod resample;
 mod wav;
 
+pub use flac::{read_flac, write_flac};
 pub use resample::{resample_mono, to_mono};
 pub use wav::{AudioBuffer, read_wav};
 
@@ -49,6 +52,8 @@ pub enum AudioError {
     },
     #[error("capture failed: {0}")]
     Capture(String),
+    #[error("FLAC: {0}")]
+    Flac(String),
     #[error("WAV writer thread panicked")]
     WriterPanicked,
     #[error(transparent)]
@@ -61,10 +66,22 @@ impl AudioError {
     }
 }
 
-/// Loads a WAV file as 16 kHz mono `f32` samples in `-1.0..=1.0`, ready to
-/// hand to a speech-to-text engine.
+/// Reads a `.flac` or `.wav` file (by extension).
+pub fn read_audio(path: &Path) -> Result<AudioBuffer, AudioError> {
+    let flac = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("flac"));
+    if flac {
+        read_flac(path)
+    } else {
+        read_wav(path)
+    }
+}
+
+/// Loads a WAV or FLAC file as 16 kHz mono `f32` samples in `-1.0..=1.0`,
+/// ready to hand to a speech-to-text engine.
 pub fn load_for_stt(path: &Path) -> Result<Vec<f32>, AudioError> {
-    let audio = read_wav(path)?;
+    let audio = read_audio(path)?;
     let mono = to_mono(&audio.samples, audio.channels);
     resample_mono(&mono, audio.sample_rate, STT_SAMPLE_RATE)
 }

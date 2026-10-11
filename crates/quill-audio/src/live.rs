@@ -14,7 +14,7 @@
 //! every platform: create and use it on one thread.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -44,6 +44,8 @@ struct Shared {
     stop: AtomicBool,
     /// Set by the stream's error callback (e.g. the device was unplugged).
     failed: AtomicBool,
+    /// Peak of the most recently drained audio (`f32` bits), for a meter.
+    level: AtomicU32,
 }
 
 struct Buffer {
@@ -56,12 +58,18 @@ struct Buffer {
 }
 
 impl Buffer {
-    fn drain(&mut self) {
+    /// Moves what the audio thread has captured into the pre-roll or take.
+    /// Returns the peak of the new audio, if there was any.
+    fn drain(&mut self) -> Option<f32> {
         let available = self.consumer.slots();
+        if available == 0 {
+            return None;
+        }
         let Ok(chunk) = self.consumer.read_chunk(available) else {
-            return;
+            return None;
         };
         let (a, b) = chunk.as_slices();
+        let peak = a.iter().chain(b).fold(0.0_f32, |m, s| m.max(s.abs()));
         match &mut self.take {
             Some(take) => {
                 take.extend_from_slice(a);
@@ -74,6 +82,7 @@ impl Buffer {
             }
         }
         chunk.commit_all();
+        Some(peak)
     }
 }
 
@@ -104,6 +113,7 @@ impl MicStream {
             }),
             stop: AtomicBool::new(false),
             failed: AtomicBool::new(false),
+            level: AtomicU32::new(0),
         });
 
         let stream = match format {
@@ -125,7 +135,9 @@ impl MicStream {
                 .name("quill-mic-collector".into())
                 .spawn(move || {
                     while !shared.stop.load(Ordering::Acquire) {
-                        shared.lock().drain();
+                        if let Some(peak) = shared.lock().drain() {
+                            shared.level.store(peak.to_bits(), Ordering::Relaxed);
+                        }
                         std::thread::sleep(DRAIN_EVERY);
                     }
                 })?
@@ -144,6 +156,11 @@ impl MicStream {
 
     pub fn device(&self) -> &str {
         &self.device
+    }
+
+    /// The loudest sample in the last few milliseconds, 0.0..=1.0.
+    pub fn level(&self) -> f32 {
+        f32::from_bits(self.shared.level.load(Ordering::Relaxed))
     }
 
     /// False once the stream has reported an error; open a new one.

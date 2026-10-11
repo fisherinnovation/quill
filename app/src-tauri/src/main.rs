@@ -10,6 +10,8 @@
 
 mod commands;
 mod dictation;
+mod indicator;
+mod logging;
 mod onboarding;
 mod pipeline;
 mod recorder;
@@ -24,7 +26,6 @@ use std::sync::atomic::AtomicBool;
 use quill_core::library::Library;
 use quill_core::settings::Settings;
 use tauri::Manager;
-use tracing_subscriber::EnvFilter;
 
 /// Shared state, available to every command via `tauri::State<AppState>`.
 pub struct AppState {
@@ -52,14 +53,9 @@ pub struct AppState {
 // message says why.
 #[allow(clippy::expect_used)]
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,whisper_rs=error")),
-        )
-        .init();
-
     let data_dir = quill_core::paths::data_dir().expect("no home directory");
+    logging::init(&data_dir);
+
     let settings = Settings::load(&data_dir).unwrap_or_else(|e| {
         tracing::warn!("using default settings: {e}");
         Settings::default()
@@ -95,6 +91,9 @@ fn main() {
         .setup(|app| {
             let tray = tray::create(app.handle())?;
             *commands::lock(&app.state::<AppState>().tray) = Some(tray);
+            if let Err(e) = indicator::create(app.handle()) {
+                tracing::warn!("no dictation indicator: {e}");
+            }
             app.manage(dictation::Dictation::spawn(app.handle().clone()));
             // Binding the hotkey waits on the main thread, which is busy
             // running this setup, so do it (and the model preload) from
@@ -105,6 +104,7 @@ fn main() {
                     tracing::error!("dictation shortcut: {e}");
                 }
                 pipeline::preload(&handle);
+                pipeline::compact_existing(&handle);
             });
             Ok(())
         })
@@ -136,6 +136,9 @@ fn main() {
             storage::choose_recordings_dir,
             storage::reset_recordings_dir,
             storage::show_recordings_dir,
+            storage::show_logs,
+            storage::get_insights,
+            storage::reset_dictation_stats,
             storage::export_summary,
             storage::reveal_file,
             onboarding::check_audio_access,
@@ -149,6 +152,7 @@ fn main() {
             dictation::paste_permission,
             dictation::request_paste_permission,
             dictation::system_language,
+            dictation::dictation_apps,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Quill");

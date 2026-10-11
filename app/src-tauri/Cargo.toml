@@ -23,6 +23,7 @@ tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-opener.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 
 [lints]

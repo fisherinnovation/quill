@@ -14,6 +14,7 @@ import { SettingsView } from "./components/SettingsView";
 import { RecordButton } from "./components/RecordButton";
 import { Onboarding } from "./components/Onboarding";
 import { DictationView } from "./components/DictationView";
+import { InsightsView } from "./components/InsightsView";
 import { Icon, Logo } from "./components/Icon";
 import { Banner, Keys } from "./components/ui";
 
@@ -21,6 +22,7 @@ type View =
   | { kind: "meeting"; id: string; at?: number }
   | { kind: "settings" }
   | { kind: "dictation" }
+  | { kind: "insights" }
   | { kind: "empty" };
 
 export function App() {
@@ -108,6 +110,7 @@ export function App() {
         onSelect={(id, at) => setView({ kind: "meeting", id, at })}
         onSettings={() => setView({ kind: "settings" })}
         onDictation={() => setView({ kind: "dictation" })}
+        onInsights={() => setView({ kind: "insights" })}
         current={view.kind}
         header={<RecordButton state={recording} onError={setError} />}
       />
@@ -145,6 +148,7 @@ export function App() {
             />
           )}
           {view.kind === "settings" && <SettingsView />}
+          {view.kind === "insights" && <InsightsView />}
           {view.kind === "dictation" && <DictationView state={dictation} onHotkeyChange={setHotkey} />}
           {view.kind === "empty" && <Empty hotkey={hotkey} />}
         </div>

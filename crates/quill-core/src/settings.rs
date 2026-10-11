@@ -59,6 +59,32 @@ pub struct DictationSettings {
     pub replacements: Vec<Replacement>,
     /// Keep a history of what was dictated (in the local library).
     pub keep_history: bool,
+    /// Styles chosen for particular apps, overriding the built-in ones
+    /// (`dictation::style_for`).
+    pub app_styles: Vec<AppStyle>,
+}
+
+/// How dictated text should read in a particular app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Style {
+    /// As spoken, cleaned up.
+    Default,
+    /// Chat: relaxed, no trailing period on one-line messages.
+    Casual,
+    /// Email and documents: complete, properly punctuated sentences.
+    Formal,
+    /// Code editors and terminals: identifiers and commands kept exact.
+    Technical,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppStyle {
+    /// Bundle id (macOS) or executable name (Windows).
+    pub app_id: String,
+    /// Display name, for the settings list.
+    pub name: String,
+    pub style: Style,
 }
 
 impl Default for DictationSettings {
@@ -72,6 +98,7 @@ impl Default for DictationSettings {
             vocabulary: Vec::new(),
             replacements: Vec::new(),
             keep_history: true,
+            app_styles: Vec::new(),
         }
     }
 }
@@ -153,6 +180,11 @@ mod tests {
                 replacements: vec![Replacement {
                     from: "open router".into(),
                     to: "OpenRouter".into(),
+                }],
+                app_styles: vec![AppStyle {
+                    app_id: "com.apple.mail".into(),
+                    name: "Mail".into(),
+                    style: Style::Casual,
                 }],
                 ..DictationSettings::default()
             },

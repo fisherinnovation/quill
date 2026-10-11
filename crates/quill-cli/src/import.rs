@@ -4,12 +4,13 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, bail};
-use quill_core::meeting::{MIC_FILE, SYSTEM_FILE};
+use quill_core::meeting::{MIC_FILE, MIC_FLAC, SYSTEM_FILE, SYSTEM_FLAC};
 use quill_stt::Segment;
 
 #[derive(Debug, clap::Args)]
 pub struct Args {
-    /// Folder with mic.wav and/or system.wav (and optionally transcript.json)
+    /// Folder with mic and/or system audio (.wav or .flac), and optionally
+    /// transcript.json
     dir: PathBuf,
     /// Meeting title [default: from its summary, else the import time]
     #[arg(long)]
@@ -18,11 +19,8 @@ pub struct Args {
 
 pub fn run(args: Args) -> anyhow::Result<()> {
     let has = |name: &str| args.dir.join(name).is_file();
-    if !has(MIC_FILE) && !has(SYSTEM_FILE) && !has("transcript.json") {
-        bail!(
-            "{} has no {MIC_FILE}, {SYSTEM_FILE} or transcript.json",
-            args.dir.display()
-        );
+    if !quill_core::meeting::has_audio(&args.dir) && !has("transcript.json") {
+        bail!("{} has no audio or transcript.json", args.dir.display());
     }
     let library = crate::library::open()?;
     let meeting = library.create_meeting()?;
@@ -31,6 +29,8 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     for name in [
         MIC_FILE,
         SYSTEM_FILE,
+        MIC_FLAC,
+        SYSTEM_FLAC,
         quill_core::meeting::RECORDING_INFO_FILE,
         "transcript.json",
         "summary.md",

@@ -105,6 +105,15 @@ export function SettingsView() {
         <h2 className="group-title">Audio access</h2>
         <AccessCheck framed />
       </section>
+
+      <Group title="Troubleshooting">
+        <Row
+          label="Log files"
+          hint="What Quill did and any errors, kept for two weeks. Never includes transcripts, notes or dictated text."
+        >
+          <button onClick={() => void api.showLogs()}>Show in {fileManager}</button>
+        </Row>
+      </Group>
     </div>
   );
 }
@@ -150,7 +159,7 @@ function Storage() {
           {info && (
             <p className="row-hint">
               {info.available
-                ? `${fileSize(info.bytes)} · about 2 GB per hour of meeting`
+                ? `${fileSize(info.bytes)} · about 70 MB per hour of meeting once transcribed`
                 : "Folder not found. Is the drive connected?"}
             </p>
           )}

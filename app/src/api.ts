@@ -73,6 +73,52 @@ export interface DictationSettings {
   vocabulary: string[];
   replacements: Replacement[];
   keep_history: boolean;
+  app_styles: AppStyle[];
+}
+
+export type Style = "default" | "casual" | "formal" | "technical";
+
+export interface AppStyle {
+  app_id: string;
+  name: string;
+  style: Style;
+}
+
+/** An app dictated into, with the style in effect there. */
+export interface AppStyleInfo extends AppStyle {
+  /** What Quill uses when the user hasn't chosen. */
+  built_in: Style;
+  words: number;
+}
+
+export interface Insights {
+  dictation: {
+    count: number;
+    words: number;
+    words_last_7_days: number;
+    speaking_wpm: number | null;
+    minutes_saved: number;
+    median_latency_ms: number | null;
+    polished_share: number;
+  };
+  meetings: {
+    count: number;
+    total_ms: number;
+    count_last_7_days: number;
+    ms_last_7_days: number;
+    average_ms: number | null;
+    my_talk_share: number | null;
+    summaries: number;
+    summary_cost_usd: number;
+  };
+  streak_days: number;
+  /** Last 30 days, oldest first; `date` is a local YYYY-MM-DD. */
+  days: { date: string; words: number; dictations: number; meeting_ms: number }[];
+  /** Dictations by local hour, 0–23. */
+  hours: number[];
+  typing_wpm: number;
+  /** Apps dictated into, most words first. */
+  apps: { app_id: string; name: string; dictations: number; words: number }[];
 }
 
 export type DictationPhase = "idle" | "listening" | "processing";
@@ -93,6 +139,8 @@ export interface DictationEntry {
   latency_ms: number;
   /** False: left on the clipboard (no permission to paste). */
   pasted: boolean;
+  /** The app it was typed into. */
+  app: string | null;
 }
 
 export interface StorageInfo {
@@ -152,6 +200,9 @@ export const api = {
   chooseRecordingsDir: () => invoke<StorageInfo | null>("choose_recordings_dir"),
   resetRecordingsDir: () => invoke<StorageInfo>("reset_recordings_dir"),
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
+  showLogs: () => invoke<void>("show_logs"),
+  getInsights: () => invoke<Insights>("get_insights"),
+  resetDictationStats: () => invoke<void>("reset_dictation_stats"),
   /** Opens a save dialog; resolves to the saved path, or null if cancelled. */
   exportSummary: (id: string) => invoke<string | null>("export_summary", { id }),
   revealFile: (path: string) => invoke<void>("reveal_file", { path }),
@@ -169,6 +220,7 @@ export const api = {
   pastePermission: () => invoke<boolean>("paste_permission"),
   requestPastePermission: () => invoke<boolean>("request_paste_permission"),
   systemLanguage: () => invoke<string | null>("system_language"),
+  dictationApps: () => invoke<AppStyleInfo[]>("dictation_apps"),
 };
 
 export const isMac = navigator.userAgent.includes("Mac");
@@ -185,6 +237,9 @@ export const events = {
     listen<DictationState>("dictation-state", (e) => cb(e.payload)),
   onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
+  /** Mic peak 0..1, sent only to the indicator window while listening. */
+  onLevel: (cb: (level: number) => void): Promise<UnlistenFn> =>
+    listen<number>("dictation-level", (e) => cb(e.payload)),
 };
 
 /** "Alt+Space" → "⌥ Space" on macOS; unchanged elsewhere. */

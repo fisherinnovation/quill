@@ -70,6 +70,34 @@ pub fn show_recordings_dir(state: tauri::State<'_, AppState>) -> CommandResult<(
         .map_err(|e| CommandError::Other(e.to_string()))
 }
 
+/// Usage numbers for the Insights page.
+#[tauri::command]
+pub async fn get_insights(app: AppHandle) -> CommandResult<quill_core::insights::Insights> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        Ok(quill_core::insights::compute(
+            &state.library,
+            &jiff::Zoned::now(),
+        )?)
+    })
+    .await
+}
+
+/// Forgets dictation statistics (the history is separate).
+#[tauri::command]
+pub fn reset_dictation_stats(state: tauri::State<'_, AppState>) -> CommandResult<()> {
+    Ok(state.library.clear_dictation_stats()?)
+}
+
+/// Opens the folder of log files (see logging.rs).
+#[tauri::command]
+pub fn show_logs(state: tauri::State<'_, AppState>) -> CommandResult<()> {
+    let dir = crate::logging::dir(&state.data_dir);
+    std::fs::create_dir_all(&dir).map_err(|e| CommandError::Other(e.to_string()))?;
+    tauri_plugin_opener::open_path(dir, None::<&str>)
+        .map_err(|e| CommandError::Other(e.to_string()))
+}
+
 /// Asks where to save the meeting's latest summary and writes it there as
 /// Markdown. Returns the saved path, or `None` if the user cancelled.
 #[tauri::command]

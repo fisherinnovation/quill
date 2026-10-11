@@ -24,6 +24,11 @@ const PATHS = {
   external: "M14 4h6v6 M20 4l-9 9 M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
   more: "M5 12h.01 M12 12h.01 M19 12h.01",
   history: "M3 12a9 9 0 1 0 3-6.7 M3 4v5h5 M12 7v5l3 2",
+  chart: "M4 20V10 M10 20V4 M16 20v-7 M22 20H2",
+  flame: "M12 3c1 3 4 4.5 4 8.5a4 4 0 0 1-8 0c0-1.6.6-2.8 1.5-3.7.2 1.3.9 2.2 1.9 2.7C11 8 11 5.5 12 3Z M8.5 17.5A4 4 0 0 0 12 21a4 4 0 0 0 4-4",
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 7v5l3 2",
+  bolt: "M13 3 5 13h6l-1 8 8-10h-6l1-8Z",
+  users: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M2 21a7 7 0 0 1 14 0 M16 3.5a4 4 0 0 1 0 7.5 M18 14a7 7 0 0 1 4 7",
 } as const;
 
 export type IconName = keyof typeof PATHS;

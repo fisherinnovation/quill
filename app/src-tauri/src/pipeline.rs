@@ -69,8 +69,6 @@ pub fn spawn(app: AppHandle, meeting_id: String, steps: Steps) {
     }
     tauri::async_runtime::spawn(async move {
         let result = run(&app, &meeting_id, steps).await;
-        let state = app.state::<AppState>();
-        lock(&state.processing).remove(&meeting_id);
         match result {
             Ok(()) => emit(&app, &meeting_id, Stage::Done, None, None),
             Err(e) => {
@@ -78,7 +76,65 @@ pub fn spawn(app: AppHandle, meeting_id: String, steps: Steps) {
                 emit(&app, &meeting_id, Stage::Failed, None, Some(e));
             }
         }
+        // Shrink the audio once it's been transcribed. Still registered as
+        // processing meanwhile, so the recordings can't be moved under it.
+        if steps != Steps::SummarizeOnly {
+            let app2 = app.clone();
+            let id = meeting_id.clone();
+            let _ = tauri::async_runtime::spawn_blocking(move || compact(&app2, &id)).await;
+        }
+        lock(&app.state::<AppState>().processing).remove(&meeting_id);
     });
+}
+
+/// Replaces a meeting's WAVs with FLAC (see `meeting::compact_recording`).
+/// Failures are logged: the WAVs are kept and the next startup retries.
+fn compact(app: &AppHandle, id: &str) {
+    let dir = app.state::<AppState>().library.meeting_dir(id);
+    let started = std::time::Instant::now();
+    match meeting::compact_recording(&dir) {
+        Ok(done) if done.tracks > 0 => tracing::info!(
+            meeting_id = id,
+            tracks = done.tracks,
+            mb_before = done.bytes_before / 1_000_000,
+            mb_after = done.bytes_after / 1_000_000,
+            ms = started.elapsed().as_millis(),
+            "compacted recording"
+        ),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(meeting_id = id, "couldn't compact recording: {e}"),
+    }
+}
+
+/// Compacts recordings made before compaction existed, or whose compaction
+/// failed. Runs once at startup in the background; skips meetings that are
+/// recording or being processed.
+pub fn compact_existing(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let meetings = match state.library.list() {
+        Ok(meetings) => meetings,
+        Err(e) => {
+            tracing::warn!("couldn't list meetings to compact: {e}");
+            return;
+        }
+    };
+    for m in meetings {
+        if !meeting::has_wav(&state.library.meeting_dir(&m.id)) {
+            continue;
+        }
+        let recording = lock(&state.recording)
+            .as_ref()
+            .is_some_and(|r| r.meeting_id == m.id);
+        // Registering as processing keeps the pipeline and a recordings
+        // move away from this folder meanwhile.
+        if recording || !lock(&state.processing).insert(m.id.clone()) {
+            continue;
+        }
+        if !state.moving.load(std::sync::atomic::Ordering::SeqCst) {
+            compact(app, &m.id);
+        }
+        lock(&state.processing).remove(&m.id);
+    }
 }
 
 async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {

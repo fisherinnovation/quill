@@ -13,7 +13,7 @@ use quill_llm::prompts::{DictationPrompts, RenderError, render};
 use quill_llm::{CompletionRequest, LlmError, LlmProvider, Message};
 use quill_stt::{SttError, TranscribeOptions, Transcriber};
 
-use crate::settings::{DictationSettings, Replacement};
+use crate::settings::{DictationSettings, Replacement, Style};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PolishError {
@@ -146,6 +146,118 @@ pub struct Polish {
     pub cost_usd: Option<f64>,
 }
 
+/// Where dictated text is going: the app's display name and its style.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Destination<'a> {
+    pub app: &'a str,
+    pub style: Style,
+}
+
+/// The style for an app: the user's choice if they made one, else the
+/// built-in default for well-known apps, else [`Style::Default`].
+pub fn style_for(app_id: &str, settings: &DictationSettings) -> Style {
+    let id = app_id.to_lowercase();
+    if let Some(chosen) = settings
+        .app_styles
+        .iter()
+        .find(|s| s.app_id.to_lowercase() == id)
+    {
+        return chosen.style;
+    }
+    built_in_style(&id)
+}
+
+/// Defaults for well-known apps, by bundle id (macOS) or executable
+/// (Windows), lowercased.
+pub fn built_in_style(app_id: &str) -> Style {
+    const CASUAL: &[&str] = &[
+        "com.tinyspeck.slackmacgap",
+        "slack.exe",
+        "com.apple.mobilesms",
+        "com.hnc.discord",
+        "discord.exe",
+        "net.whatsapp.whatsapp",
+        "whatsapp.exe",
+        "ru.keepcoder.telegram",
+        "telegram.exe",
+        "com.microsoft.teams2",
+        "ms-teams.exe",
+        "org.whispersystems.signal-desktop",
+        "signal.exe",
+    ];
+    const FORMAL: &[&str] = &[
+        "com.apple.mail",
+        "com.microsoft.outlook",
+        "outlook.exe",
+        "olk.exe",
+        "com.readdle.smartemail-mac",
+        "com.superhuman.electron",
+        "com.microsoft.word",
+        "winword.exe",
+        "com.apple.iwork.pages",
+    ];
+    const TECHNICAL: &[&str] = &[
+        "com.microsoft.vscode",
+        "code.exe",
+        "com.todesktop.230313mzl4w4u92",
+        "cursor.exe",
+        "dev.zed.zed",
+        "com.apple.dt.xcode",
+        "com.apple.terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.warp-stable",
+        "com.mitchellh.ghostty",
+        "windowsterminal.exe",
+    ];
+    if CASUAL.contains(&app_id) {
+        Style::Casual
+    } else if FORMAL.contains(&app_id) {
+        Style::Formal
+    } else if TECHNICAL.contains(&app_id) || app_id.starts_with("com.jetbrains.") {
+        Style::Technical
+    } else {
+        Style::Default
+    }
+}
+
+/// Style rules that don't need a model: in casual apps, a one-sentence
+/// message loses its final period, the way people type in chat.
+pub fn apply_style(text: &str, style: Style) -> String {
+    if style == Style::Casual
+        && !text.contains('\n')
+        && text.ends_with('.')
+        && !text.ends_with("..")
+        && split_sentences(text).len() == 1
+    {
+        return text[..text.len() - 1].to_string();
+    }
+    text.to_string()
+}
+
+/// The prompt's sentence about where the text is going.
+fn destination_text(destination: Option<Destination<'_>>) -> String {
+    let Some(Destination { app, style }) = destination else {
+        return String::new();
+    };
+    match style {
+        Style::Default => format!("The text is going into {app}."),
+        Style::Casual => format!(
+            "The text is going into {app}, a chat app: keep it relaxed and conversational. \
+             Don't add greetings or sign-offs. Leave off the final period of a one-line message, \
+             but keep question marks and exclamation marks."
+        ),
+        Style::Formal => format!(
+            "The text is going into {app}, for email or documents: write complete, properly \
+             punctuated sentences, keeping the speaker's own words."
+        ),
+        Style::Technical => format!(
+            "The text is going into {app}, a code editor or terminal: keep code identifiers, \
+             file names, commands and flags exactly as spoken, in their usual written form \
+             (camelCase, snake_case, file.ext, --flag). Don't add Markdown."
+        ),
+    }
+}
+
 /// Cleans up `text` with an LLM. Call only when [`needs_polish`] says so.
 pub async fn polish(
     provider: &dyn LlmProvider,
@@ -153,6 +265,7 @@ pub async fn polish(
     prompts: &DictationPrompts,
     text: &str,
     settings: &DictationSettings,
+    destination: Option<Destination<'_>>,
 ) -> Result<Polish, PolishError> {
     let vocabulary = settings
         .vocabulary
@@ -166,7 +279,13 @@ pub async fn polish(
     } else {
         vocabulary
     };
-    let system = render(prompts.system, &[("vocabulary", &vocabulary)])?;
+    let system = render(
+        prompts.system,
+        &[
+            ("vocabulary", &vocabulary),
+            ("destination", &destination_text(destination)),
+        ],
+    )?;
     let user = render(prompts.user, &[("transcript", text)])?;
     let words = u32::try_from(text.split_whitespace().count()).unwrap_or(u32::MAX);
     let response = provider
@@ -209,6 +328,12 @@ pub fn check_polish(raw: &str, output: &str) -> Result<String, &'static str> {
         text = text[1..text.len() - 1].trim().to_string();
     }
 
+    // Trailing spaces (a Markdown line-break habit) would be typed too.
+    let text = text
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n");
     if text.is_empty() {
         return Err("empty");
     }
@@ -407,6 +532,56 @@ mod tests {
         ));
         assert!(needs_polish("I think the the build is broken again today."));
         assert!(needs_polish(&"word ".repeat(POLISH_ALWAYS_WORDS)));
+    }
+
+    #[test]
+    fn app_styles_come_from_the_user_then_built_ins() {
+        let mut settings = DictationSettings::default();
+        assert_eq!(
+            style_for("com.tinyspeck.slackmacgap", &settings),
+            Style::Casual
+        );
+        assert_eq!(style_for("OUTLOOK.EXE", &settings), Style::Formal);
+        assert_eq!(
+            style_for("com.jetbrains.intellij", &settings),
+            Style::Technical
+        );
+        assert_eq!(style_for("com.example.unknown", &settings), Style::Default);
+        settings.app_styles.push(crate::settings::AppStyle {
+            app_id: "com.tinyspeck.slackmacgap".into(),
+            name: "Slack".into(),
+            style: Style::Formal,
+        });
+        assert_eq!(
+            style_for("com.tinyspeck.slackmacgap", &settings),
+            Style::Formal
+        );
+    }
+
+    #[test]
+    fn casual_drops_the_period_of_a_one_line_message_only() {
+        assert_eq!(
+            apply_style("Sounds good, see you then.", Style::Casual),
+            "Sounds good, see you then"
+        );
+        assert_eq!(
+            apply_style("Done. Shipping now.", Style::Casual),
+            "Done. Shipping now."
+        );
+        assert_eq!(apply_style("Wait...", Style::Casual), "Wait...");
+        assert_eq!(apply_style("Really?", Style::Casual), "Really?");
+        assert_eq!(apply_style("List:\n- a.", Style::Casual), "List:\n- a.");
+        assert_eq!(apply_style("Sounds good.", Style::Formal), "Sounds good.");
+    }
+
+    #[test]
+    fn the_prompt_says_where_the_text_is_going() {
+        assert_eq!(destination_text(None), "");
+        let slack = destination_text(Some(Destination {
+            app: "Slack",
+            style: Style::Casual,
+        }));
+        assert!(slack.starts_with("The text is going into Slack, a chat app"));
     }
 
     #[test]

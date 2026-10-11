@@ -15,6 +15,10 @@
 //! keystroke is silently dropped, so check [`can_simulate_paste`] first and
 //! fall back to leaving the text on the clipboard.
 
+mod app;
+
+pub use app::{FrontApp, frontmost_app};
+
 use std::time::Duration;
 
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
