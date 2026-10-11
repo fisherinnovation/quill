@@ -1,0 +1,11 @@
+[package]
+name = "quill-eval"
+description = "Evaluation harness: run prompts across models, log cost and latency, judge"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+# Cargo build output
+/target/
+
+# Eval outputs and private meeting transcripts (never commit real meetings)
+/eval/results/*
+!/eval/results/.gitkeep
+/eval/transcripts/private/
+
+# Model files (normally in the app data dir; guard against stray copies)
+ggml-*.bin
+*.gguf
+*.onnx
+
+# Editor / OS clutter
+.DS_Store
+Thumbs.db
+.idea/

@@ -1,0 +1,39 @@
+# Root of the Cargo workspace. This file has no [package] section, which makes
+# it a "virtual manifest": it only groups the member crates so they share one
+# Cargo.lock (identical dependency versions everywhere) and one target/ dir.
+[workspace]
+# Every directory under crates/ is a member. The Tauri app in app/ is added
+# explicitly in M5 so the library crates never depend on Tauri.
+members = ["crates/*"]
+# Virtual manifests must choose the dependency resolver explicitly; "3" is the
+# default for edition 2024.
+resolver = "3"
+
+# Metadata that member crates inherit with `version.workspace = true` etc.
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Single place to pin third-party versions. A member opts in with
+# `anyhow = { workspace = true }`, so versions can never drift between crates.
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Lints shared by every crate (each opts in with `[lints] workspace = true`).
+# CI runs clippy with `-D warnings`, so every "warn" below fails the build.
+[workspace.lints.rust]
+# Section 6: no `unsafe` outside FFI wrappers. "deny" (not "forbid") lets a
+# future FFI module opt out locally with `#[allow(unsafe_code)]`.
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Section 6: no unwrap()/expect() outside tests and `main` setup. Tests are
+# exempted in clippy.toml; `main` setup must opt in with a local #[allow].
+unwrap_used = "warn"
+expect_used = "warn"
+# Section 6: every `unsafe` block needs a `// SAFETY:` comment.
+undocumented_unsafe_blocks = "warn"

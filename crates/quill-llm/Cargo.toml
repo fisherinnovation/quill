@@ -1,0 +1,11 @@
+[package]
+name = "quill-llm"
+description = "LLM providers (OpenRouter, Ollama) and prompt rendering"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

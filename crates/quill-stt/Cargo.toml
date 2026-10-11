@@ -1,0 +1,11 @@
+[package]
+name = "quill-stt"
+description = "Speech-to-text: the Transcriber trait and its whisper-rs implementation"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+[package]
+name = "quill-core"
+description = "Domain types, pipeline orchestration and SQLite storage"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

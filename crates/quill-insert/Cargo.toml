@@ -1,0 +1,11 @@
+[package]
+name = "quill-insert"
+description = "Text insertion at the cursor via clipboard and simulated paste"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

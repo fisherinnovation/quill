@@ -1,0 +1,4 @@
+# unwrap()/expect() are denied in the workspace lints (see Cargo.toml) but are
+# fine in tests, where a panic is exactly how a test reports failure.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

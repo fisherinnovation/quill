@@ -1,0 +1,7 @@
+# Check text files out with LF on every OS. Without this, Windows checkouts get
+# CRLF, which breaks byte-for-byte golden-file tests and confuses rustfmt.
+* text=auto eol=lf
+
+# Binary fixtures (e.g. the sample WAV for STT smoke tests) must never be
+# line-ending converted.
+*.wav binary
