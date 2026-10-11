@@ -27,13 +27,17 @@ export function RecordButton({ state, onError }: Props) {
     <button className={`record${state.recording ? " active" : ""}`} onClick={toggle} disabled={busy}>
       {state.recording ? (
         <>
-          <span className="stop-square" /> Stop · {clock(elapsed)}
+          <span className="stop-square" /> Stop recording
+          <span className="spacer" />
+          {clock(elapsed)}
         </>
       ) : busy ? (
-        "Starting…"
+        <>
+          <span className="spinner" /> Starting…
+        </>
       ) : (
         <>
-          <span className="rec-dot" /> Record
+          <span className="rec-dot" /> Record meeting
         </>
       )}
     </button>

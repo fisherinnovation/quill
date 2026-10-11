@@ -41,6 +41,7 @@ sonora = "0.2"
 whisper-rs = { version = "0.16", features = ["tracing_backend"] }
 # Blocking client for model downloads; rustls means no OpenSSL dependency.
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
+sys-locale = "0.3"
 sha2 = "0.11"
 directories = "6"
 indicatif = "0.18"
@@ -50,7 +51,9 @@ tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 # `async fn` in a trait used as `dyn LlmProvider` needs boxing; this macro
 # writes that boilerplate (see quill-llm for details).
+arboard = "3.6"
 async-trait = "0.1"
+enigo = "0.6"
 futures = "0.3"
 # API keys live in the macOS Keychain / Windows Credential Manager.
 keyring = "4"
@@ -69,11 +72,13 @@ toml = "1"
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
 tauri-build = { version = "2.7", features = [] }
 tauri-plugin-dialog = "2.8"
+tauri-plugin-global-shortcut = "2.4"
 tauri-plugin-opener = "2.6"
 
 # Our own crates, so members depend on each other with `x.workspace = true`.
 quill-audio = { path = "crates/quill-audio" }
 quill-core = { path = "crates/quill-core" }
+quill-insert = { path = "crates/quill-insert" }
 quill-eval = { path = "crates/quill-eval" }
 quill-llm = { path = "crates/quill-llm" }
 quill-stt = { path = "crates/quill-stt" }

@@ -75,6 +75,7 @@ pub async fn summarize(
         messages: vec![Message::system(prompts.system), Message::user(user)],
         max_tokens: Some(max_tokens),
         temperature: Some(TEMPERATURE),
+        no_reasoning: false,
     };
 
     let mut responses = Vec::new();
@@ -237,7 +238,7 @@ fn format_duration(ms: u64) -> String {
 
 /// Removes an empty `<think>…</think>` block some reasoning models emit even
 /// with thinking disabled, plus surrounding whitespace.
-fn clean(text: &str) -> String {
+pub(crate) fn clean(text: &str) -> String {
     let text = text.trim();
     match (text.strip_prefix("<think>"), text.find("</think>")) {
         (Some(_), Some(end)) => text[end + "</think>".len()..].trim().to_string(),

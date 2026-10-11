@@ -26,18 +26,21 @@ pub(crate) struct Region {
     pub packed_start: usize,
 }
 
-/// Runs Silero VAD over 16 kHz mono audio and returns speech sample ranges.
-pub(crate) fn detect_speech(
-    model_path: &str,
-    pcm: &[f32],
-    threads: usize,
-) -> Result<Vec<(usize, usize)>, SttError> {
+/// Loads the Silero model. Keep it: loading costs far more than running it
+/// on a short clip.
+pub(crate) fn load(model_path: &str, threads: usize) -> Result<WhisperVadContext, SttError> {
     let mut ctx_params = WhisperVadContextParams::new();
     ctx_params.set_n_threads(i32::try_from(threads).unwrap_or(4));
     // The model is under 1 MB; GPU dispatch overhead would outweigh any gain.
     ctx_params.set_use_gpu(false);
-    let mut vad = WhisperVadContext::new(model_path, ctx_params)?;
+    Ok(WhisperVadContext::new(model_path, ctx_params)?)
+}
 
+/// Runs Silero VAD over 16 kHz mono audio and returns speech sample ranges.
+pub(crate) fn detect_speech(
+    vad: &mut WhisperVadContext,
+    pcm: &[f32],
+) -> Result<Vec<(usize, usize)>, SttError> {
     let segments = vad.segments_from_samples(WhisperVadParams::default(), pcm)?;
     // VAD timestamps are centiseconds; 1 cs = 160 samples at 16 kHz.
     let to_sample = |cs: f32| ((cs.max(0.0) * 160.0) as usize).min(pcm.len());
@@ -64,6 +67,35 @@ pub(crate) fn pack(pcm: &[f32], ranges: &[(usize, usize)]) -> (Vec<f32>, Vec<Reg
         packed.extend_from_slice(&pcm[start..end]);
     }
     (packed, regions)
+}
+
+/// Kept before the first speech and after the last when trimming, since VAD
+/// boundaries can clip soft word edges.
+const TRIM_LEAD_SAMPLES: usize = 200 * SAMPLES_PER_MS;
+const TRIM_TAIL_SAMPLES: usize = 300 * SAMPLES_PER_MS;
+/// Silence appended after a trimmed clip. Audio that stops right after the
+/// last word made greedy decoding stumble into slow temperature retries.
+const TRIM_SILENCE_SAMPLES: usize = 500 * SAMPLES_PER_MS;
+
+/// For short clips (dictation): keeps everything from just before the first
+/// speech to just after the last, pauses included (they carry punctuation),
+/// plus trailing silence. Returns one region for [`map_segment`].
+///
+/// `ranges` must be non-empty.
+pub(crate) fn trim(pcm: &[f32], ranges: &[(usize, usize)]) -> (Vec<f32>, Vec<Region>) {
+    let first = ranges.first().map_or(0, |r| r.0);
+    let last = ranges.last().map_or(pcm.len(), |r| r.1);
+    let start = first.saturating_sub(TRIM_LEAD_SAMPLES);
+    let end = (last + TRIM_TAIL_SAMPLES).min(pcm.len()).max(start);
+    let mut audio = Vec::with_capacity(end - start + TRIM_SILENCE_SAMPLES);
+    audio.extend_from_slice(&pcm[start..end]);
+    audio.resize(audio.len() + TRIM_SILENCE_SAMPLES, 0.0);
+    let region = Region {
+        orig_start: start,
+        orig_end: end,
+        packed_start: 0,
+    };
+    (audio, vec![region])
 }
 
 /// A segment's overlap with a region is "substantial" (that region holds
@@ -147,6 +179,19 @@ fn ms(samples: usize) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trims_outer_silence_but_keeps_pauses() {
+        let pcm = vec![0.5_f32; 10 * 16_000];
+        // Speech at 2-3 s and 5-6 s.
+        let (audio, regions) = trim(&pcm, &[(32_000, 48_000), (80_000, 96_000)]);
+        // 1.8 s ..= 6.3 s, plus 0.5 s of silence.
+        assert_eq!(audio.len(), (6_300 - 1_800 + 500) * 16);
+        assert_eq!(audio.last(), Some(&0.0));
+        assert_eq!(regions[0].orig_start, 1_800 * 16);
+        // A segment at 0.2 s in the clip is at 2.0 s in the original.
+        assert_eq!(map_segment(200, 1_200, &regions).0, 2_000);
+    }
 
     #[test]
     fn packs_regions_with_gaps() {

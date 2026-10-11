@@ -136,6 +136,7 @@ async fn judge_case(
             // adds despite instructions).
             max_tokens: Some(4096),
             temperature: Some(0.0),
+            no_reasoning: false,
         })
         .await?;
 

@@ -14,10 +14,16 @@
       {
         "label": "main",
         "title": "Quill",
-        "width": 1100,
-        "height": 720,
-        "minWidth": 760,
-        "minHeight": 480
+        "width": 1180,
+        "height": 760,
+        "minWidth": 820,
+        "minHeight": 520,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 16
+        }
       }
     ],
     "security": {

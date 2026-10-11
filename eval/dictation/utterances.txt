@@ -1,0 +1,11 @@
+# id|voice|cut|text  (cut = seconds to cut the end off, simulating an early key release; 0 = none)
+short|Samantha|0|Sounds good, see you then.
+slack|Daniel|0|Hey team, quick update. The build is green again, and I'll ship the release tomorrow morning.
+fillers|Karen|0|So um I was thinking that we could uh maybe move the standup to ten thirty instead of ten.
+correction|Moira|0|Let's meet at three, no wait, four p.m. on Thursday in the big conference room.
+list|Samantha|0|For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.
+question|Daniel|0|What time does the design review start tomorrow, and who is presenting?
+email|Karen|0|Hi Sarah, thanks for sending the contract over. I've reviewed it and I have two small comments on section four. Could we jump on a call this week to go through them? Best, Matt.
+code|Moira|0|Can you rename the fetch user function to load user and add a unit test for the empty response case?
+numbers|Samantha|0|The invoice total is twelve hundred and fifty dollars, due on October twenty first, with a fifteen percent discount.
+cutoff|Daniel|0.35|Please send me the quarterly numbers before the meeting on Friday afternoon.

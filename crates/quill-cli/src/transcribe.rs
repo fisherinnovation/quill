@@ -67,6 +67,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     let opts = TranscribeOptions {
         language: args.language,
         initial_prompt: args.prompt,
+        ..Default::default()
     };
     let started = Instant::now();
     let (segments, audio_secs) = if args.file.is_dir() {

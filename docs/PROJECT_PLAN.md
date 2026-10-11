@@ -278,10 +278,10 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | M3 Summarize | 🟡 In progress | `summarize` working end to end with Ollama (qwen3:8b, local, 34 s for a 4-min meeting). Prompts are in `prompts/summary-v1/`. Left: first OpenRouter run (needs a key). |
 | M4 Eval harness | 🟡 In progress | Harness complete and tested end to end with local models. Left: a cloud run with a strong judge (needs the OpenRouter key), more transcripts (real meetings in `private/`), then choose the default model. |
 | M5 Meeting MVP | 🟡 In progress | Record → transcribe → summarize works end to end in the app (first real run: 27 s test meeting, Haiku summary in 4.1 s for $0.0004). Meeting library in SQLite with FTS5 search, shared with the CLI. First-run onboarding with an audio access check, Markdown export, and a movable recordings folder. Left: prompt choice, Windows check. |
-| M6 Dictation | ⬜ | |
+| M6 Dictation | 🟡 In progress | Engine measured with `quill-cli dictate`: 0.3 s to type without polish, about 0.95 s with. App: global ⌥ Space hotkey (hold to talk or tap to toggle; Esc cancels), menu-bar status, start/stop sounds, paste into the focused app with the clipboard restored, vocabulary and replacements, history. Left: real-world testing, a floating indicator, per-app tone, a Windows check. |
 | M7 Distribution | ⬜ | |
 
-**Current focus:** M5 (desktop app). Pending on real use: M2/M4 acceptance (a real call; a cloud eval with a strong judge). Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
+**Current focus:** M6 (dictation). Pending on real use: M2/M4 acceptance (a real call; a cloud eval with a strong judge). Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
 **Open decisions:** project name; license; default summary model (decided by M4; `anthropic/claude-haiku-5.5` until then). 
 
 **Workspace notes (M0):**
@@ -334,3 +334,11 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - **Onboarding / access check** (`quill_audio::check`). macOS reports a denied permission as silence, not an error, so the first-run screen records 4 s from both sources while playing a quiet chime. The system tap records every process, Quill included, so hearing nothing (not even the chime) means system-audio access was denied; a working mic always picks up some noise. Running the check also triggers both permission prompts before the first real meeting. It can be re-run from Settings, and the test audio is deleted afterwards.
 - **Recordings folder** (`Settings.recordings_dir`, default `<data dir>/recordings`). Changing it moves every meeting folder (rename, or copy then delete across drives). It's all or nothing, and refused while recording or processing. The database stays in the data directory. Audio is about 2 GB per hour (32-bit float, 48 kHz, stereo system track); a smaller format is a candidate for later.
 - File and folder pickers (export, recordings folder) open from Rust via `tauri-plugin-dialog`, so the web view never passes in a path to write to and needs no plugin permissions.
+
+**Notes (M6):**
+- Latency: Whisper `short_clip` mode (greedy decoding, the encoder sized to the clip, VAD trimming only the outer silence) takes 0.27 s median on turbo, versus 0.6–0.7 s with meeting settings. The polish step (default `google/gemini-3.5-flash-lite`, 0.66 s median) runs only when `needs_polish` finds fillers, corrections, lists or stutters; on clean speech the model returned Whisper's text unchanged 7 times out of 9. Details are in `eval/dictation/README.md`.
+- Language: auto-detection on the shortened encoder window produced nonsense, and doing it properly costs about 0.5 s, so dictation defaults to the system language.
+- Polish safety: `check_polish` rejects output that's much longer (the model answered or embellished), much shorter (it summarized) or starts with a preamble, and the raw transcript is typed instead.
+- The hotkey (`tauri-plugin-global-shortcut`) works two ways: hold it to talk (release after at least 350 ms), or tap it to toggle. Esc is bound globally only while listening. Registering a shortcut blocks on the main thread, so it's only ever done from the dictation controller's thread.
+- The mic stays open for 30 s after each dictation (with a 300 ms pre-roll) so back-to-back dictations start instantly; macOS shows the orange mic indicator meanwhile.
+- Insertion: `quill-insert` copies to the clipboard (marked concealed, so clipboard managers skip it), simulates ⌘V, then restores the previous text or image. Without Accessibility permission the text is left on the clipboard and the UI says so.

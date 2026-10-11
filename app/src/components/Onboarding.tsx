@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, errorText, isMac, type AccessReport } from "../api";
 import { AccessCheck } from "./AccessCheck";
+import { Icon, Logo } from "./Icon";
 
 /** First-run screen: what Quill records, and getting the permissions granted. */
 export function Onboarding({ onDone }: { onDone: () => void }) {
@@ -19,39 +20,59 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="onboarding">
+      <div className="onboarding-drag" data-tauri-drag-region />
       <div className="onboarding-card">
+        <Logo size={56} />
         <h1>Welcome to Quill</h1>
-        <p>
-          Quill records your meetings and transcribes them on this {isMac ? "Mac" : "PC"}. It works with any meeting
-          app, without joining the call as a bot. It records two tracks:
-        </p>
-        <ul className="tracks">
-          <li>
-            <span className="speaker me">Me</span> your microphone
-          </li>
-          <li>
-            <span className="speaker others">Others</span> system audio: whatever you hear from Zoom, Meet, Teams…
-          </li>
-        </ul>
-        <p className="muted">
-          Audio never leaves this computer. Only the text transcript is sent for summarizing, to the model you pick in
-          Settings, or nowhere at all if you use a local Ollama model.
+        <p className="lead">
+          Meeting notes and dictation that run on your {isMac ? "Mac" : "PC"}. Works with Zoom, Meet, Teams or any other
+          call, without a bot joining.
         </p>
 
+        <div className="features">
+          <div className="feature">
+            <div className="access-icon me">
+              <Icon name="mic" size={17} />
+            </div>
+            <div>
+              <strong>Your microphone becomes “Me”</strong>
+              <p>And the call audio becomes “Others”, so the notes know who said what.</p>
+            </div>
+          </div>
+          <div className="feature">
+            <div className="access-icon">
+              <Icon name="sparkle" size={17} />
+            </div>
+            <div>
+              <strong>Notes written for you</strong>
+              <p>Decisions, action items and a searchable transcript for every meeting.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="privacy-note">
+          <Icon name="lock" size={15} />
+          <span>
+            Audio never leaves this computer. Only the text transcript is sent for summarizing, to the model you
+            choose, or nowhere at all with a local model.
+          </span>
+        </div>
+
         <h2>Allow access</h2>
-        <p>
+        <p className="muted small" style={{ marginBottom: 10 }}>
           {isMac
-            ? "macOS asks the first time Quill listens. Click Check access and choose Allow in both prompts. Quill then records for a few seconds and plays a short chime to test the system audio."
-            : "Click Check access. Quill records for a few seconds and plays a short chime to test the system audio."}
+            ? "macOS asks the first time Quill listens. Click Check access, then Allow in both prompts."
+            : "Click Check access to confirm Quill can hear both."}
         </p>
         <AccessCheck onResult={setReport} />
 
-        {error && <p className="error-text small">{error}</p>}
-        <div className="toolbar onboarding-actions">
-          <span className="muted small">You can run this check again from Settings.</span>
+        {error && <p className="error-text small" style={{ marginTop: 10 }}>{error}</p>}
+        <div className="onboarding-actions">
+          <span className="faint small">You can check again any time in Settings.</span>
           <span className="spacer" />
-          <button type="button" className={ready ? "primary" : "subtle"} onClick={finish}>
+          <button className={ready ? "primary" : "ghost"} onClick={finish}>
             {ready ? "Start using Quill" : "Skip for now"}
+            {ready && <Icon name="check" size={14} />}
           </button>
         </div>
       </div>

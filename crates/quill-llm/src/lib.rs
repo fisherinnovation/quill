@@ -53,6 +53,10 @@ pub struct CompletionRequest {
     pub messages: Vec<Message>,
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
+    /// Ask reasoning models to answer straight away. Thinking first costs
+    /// seconds, and with a tight `max_tokens` can use up the whole budget
+    /// before any answer. (Ollama requests always disable it.)
+    pub no_reasoning: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

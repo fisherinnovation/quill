@@ -3,6 +3,8 @@
 //!
 //! - [`capture`]: record the microphone and system audio to WAV files.
 //! - [`check`]: a short test recording that confirms both sources are heard.
+//! - [`live`]: microphone capture into memory, for dictation.
+//! - [`cue`]: short start/stop sounds.
 //! - [`load_for_stt`]: read a WAV, downmix to mono and resample to the 16 kHz
 //!   that Whisper expects.
 //!
@@ -12,6 +14,8 @@
 pub mod aec;
 pub mod capture;
 pub mod check;
+pub mod cue;
+pub mod live;
 mod resample;
 mod wav;
 

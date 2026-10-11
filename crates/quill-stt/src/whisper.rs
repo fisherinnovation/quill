@@ -2,8 +2,11 @@
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use whisper_rs::{
+    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperVadContext,
+};
 
 use crate::{Segment, SttError, TranscribeOptions, Transcriber, vad};
 
@@ -38,8 +41,9 @@ impl Default for WhisperConfig {
 pub struct WhisperTranscriber {
     ctx: WhisperContext,
     threads: usize,
-    // whisper.cpp takes the VAD model path as a C string, so keep it as UTF-8.
-    vad_model: Option<String>,
+    /// Silero VAD, loaded once. Behind a mutex because running it needs
+    /// `&mut`; it takes milliseconds, so concurrent callers barely wait.
+    vad: Option<Mutex<WhisperVadContext>>,
 }
 
 impl WhisperTranscriber {
@@ -58,21 +62,20 @@ impl WhisperTranscriber {
         params.flash_attn(config.use_gpu);
         let ctx = WhisperContext::new_with_params(model_path, params)?;
 
-        let vad_model = match &config.vad_model {
+        let threads = config.threads.max(1);
+        let vad = match &config.vad_model {
             Some(path) if !path.is_file() => return Err(SttError::ModelNotFound(path.clone())),
-            Some(path) => Some(
-                path.to_str()
-                    .ok_or_else(|| SttError::NonUtf8Path(path.clone()))?
-                    .to_owned(),
-            ),
+            // whisper.cpp takes the path as a C string, so it must be UTF-8.
+            Some(path) => {
+                let path = path
+                    .to_str()
+                    .ok_or_else(|| SttError::NonUtf8Path(path.clone()))?;
+                Some(Mutex::new(vad::load(path, threads)?))
+            }
             None => None,
         };
 
-        Ok(Self {
-            ctx,
-            threads: config.threads.max(1),
-            vad_model,
-        })
+        Ok(Self { ctx, threads, vad })
     }
 }
 
@@ -94,12 +97,16 @@ impl Transcriber for WhisperTranscriber {
         // Beam search rather than greedy decoding: with greedy, large-v3 fell
         // into a repetition loop ("I think that's a good thing." x110) 90 s
         // into the benchmark meeting and lost the rest of it. Beam search fixed
-        // that at ~10% speed cost for turbo (see eval/benchmarks.md). Dictation
-        // (M6) may want greedy for latency on short clips.
-        let mut params = FullParams::new(SamplingStrategy::BeamSearch {
-            beam_size: 5,
-            patience: -1.0, // unused by whisper.cpp; -1 is its default
-        });
+        // that at ~10% speed cost for turbo (see eval/benchmarks.md). Short
+        // clips (dictation) use greedy: too short to loop, and faster.
+        let mut params = if opts.short_clip {
+            FullParams::new(SamplingStrategy::Greedy { best_of: 1 })
+        } else {
+            FullParams::new(SamplingStrategy::BeamSearch {
+                beam_size: 5,
+                patience: -1.0, // unused by whisper.cpp; -1 is its default
+            })
+        };
         params.set_n_threads(i32::try_from(self.threads).unwrap_or(8));
         params.set_language(Some(opts.language.as_deref().unwrap_or("auto")));
         if let Some(prompt) = &opts.initial_prompt {
@@ -115,17 +122,52 @@ impl Transcriber for WhisperTranscriber {
         // With VAD, transcribe only the speech, packed together; `regions`
         // remembers where each piece came from. `Cow` lets the no-VAD path
         // borrow the caller's samples instead of copying them.
-        let (audio, regions) = match &self.vad_model {
-            Some(model) => {
-                let ranges = vad::detect_speech(model, pcm_16k_mono, self.threads)?;
+        let (audio, regions) = match &self.vad {
+            Some(vad) => {
+                let ranges = {
+                    let mut vad = vad
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    vad::detect_speech(&mut vad, pcm_16k_mono)?
+                };
                 if ranges.is_empty() {
                     return Ok(Vec::new());
                 }
-                let (packed, regions) = vad::pack(pcm_16k_mono, &ranges);
-                (Cow::Owned(packed), Some(regions))
+                // Meetings drop long silences outright; dictation keeps its
+                // pauses (see `vad::trim`).
+                let (audio, regions) = if opts.short_clip {
+                    vad::trim(pcm_16k_mono, &ranges)
+                } else {
+                    vad::pack(pcm_16k_mono, &ranges)
+                };
+                (Cow::Owned(audio), Some(regions))
             }
             None => (Cow::Borrowed(pcm_16k_mono), None),
         };
+
+        if opts.short_clip {
+            if opts.language.is_none() {
+                // Language detection on the shortened context below picks
+                // nonsense ("Tex Tex" for English), so detect it first with
+                // the full one, in a separate state: reusing this one left
+                // its encoder sized for 30 s and the decode came out garbled.
+                let mut detect = self.ctx.create_state()?;
+                detect.pcm_to_mel(&audio, self.threads)?;
+                let (id, _) = detect.lang_detect(0, self.threads)?;
+                tracing::debug!(language = ?whisper_rs::get_lang_str(id), "detected language");
+                if let Some(language) = whisper_rs::get_lang_str(id) {
+                    params.set_language(Some(language));
+                }
+            }
+            // The encoder always processes a 30 s window (1500 frames of
+            // 20 ms) unless told otherwise. Sizing it to the clip, plus ~1.3 s
+            // of margin, made a 4 s clip 4.5x faster on turbo with the same
+            // text. (Not for long audio: quality drops when it's cut short.)
+            let frames = audio.len().div_ceil(320) + 64;
+            if frames < 1500 {
+                params.set_audio_ctx(i32::try_from(frames).unwrap_or(1500));
+            }
+        }
 
         state.full(params, &audio)?;
 

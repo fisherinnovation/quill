@@ -17,7 +17,8 @@ use crate::summary::Summary;
 
 /// Schema migrations, applied in order; `PRAGMA user_version` records how
 /// many have run. Never edit a shipped migration — add a new one.
-const MIGRATIONS: &[&str] = &["
+const MIGRATIONS: &[&str] = &[
+    "
 CREATE TABLE meetings (
     id           TEXT PRIMARY KEY,
     title        TEXT NOT NULL,
@@ -55,7 +56,22 @@ CREATE TABLE summaries (
     latency_ms        INTEGER NOT NULL,
     created_at        TEXT NOT NULL
 );
-"];
+",
+    "
+-- Dictation history (M6): what was typed, for copying again or recovering
+-- text that didn't land where it should have.
+CREATE TABLE dictations (
+    id           INTEGER PRIMARY KEY,
+    created_at   TEXT NOT NULL,            -- RFC 3339
+    text         TEXT NOT NULL,            -- what was typed
+    raw          TEXT,                     -- Whisper's text, if polish changed it
+    polish_model TEXT,
+    audio_ms     INTEGER NOT NULL,
+    latency_ms   INTEGER NOT NULL,         -- key release to text typed
+    pasted       INTEGER NOT NULL          -- 0: left on the clipboard
+);
+",
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -112,6 +128,26 @@ pub struct SearchHit {
     /// Matching text with hits wrapped in `[` `]`.
     pub snippet: String,
 }
+
+/// One dictation, as stored in the history.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DictationEntry {
+    pub id: i64,
+    pub created_at: String,
+    /// What was typed.
+    pub text: String,
+    /// Whisper's text, when the polish step changed it.
+    pub raw: Option<String>,
+    pub polish_model: Option<String>,
+    pub audio_ms: u64,
+    /// From releasing the hotkey to the text being typed.
+    pub latency_ms: u64,
+    /// False if it was left on the clipboard instead (no permission to paste).
+    pub pasted: bool,
+}
+
+/// Dictation history entries kept; older ones are deleted as new ones arrive.
+pub const DICTATION_HISTORY_LIMIT: i64 = 500;
 
 /// Handle to the library. Cheap to share behind an `Arc`; the connection is
 /// behind a `Mutex` because `rusqlite::Connection` can't be used from two
@@ -423,6 +459,71 @@ impl Library {
         if dir.exists() {
             std::fs::remove_dir_all(dir)?;
         }
+        Ok(())
+    }
+
+    /// Saves a dictation (`id` and `created_at` are filled in) and trims the
+    /// history to [`DICTATION_HISTORY_LIMIT`].
+    pub fn add_dictation(&self, entry: &DictationEntry) -> Result<DictationEntry, LibraryError> {
+        let created_at = jiff::Timestamp::now().to_string();
+        let raw = entry.raw.as_deref().filter(|raw| *raw != entry.text);
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                created_at,
+                entry.text,
+                raw,
+                entry.polish_model,
+                i64::try_from(entry.audio_ms).unwrap_or(i64::MAX),
+                i64::try_from(entry.latency_ms).unwrap_or(i64::MAX),
+                entry.pasted,
+            ],
+        )?;
+        let id = conn.last_insert_rowid();
+        conn.execute(
+            "DELETE FROM dictations WHERE id <= ?1",
+            [id - DICTATION_HISTORY_LIMIT],
+        )?;
+        Ok(DictationEntry {
+            id,
+            created_at,
+            raw: raw.map(String::from),
+            ..entry.clone()
+        })
+    }
+
+    /// Most recent dictations first.
+    pub fn dictations(&self, limit: usize) -> Result<Vec<DictationEntry>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted
+             FROM dictations ORDER BY id DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map([i64::try_from(limit).unwrap_or(i64::MAX)], |r| {
+            Ok(DictationEntry {
+                id: r.get(0)?,
+                created_at: r.get(1)?,
+                text: r.get(2)?,
+                raw: r.get(3)?,
+                polish_model: r.get(4)?,
+                audio_ms: u64::try_from(r.get::<_, i64>(5)?).unwrap_or(0),
+                latency_ms: u64::try_from(r.get::<_, i64>(6)?).unwrap_or(0),
+                pasted: r.get(7)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn delete_dictation(&self, id: i64) -> Result<(), LibraryError> {
+        self.conn()
+            .execute("DELETE FROM dictations WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
+    pub fn clear_dictations(&self) -> Result<(), LibraryError> {
+        self.conn().execute("DELETE FROM dictations", [])?;
         Ok(())
     }
 
@@ -795,6 +896,35 @@ mod tests {
         assert!(lib.meeting_dir(&m.id).exists());
         // Nor can the new folder sit inside the current one.
         assert!(lib.move_recordings(&before.join("sub")).is_err());
+    }
+
+    #[test]
+    fn dictation_history_keeps_the_newest_and_raw_only_when_different() {
+        let (lib, _dir) = library();
+        let entry = |text: &str, raw: &str| DictationEntry {
+            id: 0,
+            created_at: String::new(),
+            text: text.into(),
+            raw: Some(raw.into()),
+            polish_model: None,
+            audio_ms: 3000,
+            latency_ms: 300,
+            pasted: true,
+        };
+        let first = lib.add_dictation(&entry("Same.", "Same.")).unwrap();
+        assert_eq!(first.raw, None);
+        let second = lib
+            .add_dictation(&entry("Meet at 4.", "Meet at 3, no, 4."))
+            .unwrap();
+        assert_eq!(second.raw.as_deref(), Some("Meet at 3, no, 4."));
+
+        let all = lib.dictations(10).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0], second, "newest first, as stored");
+        lib.delete_dictation(first.id).unwrap();
+        assert_eq!(lib.dictations(10).unwrap().len(), 1);
+        lib.clear_dictations().unwrap();
+        assert!(lib.dictations(10).unwrap().is_empty());
     }
 
     #[test]

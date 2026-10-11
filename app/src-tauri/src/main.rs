@@ -9,6 +9,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod dictation;
 mod onboarding;
 mod pipeline;
 mod recorder;
@@ -80,9 +81,31 @@ fn main() {
         })
         // Native open/save dialogs, used from Rust only (see storage.rs).
         .plugin(tauri_plugin_dialog::init())
+        // The dictation hotkey. The handler runs on the main thread and only
+        // forwards to the dictation controller.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if let Some(dictation) = app.try_state::<dictation::Dictation>() {
+                        dictation.on_shortcut(shortcut, event);
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let tray = tray::create(app.handle())?;
             *commands::lock(&app.state::<AppState>().tray) = Some(tray);
+            app.manage(dictation::Dictation::spawn(app.handle().clone()));
+            // Binding the hotkey waits on the main thread, which is busy
+            // running this setup, so do it (and the model preload) from
+            // another thread.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                if let Err(e) = handle.state::<dictation::Dictation>().register() {
+                    tracing::error!("dictation shortcut: {e}");
+                }
+                pipeline::preload(&handle);
+            });
             Ok(())
         })
         // Closing the window keeps Quill running in the menu bar, so a
@@ -118,6 +141,14 @@ fn main() {
             onboarding::check_audio_access,
             onboarding::open_privacy_settings,
             onboarding::finish_onboarding,
+            dictation::dictation_state,
+            dictation::save_dictation_settings,
+            dictation::list_dictations,
+            dictation::delete_dictation,
+            dictation::clear_dictations,
+            dictation::paste_permission,
+            dictation::request_paste_permission,
+            dictation::system_language,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Quill");

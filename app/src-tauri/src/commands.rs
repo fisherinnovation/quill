@@ -74,14 +74,16 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
     lock(&state.settings).clone()
 }
 
-/// Saves the settings form. The recordings folder and onboarding flag have
-/// their own commands, so the stored values win over whatever the form sent.
+/// Saves the settings form. The recordings folder, onboarding flag and
+/// dictation settings have their own commands, so the stored values win over
+/// whatever the form sent.
 #[tauri::command]
 pub fn save_settings(state: State<'_, AppState>, mut settings: Settings) -> CommandResult<()> {
     {
         let current = lock(&state.settings);
         settings.recordings_dir.clone_from(&current.recordings_dir);
         settings.onboarded = current.onboarded;
+        settings.dictation.clone_from(&current.dictation);
     }
     settings.save(&state.data_dir)?;
     *lock(&state.settings) = settings;

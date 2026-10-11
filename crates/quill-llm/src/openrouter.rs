@@ -4,12 +4,14 @@
 //! don't collect (store or train on) request data. Zero-data-retention is
 //! stricter and optional, since fewer endpoints offer it.
 
+use std::collections::HashSet;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::{CompletionRequest, CompletionResponse, LlmError, LlmProvider, Message};
+use crate::{CompletionRequest, CompletionResponse, LlmError, LlmProvider};
 
 const PROVIDER: &str = "OpenRouter";
 const DEFAULT_BASE_URL: &str = "https://openrouter.ai/api/v1";
@@ -37,6 +39,9 @@ pub struct OpenRouter {
     api_key: String,
     base_url: String,
     privacy: Privacy,
+    /// Models that refused `no_reasoning` (their reasoning is mandatory),
+    /// so later requests don't pay for the failed attempt again.
+    reasoning_required: Mutex<HashSet<String>>,
 }
 
 impl OpenRouter {
@@ -57,10 +62,17 @@ impl OpenRouter {
             api_key,
             base_url: base_url.trim_end_matches('/').to_string(),
             privacy,
+            reasoning_required: Mutex::new(HashSet::new()),
         }
     }
 
-    fn body(&self, req: &CompletionRequest) -> serde_json::Value {
+    fn reasoning_required(&self) -> std::sync::MutexGuard<'_, HashSet<String>> {
+        self.reasoning_required
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn body(&self, req: &CompletionRequest, no_reasoning: bool) -> serde_json::Value {
         let mut provider = serde_json::Map::new();
         if self.privacy.deny_data_collection {
             provider.insert("data_collection".into(), json!("deny"));
@@ -79,6 +91,11 @@ impl OpenRouter {
         if let Some(temperature) = req.temperature {
             body["temperature"] = json!(temperature);
         }
+        if no_reasoning {
+            // OpenRouter's unified switch. Models whose reasoning is
+            // mandatory reject it (see `complete`).
+            body["reasoning"] = json!({ "enabled": false });
+        }
         body
     }
 }
@@ -94,7 +111,13 @@ struct ChatResponse {
 
 #[derive(Deserialize)]
 struct Choice {
-    message: Message,
+    message: ResponseMessage,
+}
+
+#[derive(Deserialize)]
+struct ResponseMessage {
+    // Null when a reasoning model ran out of tokens before answering.
+    content: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -117,6 +140,35 @@ struct ErrorDetail {
 #[async_trait::async_trait]
 impl LlmProvider for OpenRouter {
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        let no_reasoning = req.no_reasoning && !self.reasoning_required().contains(&req.model);
+        match self.send(&req, no_reasoning).await {
+            Err(LlmError::Api {
+                status: 400,
+                message,
+                ..
+            }) if no_reasoning && message.contains("easoning is mandatory") => {
+                tracing::debug!(model = req.model, "reasoning can't be disabled; retrying");
+                self.reasoning_required().insert(req.model.clone());
+                self.send(&req, false).await
+            }
+            result => result,
+        }
+    }
+
+    fn context_tokens(&self) -> usize {
+        // Most current models take 200k–1M tokens. Stay well under the
+        // smallest so one request never fails for size; longer transcripts
+        // (several hours) go through map-reduce.
+        100_000
+    }
+}
+
+impl OpenRouter {
+    async fn send(
+        &self,
+        req: &CompletionRequest,
+        no_reasoning: bool,
+    ) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
         let response = self
             .client
@@ -124,7 +176,7 @@ impl LlmProvider for OpenRouter {
             .bearer_auth(&self.api_key)
             // Optional OpenRouter attribution headers.
             .header("X-Title", "Quill")
-            .json(&self.body(&req))
+            .json(&self.body(req, no_reasoning))
             .send()
             .await?;
 
@@ -150,10 +202,17 @@ impl LlmProvider for OpenRouter {
             .choices
             .into_iter()
             .next()
-            .map(|c| c.message.content)
             .ok_or(LlmError::Decode {
                 provider: PROVIDER,
                 detail: "no choices in response".into(),
+            })?
+            .message
+            .content
+            .ok_or(LlmError::Decode {
+                provider: PROVIDER,
+                detail: "the model returned no text (a reasoning model may have spent its \
+                         token budget thinking)"
+                    .into(),
             })?;
         let usage = parsed.usage;
         Ok(CompletionResponse {
@@ -165,18 +224,12 @@ impl LlmProvider for OpenRouter {
             latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         })
     }
-
-    fn context_tokens(&self) -> usize {
-        // Most current models take 200k–1M tokens. Stay well under the
-        // smallest so one request never fails for size; longer transcripts
-        // (several hours) go through map-reduce.
-        100_000
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Message;
     use wiremock::matchers::{body_partial_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -186,6 +239,7 @@ mod tests {
             messages: vec![Message::system("Be brief."), Message::user("Hi")],
             max_tokens: Some(100),
             temperature: Some(0.2),
+            no_reasoning: false,
         }
     }
 
@@ -224,6 +278,53 @@ mod tests {
             (12, 3)
         );
         assert_eq!(response.cost_usd, Some(0.0000027));
+    }
+
+    #[tokio::test]
+    async fn drops_no_reasoning_for_models_that_require_it_and_remembers() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_partial_json(json!({"reasoning": {"enabled": false}})))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": {"code": 400, "message": "Reasoning is mandatory for this endpoint and cannot be disabled."},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "model": "m",
+                "choices": [{"message": {"role": "assistant", "content": "ok"}}],
+            })))
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let provider =
+            OpenRouter::with_base_url("sk-test".into(), Privacy::default(), &server.uri());
+        let req = CompletionRequest {
+            no_reasoning: true,
+            ..request()
+        };
+        // First call: refused, retried without the flag. Second: no flag.
+        assert_eq!(provider.complete(req.clone()).await.unwrap().text, "ok");
+        assert_eq!(provider.complete(req).await.unwrap().text, "ok");
+    }
+
+    #[tokio::test]
+    async fn null_content_is_an_error_not_a_crash() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "model": "m",
+                "choices": [{"message": {"role": "assistant", "content": null}}],
+            })))
+            .mount(&server)
+            .await;
+        let provider =
+            OpenRouter::with_base_url("sk-test".into(), Privacy::default(), &server.uri());
+        let err = provider.complete(request()).await.unwrap_err();
+        assert!(err.to_string().contains("returned no text"), "{err}");
     }
 
     #[tokio::test]

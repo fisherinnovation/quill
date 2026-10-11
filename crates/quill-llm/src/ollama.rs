@@ -152,6 +152,7 @@ mod tests {
                 messages: vec![Message::user("Summarize.")],
                 max_tokens: None,
                 temperature: Some(0.5),
+                no_reasoning: false,
             })
             .await
             .unwrap();

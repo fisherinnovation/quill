@@ -82,6 +82,22 @@ pub const JUDGE: JudgePrompts = JudgePrompts {
     user: prompt!("judge-v1/user.md"),
 };
 
+/// Prompts that clean up dictated text before it's typed (M6).
+#[derive(Debug, Clone, Copy)]
+pub struct DictationPrompts {
+    pub version: &'static str,
+    /// Vars: vocabulary.
+    pub system: &'static str,
+    /// Vars: transcript.
+    pub user: &'static str,
+}
+
+pub const DICTATION: DictationPrompts = DictationPrompts {
+    version: "dictation-v1",
+    system: prompt!("dictation-v1/system.md"),
+    user: prompt!("dictation-v1/user.md"),
+};
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum RenderError {
     #[error("template uses {{{{{0}}}}} but no value was given")]
@@ -166,6 +182,8 @@ mod tests {
             &[("labels", "A, B"), ("transcript", "t"), ("candidates", "c")],
         )
         .unwrap();
+        render(DICTATION.system, &[("vocabulary", "Quill")]).unwrap();
+        render(DICTATION.user, &[("transcript", "t")]).unwrap();
     }
 
     fn check_summary_templates(p: &SummaryPrompts) {

@@ -82,6 +82,23 @@ pub fn set_recording(app: &AppHandle, recording: bool) {
     }
 }
 
+/// Shows dictation in the menu-bar title, unless a recording's timer is
+/// using it.
+pub fn set_dictation(app: &AppHandle, phase: crate::dictation::Phase) {
+    use crate::dictation::Phase;
+    let state = app.state::<AppState>();
+    if lock(&state.recording).is_some() {
+        return;
+    }
+    if let Some(tray) = lock(&state.tray).as_ref() {
+        let _ = tray.icon.set_title(match phase {
+            Phase::Listening => Some("● Listening"),
+            Phase::Processing => Some("…"),
+            Phase::Idle => None,
+        });
+    }
+}
+
 /// Updates the "● m:ss" title once a second until recording stops.
 fn spawn_timer(app: AppHandle) {
     std::thread::spawn(move || {

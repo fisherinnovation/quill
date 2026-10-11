@@ -4,6 +4,7 @@
 //! Wires the other library crates together; front ends (`quill-cli`, the
 //! Tauri app) call into this crate rather than into the pieces directly.
 
+pub mod dictation;
 pub mod library;
 pub mod meeting;
 pub mod paths;

@@ -24,6 +24,11 @@ pub struct Segment {
     pub speaker: Option<String>,
 }
 
+/// Whether Whisper knows this ISO 639-1 language code (e.g. `"en"`).
+pub fn language_supported(code: &str) -> bool {
+    whisper_rs::get_lang_id(code).is_some()
+}
+
 /// Per-call knobs for a transcription.
 #[derive(Debug, Clone, Default)]
 pub struct TranscribeOptions {
@@ -31,6 +36,10 @@ pub struct TranscribeOptions {
     pub language: Option<String>,
     /// Text that primes the decoder: custom vocabulary, names, spelling style.
     pub initial_prompt: Option<String>,
+    /// Tune for a clip of a few seconds (dictation) rather than a recording:
+    /// greedy decoding and an encoder sized to the clip, which cuts latency
+    /// several times over. Leave off for meetings.
+    pub short_clip: bool,
 }
 
 /// Anything that turns 16 kHz mono audio into timestamped text.

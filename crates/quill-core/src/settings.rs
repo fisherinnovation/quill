@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 /// Summary model until the M4 eval picks one: cheap, fast, 1M-token context.
 pub const DEFAULT_SUMMARY_MODEL: &str = "anthropic/claude-haiku-5.5";
 
+/// Dictation polish model: the fastest consistent one in the M6 comparison
+/// (median 0.66 s; see eval/dictation/README.md).
+pub const DEFAULT_POLISH_MODEL: &str = "google/gemini-3.5-flash-lite";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -30,6 +34,52 @@ pub struct Settings {
     pub recordings_dir: Option<PathBuf>,
     /// The app's first-run screen has been completed.
     pub onboarded: bool,
+    // Tables must come after plain values in TOML, so keep this last.
+    pub dictation: DictationSettings,
+}
+
+/// Global-hotkey dictation (M6).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DictationSettings {
+    pub enabled: bool,
+    /// Global shortcut, e.g. "Alt+Space". Hold it to talk, or tap it to
+    /// start and tap again to stop.
+    pub hotkey: String,
+    /// Spoken language: a code like "en", "auto" to detect it each time
+    /// (adds ~0.5 s), or `None` for the system language.
+    pub language: Option<String>,
+    /// Clean up the text with an LLM before typing it.
+    pub polish: bool,
+    /// OpenRouter model id or `ollama:<model>` for the polish step.
+    pub polish_model: String,
+    /// Names and terms to spell exactly (fed to Whisper and the polish step).
+    pub vocabulary: Vec<String>,
+    /// Applied to the text before it's typed, whole words, ignoring case.
+    pub replacements: Vec<Replacement>,
+    /// Keep a history of what was dictated (in the local library).
+    pub keep_history: bool,
+}
+
+impl Default for DictationSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            hotkey: "Alt+Space".into(),
+            language: None,
+            polish: true,
+            polish_model: DEFAULT_POLISH_MODEL.into(),
+            vocabulary: Vec::new(),
+            replacements: Vec::new(),
+            keep_history: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Replacement {
+    pub from: String,
+    pub to: String,
 }
 
 impl Default for Settings {
@@ -43,6 +93,7 @@ impl Default for Settings {
             auto_summarize: true,
             recordings_dir: None,
             onboarded: false,
+            dictation: DictationSettings::default(),
         }
     }
 }
@@ -97,6 +148,14 @@ mod tests {
             language: Some("en".into()),
             summary_model: "ollama:qwen3:8b".into(),
             recordings_dir: Some("/Volumes/Archive/Quill".into()),
+            dictation: DictationSettings {
+                vocabulary: vec!["Quill".into(), "OpenRouter".into()],
+                replacements: vec![Replacement {
+                    from: "open router".into(),
+                    to: "OpenRouter".into(),
+                }],
+                ..DictationSettings::default()
+            },
             ..Settings::default()
         };
         custom.save(dir.path()).unwrap();

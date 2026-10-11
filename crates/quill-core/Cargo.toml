@@ -15,6 +15,7 @@ quill-stt.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sys-locale.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true

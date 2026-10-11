@@ -93,12 +93,12 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
         // Whisper is CPU/GPU-bound and blocking: keep it off the async
         // runtime's worker threads.
         let segments = tauri::async_runtime::spawn_blocking(move || {
-            let transcriber = transcriber(&app2, &id2, &settings2)?;
+            let transcriber = transcriber(&app2, Some(&id2), &settings2)?;
             let state = app2.state::<AppState>();
             let dir = state.library.meeting_dir(&id2);
             let opts = TranscribeOptions {
                 language: settings2.language.clone(),
-                initial_prompt: None,
+                ..Default::default()
             };
             let segments = meeting::transcribe_recording(&dir, transcriber.as_ref(), &opts, true)
                 .map_err(|e| e.to_string())?;
@@ -125,21 +125,8 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
         return Ok(());
     }
     emit(app, id, Stage::Summarizing, None, None);
-    let privacy = Privacy {
-        deny_data_collection: true,
-        zero_data_retention: settings.zdr,
-    };
     let (provider, model) =
-        quill_llm::provider_for_with_key(&settings.summary_model, privacy, || {
-            let mut cached = lock(&state.openrouter_key);
-            if let Some(key) = cached.as_ref() {
-                return Ok(key.clone());
-            }
-            let key = quill_llm::keys::openrouter_key()?;
-            *cached = Some(key.clone());
-            Ok(key)
-        })
-        .map_err(|e| e.to_string())?;
+        llm_provider(app, &settings.summary_model, settings.zdr).map_err(|e| e.to_string())?;
     let date = meeting_date(&detail.meeting.started_at);
     let summary = summary::summarize(
         provider.as_ref(),
@@ -157,11 +144,54 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
     Ok(())
 }
 
-/// Returns the Whisper model from settings, loading (and first downloading)
-/// it if it isn't the one already in memory.
-fn transcriber(
+/// Loads the Whisper model in the background at startup, if it's already
+/// downloaded, so the first dictation doesn't wait for it.
+pub fn preload(app: &AppHandle) {
+    let settings = lock(&app.state::<AppState>().settings).clone();
+    let Some(dir) = quill_core::paths::models_dir() else {
+        return;
+    };
+    let downloaded = models::find(&settings.stt_model).is_some_and(|m| m.is_downloaded(&dir))
+        && (!settings.vad || models::VAD_MODEL.is_downloaded(&dir));
+    if downloaded {
+        let started = std::time::Instant::now();
+        match transcriber(app, None, &settings) {
+            Ok(_) => tracing::info!(ms = started.elapsed().as_millis(), "Whisper model loaded"),
+            Err(e) => tracing::warn!("couldn't preload the Whisper model: {e}"),
+        }
+    }
+}
+
+/// An LLM provider for `spec` (OpenRouter id or `ollama:<model>`), with
+/// the OpenRouter key read from the keychain at most once per launch.
+pub fn llm_provider(
     app: &AppHandle,
-    id: &str,
+    spec: &str,
+    zdr: bool,
+) -> Result<(Box<dyn quill_llm::LlmProvider>, String), quill_llm::LlmError> {
+    let privacy = Privacy {
+        deny_data_collection: true,
+        zero_data_retention: zdr,
+    };
+    quill_llm::provider_for_with_key(spec, privacy, || {
+        let state = app.state::<AppState>();
+        let mut cached = lock(&state.openrouter_key);
+        if let Some(key) = cached.as_ref() {
+            return Ok(key.clone());
+        }
+        let key = quill_llm::keys::openrouter_key()?;
+        *cached = Some(key.clone());
+        Ok(key)
+    })
+}
+
+/// Returns the Whisper model from settings, loading (and first downloading)
+/// it if it isn't the one already in memory. Download progress goes to
+/// meeting `id`'s progress events, if given. Meetings and dictation share
+/// the one loaded model; it's safe to use from several threads at once.
+pub fn transcriber(
+    app: &AppHandle,
+    id: Option<&str>,
     settings: &Settings,
 ) -> Result<Arc<WhisperTranscriber>, String> {
     let state = app.state::<AppState>();
@@ -182,7 +212,9 @@ fn transcriber(
         None
     };
     // Back to "transcribing" after any download.
-    emit(app, id, Stage::Transcribing, None, None);
+    if let Some(id) = id {
+        emit(app, id, Stage::Transcribing, None, None);
+    }
     let config = WhisperConfig {
         vad_model,
         ..WhisperConfig::default()
@@ -199,7 +231,7 @@ fn transcriber(
 
 fn ensure_downloaded(
     app: &AppHandle,
-    id: &str,
+    id: Option<&str>,
     model: &ModelInfo,
 ) -> Result<std::path::PathBuf, String> {
     let dir = quill_core::paths::models_dir().ok_or("no home directory")?;
@@ -213,7 +245,9 @@ fn ensure_downloaded(
         // Throttle: one event per percent.
         if fraction - last >= 0.01 {
             last = fraction;
-            emit(app, id, Stage::Downloading, Some(fraction), message.clone());
+            if let Some(id) = id {
+                emit(app, id, Stage::Downloading, Some(fraction), message.clone());
+            }
         }
     })
     .map_err(|e| e.to_string())

@@ -28,6 +28,9 @@ pub struct Args {
     /// Transcribe silence too, instead of skipping it with Silero VAD
     #[arg(long)]
     no_vad: bool,
+    /// Use dictation settings (greedy decoding, encoder sized to the clip)
+    #[arg(long)]
+    short_clip: bool,
 }
 
 pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
@@ -36,6 +39,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     let audio_secs = pcm.len() as f64 / f64::from(STT_SAMPLE_RATE);
     let opts = TranscribeOptions {
         language: args.language,
+        short_clip: args.short_clip,
         ..Default::default()
     };
     // A few seconds of audio to warm up each model before timing, so one-off

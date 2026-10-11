@@ -54,6 +54,45 @@ export interface Settings {
   /** Changed only via chooseRecordingsDir/resetRecordingsDir. */
   recordings_dir: string | null;
   onboarded: boolean;
+  dictation: DictationSettings;
+}
+
+export interface Replacement {
+  from: string;
+  to: string;
+}
+
+export interface DictationSettings {
+  enabled: boolean;
+  /** e.g. "Alt+Space" */
+  hotkey: string;
+  /** Language code, "auto", or null for the system language. */
+  language: string | null;
+  polish: boolean;
+  polish_model: string;
+  vocabulary: string[];
+  replacements: Replacement[];
+  keep_history: boolean;
+}
+
+export type DictationPhase = "idle" | "listening" | "processing";
+
+export interface DictationState {
+  phase: DictationPhase;
+  error: string | null;
+}
+
+export interface DictationEntry {
+  id: number;
+  created_at: string;
+  text: string;
+  /** Whisper's text, when the polish step changed it. */
+  raw: string | null;
+  polish_model: string | null;
+  audio_ms: number;
+  latency_ms: number;
+  /** False: left on the clipboard (no permission to paste). */
+  pasted: boolean;
 }
 
 export interface StorageInfo {
@@ -120,6 +159,16 @@ export const api = {
   checkAudioAccess: () => invoke<AccessReport>("check_audio_access"),
   openPrivacySettings: (pane: "microphone" | "system_audio") => invoke<void>("open_privacy_settings", { pane }),
   finishOnboarding: () => invoke<void>("finish_onboarding"),
+  dictationState: () => invoke<DictationState>("dictation_state"),
+  /** Saves and rebinds the hotkey; rejects (keeping the old settings) if it can't be bound. */
+  saveDictationSettings: (dictation: DictationSettings) => invoke<void>("save_dictation_settings", { dictation }),
+  listDictations: () => invoke<DictationEntry[]>("list_dictations"),
+  deleteDictation: (id: number) => invoke<void>("delete_dictation", { id }),
+  clearDictations: () => invoke<void>("clear_dictations"),
+  /** macOS Accessibility: needed to simulate the paste keystroke. */
+  pastePermission: () => invoke<boolean>("paste_permission"),
+  requestPastePermission: () => invoke<boolean>("request_paste_permission"),
+  systemLanguage: () => invoke<string | null>("system_language"),
 };
 
 export const isMac = navigator.userAgent.includes("Mac");
@@ -132,7 +181,33 @@ export const events = {
     listen<RecordingState>("recording-state", (e) => cb(e.payload)),
   onProgress: (cb: (p: Progress) => void): Promise<UnlistenFn> =>
     listen<Progress>("meeting-progress", (e) => cb(e.payload)),
+  onDictation: (cb: (s: DictationState) => void): Promise<UnlistenFn> =>
+    listen<DictationState>("dictation-state", (e) => cb(e.payload)),
+  onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
+    listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
 };
+
+/** "Alt+Space" → "⌥ Space" on macOS; unchanged elsewhere. */
+export function hotkeyLabel(hotkey: string): string {
+  if (!isMac) return hotkey.replace(/\+/g, " + ");
+  const symbols: Record<string, string> = {
+    alt: "⌥",
+    option: "⌥",
+    shift: "⇧",
+    ctrl: "⌃",
+    control: "⌃",
+    cmd: "⌘",
+    command: "⌘",
+    super: "⌘",
+    meta: "⌘",
+    commandorcontrol: "⌘",
+    cmdorctrl: "⌘",
+  };
+  return hotkey
+    .split("+")
+    .map((part) => symbols[part.trim().toLowerCase()] ?? part.trim())
+    .join(" ");
+}
 
 /** `mm:ss`, or `h:mm:ss` past an hour. */
 export function clock(ms: number): string {

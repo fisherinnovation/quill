@@ -1,11 +1,15 @@
 [package]
 name = "quill-insert"
-description = "Text insertion at the cursor via clipboard and simulated paste"
+description = "Types text into the focused app: clipboard + simulated paste, restoring the clipboard"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+arboard.workspace = true
+enigo.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true
