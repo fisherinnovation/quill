@@ -1,7 +1,9 @@
 //! Catalog of downloadable Whisper models and a checksum-verified downloader.
 //!
-//! Models come from the official whisper.cpp ggml conversions on Hugging Face.
-//! Sizes and SHA-256 hashes are the Git LFS metadata of those files.
+//! Models come from the official whisper.cpp ggml conversions on Hugging Face
+//! (Whisper models from `ggerganov/whisper.cpp`, the Silero VAD model from
+//! `ggml-org/whisper-vad`). Sizes and SHA-256 hashes are the Git LFS metadata
+//! of those files.
 
 use std::fs::{self, File};
 use std::io::{BufWriter, Read, Write};
@@ -11,13 +13,15 @@ use sha2::{Digest, Sha256};
 
 use crate::SttError;
 
-const BASE_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
+const WHISPER_REPO: &str = "ggerganov/whisper.cpp";
 
 /// A Whisper model we know how to download and verify.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelInfo {
     /// Short name used on the command line, e.g. `"turbo"`.
     pub name: &'static str,
+    /// Hugging Face repository the file is downloaded from.
+    pub repo: &'static str,
     /// File name on Hugging Face and on disk.
     pub file_name: &'static str,
     pub size_bytes: u64,
@@ -29,6 +33,7 @@ pub struct ModelInfo {
 pub const MODELS: &[ModelInfo] = &[
     ModelInfo {
         name: "tiny",
+        repo: WHISPER_REPO,
         file_name: "ggml-tiny.bin",
         size_bytes: 77_691_713,
         sha256: "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
@@ -36,6 +41,7 @@ pub const MODELS: &[ModelInfo] = &[
     },
     ModelInfo {
         name: "base",
+        repo: WHISPER_REPO,
         file_name: "ggml-base.bin",
         size_bytes: 147_951_465,
         sha256: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
@@ -43,6 +49,7 @@ pub const MODELS: &[ModelInfo] = &[
     },
     ModelInfo {
         name: "small",
+        repo: WHISPER_REPO,
         file_name: "ggml-small.bin",
         size_bytes: 487_601_967,
         sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
@@ -50,6 +57,7 @@ pub const MODELS: &[ModelInfo] = &[
     },
     ModelInfo {
         name: "medium",
+        repo: WHISPER_REPO,
         file_name: "ggml-medium.bin",
         size_bytes: 1_533_763_059,
         sha256: "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
@@ -57,6 +65,7 @@ pub const MODELS: &[ModelInfo] = &[
     },
     ModelInfo {
         name: "turbo-q5",
+        repo: WHISPER_REPO,
         file_name: "ggml-large-v3-turbo-q5_0.bin",
         size_bytes: 574_041_195,
         sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
@@ -64,6 +73,7 @@ pub const MODELS: &[ModelInfo] = &[
     },
     ModelInfo {
         name: "turbo",
+        repo: WHISPER_REPO,
         file_name: "ggml-large-v3-turbo.bin",
         size_bytes: 1_624_555_275,
         sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
@@ -71,6 +81,7 @@ pub const MODELS: &[ModelInfo] = &[
     },
     ModelInfo {
         name: "large-v3",
+        repo: WHISPER_REPO,
         file_name: "ggml-large-v3.bin",
         size_bytes: 3_095_033_483,
         sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
@@ -78,9 +89,22 @@ pub const MODELS: &[ModelInfo] = &[
     },
 ];
 
-/// Looks up a model by its short name.
+/// Silero voice activity detection model for whisper.cpp's built-in VAD.
+pub const VAD_MODEL: ModelInfo = ModelInfo {
+    name: "vad",
+    repo: "ggml-org/whisper-vad",
+    file_name: "ggml-silero-v6.2.0.bin",
+    size_bytes: 885_098,
+    sha256: "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+    description: "Silero VAD v6.2: skips silence so Whisper doesn't invent text",
+};
+
+/// Looks up a Whisper model, or the VAD model (`"vad"`), by its short name.
 pub fn find(name: &str) -> Option<&'static ModelInfo> {
-    MODELS.iter().find(|m| m.name == name)
+    MODELS
+        .iter()
+        .chain(std::iter::once(&VAD_MODEL))
+        .find(|m| m.name == name)
 }
 
 impl ModelInfo {
@@ -96,7 +120,10 @@ impl ModelInfo {
     }
 
     fn url(&self) -> String {
-        format!("{BASE_URL}/{}", self.file_name)
+        format!(
+            "https://huggingface.co/{}/resolve/main/{}",
+            self.repo, self.file_name
+        )
     }
 }
 
@@ -189,8 +216,9 @@ mod tests {
 
     #[test]
     fn names_are_unique_and_hashes_well_formed() {
-        for (i, m) in MODELS.iter().enumerate() {
-            assert!(MODELS[i + 1..].iter().all(|o| o.name != m.name));
+        let all: Vec<_> = MODELS.iter().chain([&VAD_MODEL]).collect();
+        for (i, m) in all.iter().enumerate() {
+            assert!(all[i + 1..].iter().all(|o| o.name != m.name));
             assert_eq!(m.sha256.len(), 64, "{}", m.name);
             assert!(m.sha256.bytes().all(|b| b.is_ascii_hexdigit()));
         }

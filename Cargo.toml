@@ -27,6 +27,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 hound = "3.5"
 rubato = "5"
+# Mic + system audio capture. On macOS 14.6+ an input stream on an *output*
+# device records system audio via a Core Audio process tap; on Windows via
+# WASAPI loopback.
+cpal = "0.18"
+# Lock-free single-producer/single-consumer ring buffer for audio callbacks.
+rtrb = "0.4"
 # `tracing_backend` routes whisper.cpp's own log output into `tracing`
 # instead of letting it print straight to stderr.
 whisper-rs = { version = "0.16", features = ["tracing_backend"] }

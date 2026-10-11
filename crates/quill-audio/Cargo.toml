@@ -6,6 +6,9 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+cpal.workspace = true
+rtrb.workspace = true
+tracing.workspace = true
 hound.workspace = true
 rubato.workspace = true
 thiserror.workspace = true

@@ -13,7 +13,7 @@ pub enum Command {
     List,
     /// Download a model and verify its checksum
     Download {
-        /// Model name, e.g. `turbo` (see `models list`)
+        /// Model name, e.g. `turbo` or `vad` (see `models list`)
         name: String,
     },
     /// Print the models directory
@@ -24,7 +24,7 @@ pub fn run(cmd: Command, models_dir: &Path) -> anyhow::Result<()> {
     match cmd {
         Command::List => {
             println!("Models directory: {}\n", models_dir.display());
-            for m in MODELS {
+            for m in MODELS.iter().chain([&models::VAD_MODEL]) {
                 let mark = if m.is_downloaded(models_dir) {
                     "✓"
                 } else {
@@ -74,9 +74,17 @@ pub fn resolve(name: &str, models_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(model.path_in(models_dir))
 }
 
+/// The VAD model path if VAD is enabled, downloading the (1 MB) model the
+/// first time so VAD can be on by default.
+pub fn vad_model(enabled: bool, models_dir: &Path) -> anyhow::Result<Option<PathBuf>> {
+    if !enabled {
+        return Ok(None);
+    }
+    download_with_progress(&models::VAD_MODEL, models_dir).map(Some)
+}
+
 fn download_with_progress(model: &ModelInfo, models_dir: &Path) -> anyhow::Result<PathBuf> {
     if model.is_downloaded(models_dir) {
-        eprintln!("{} is already downloaded", model.name);
         return Ok(model.path_in(models_dir));
     }
     let bar = ProgressBar::new(model.size_bytes);

@@ -1,4 +1,5 @@
-//! `quill-cli transcribe`: WAV file in, timestamped transcript out.
+//! `quill-cli transcribe`: WAV file (or a `record` directory) in,
+//! timestamped transcript out.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -10,7 +11,8 @@ use quill_stt::{Segment, TranscribeOptions, Transcriber, WhisperConfig, WhisperT
 
 #[derive(Debug, clap::Args)]
 pub struct Args {
-    /// WAV file to transcribe (any sample rate / channel count)
+    /// WAV file (any sample rate / channel count), or a directory from
+    /// `quill-cli record` to get a merged "Me" / "Others" transcript
     file: PathBuf,
     /// Model name (see `quill-cli models list`)
     #[arg(long, short, default_value = "turbo")]
@@ -30,6 +32,9 @@ pub struct Args {
     /// Run on the CPU only, even if a GPU backend is available
     #[arg(long)]
     cpu: bool,
+    /// Transcribe silence too, instead of skipping it with Silero VAD
+    #[arg(long)]
+    no_vad: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -46,12 +51,9 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         None => crate::models::resolve(&args.model, models_dir)?,
     };
 
-    let pcm = quill_audio::load_for_stt(&args.file)
-        .with_context(|| format!("reading {}", args.file.display()))?;
-    let audio_secs = pcm.len() as f64 / f64::from(STT_SAMPLE_RATE);
-
     let config = WhisperConfig {
         use_gpu: !args.cpu,
+        vad_model: crate::models::vad_model(!args.no_vad, models_dir)?,
         ..WhisperConfig::default()
     };
     let started = Instant::now();
@@ -64,16 +66,28 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         initial_prompt: args.prompt,
     };
     let started = Instant::now();
-    let segments = transcriber.transcribe(&pcm, &opts)?;
+    let (segments, audio_secs) = if args.file.is_dir() {
+        let segments =
+            quill_core::meeting::transcribe_recording(&args.file, &transcriber, &opts)
+                .with_context(|| format!("transcribing recording {}", args.file.display()))?;
+        (segments, None)
+    } else {
+        let pcm = quill_audio::load_for_stt(&args.file)
+            .with_context(|| format!("reading {}", args.file.display()))?;
+        let audio_secs = pcm.len() as f64 / f64::from(STT_SAMPLE_RATE);
+        (transcriber.transcribe(&pcm, &opts)?, Some(audio_secs))
+    };
     let stt_secs = started.elapsed().as_secs_f64();
 
     match args.format {
         Format::Text => {
             for s in &segments {
+                let speaker = s.speaker.as_deref().map(|sp| format!("{sp}: "));
                 println!(
-                    "[{} --> {}]  {}",
+                    "[{} --> {}]  {}{}",
                     timestamp(s.start_ms),
                     timestamp(s.end_ms),
+                    speaker.unwrap_or_default(),
                     s.text
                 );
             }
@@ -82,12 +96,15 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     }
 
     // Stats go to stderr so `> transcript.json` captures only the transcript.
-    eprintln!(
-        "\n{audio_secs:.1}s audio · model load {load_secs:.2}s · transcribe {stt_secs:.2}s · \
-         {:.1}× real time{}",
-        audio_secs / stt_secs.max(f64::EPSILON),
-        if args.cpu { " (CPU)" } else { "" }
-    );
+    let cpu = if args.cpu { " (CPU)" } else { "" };
+    match audio_secs {
+        Some(audio_secs) => eprintln!(
+            "\n{audio_secs:.1}s audio · model load {load_secs:.2}s · transcribe {stt_secs:.2}s · \
+             {:.1}× real time{cpu}",
+            audio_secs / stt_secs.max(f64::EPSILON),
+        ),
+        None => eprintln!("\nmodel load {load_secs:.2}s · transcribe {stt_secs:.2}s{cpu}"),
+    }
     Ok(())
 }
 

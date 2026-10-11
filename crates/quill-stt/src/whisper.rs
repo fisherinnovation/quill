@@ -1,10 +1,11 @@
 //! `Transcriber` backed by whisper.cpp through the `whisper-rs` bindings.
 
-use std::path::Path;
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-use crate::{Segment, SttError, TranscribeOptions, Transcriber};
+use crate::{Segment, SttError, TranscribeOptions, Transcriber, vad};
 
 /// Load-time settings for a Whisper model.
 #[derive(Debug, Clone)]
@@ -14,6 +15,10 @@ pub struct WhisperConfig {
     pub use_gpu: bool,
     /// CPU threads for the parts that run on the CPU.
     pub threads: usize,
+    /// Silero VAD model (`ggml-silero-*.bin`). When set, voice activity
+    /// detection runs first and only the speech is transcribed, which stops
+    /// Whisper inventing text during silence and noise.
+    pub vad_model: Option<PathBuf>,
 }
 
 impl Default for WhisperConfig {
@@ -24,6 +29,7 @@ impl Default for WhisperConfig {
         Self {
             use_gpu: true,
             threads: cores.min(8),
+            vad_model: None,
         }
     }
 }
@@ -32,6 +38,8 @@ impl Default for WhisperConfig {
 pub struct WhisperTranscriber {
     ctx: WhisperContext,
     threads: usize,
+    // whisper.cpp takes the VAD model path as a C string, so keep it as UTF-8.
+    vad_model: Option<String>,
 }
 
 impl WhisperTranscriber {
@@ -50,9 +58,20 @@ impl WhisperTranscriber {
         params.flash_attn(config.use_gpu);
         let ctx = WhisperContext::new_with_params(model_path, params)?;
 
+        let vad_model = match &config.vad_model {
+            Some(path) if !path.is_file() => return Err(SttError::ModelNotFound(path.clone())),
+            Some(path) => Some(
+                path.to_str()
+                    .ok_or_else(|| SttError::NonUtf8Path(path.clone()))?
+                    .to_owned(),
+            ),
+            None => None,
+        };
+
         Ok(Self {
             ctx,
             threads: config.threads.max(1),
+            vad_model,
         })
     }
 }
@@ -93,7 +112,22 @@ impl Transcriber for WhisperTranscriber {
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
 
-        state.full(params, pcm_16k_mono)?;
+        // With VAD, transcribe only the speech, packed together; `regions`
+        // remembers where each piece came from. `Cow` lets the no-VAD path
+        // borrow the caller's samples instead of copying them.
+        let (audio, regions) = match &self.vad_model {
+            Some(model) => {
+                let ranges = vad::detect_speech(model, pcm_16k_mono, self.threads)?;
+                if ranges.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let (packed, regions) = vad::pack(pcm_16k_mono, &ranges);
+                (Cow::Owned(packed), Some(regions))
+            }
+            None => (Cow::Borrowed(pcm_16k_mono), None),
+        };
+
+        state.full(params, &audio)?;
 
         let mut segments = Vec::new();
         for segment in state.as_iter() {
@@ -102,9 +136,15 @@ impl Transcriber for WhisperTranscriber {
                 continue;
             }
             // whisper.cpp timestamps are in centiseconds (10 ms units).
+            let start = centis_to_ms(segment.start_timestamp());
+            let end = centis_to_ms(segment.end_timestamp());
+            let (start_ms, end_ms) = match &regions {
+                Some(regions) => vad::map_segment(start, end, regions),
+                None => (start, end),
+            };
             segments.push(Segment {
-                start_ms: centis_to_ms(segment.start_timestamp()),
-                end_ms: centis_to_ms(segment.end_timestamp()),
+                start_ms,
+                end_ms,
                 text,
                 speaker: None,
             });

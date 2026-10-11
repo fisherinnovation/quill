@@ -7,6 +7,10 @@ publish.workspace = true
 
 [dependencies]
 directories.workspace = true
+quill-audio.workspace = true
+quill-stt.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

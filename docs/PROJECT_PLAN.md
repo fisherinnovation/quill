@@ -166,10 +166,11 @@ Each milestone ends with something runnable. Don't start the next until the acce
 **Accept:** `quill-cli transcribe meeting.wav --model turbo` produces an accurate timestamped transcript.
 
 ### M2 — Capture audio (CLI)
-- [ ] Mic capture with `cpal` → WAV.
-- [ ] System audio capture: macOS (ScreenCaptureKit / process tap) and Windows (WASAPI loopback) behind a common trait.
-- [ ] Record both tracks simultaneously with a shared start timestamp.
-- [ ] Resample to 16 kHz mono; add Silero VAD.
+- [x] Mic capture with `cpal` → WAV. *(Verified on macOS.)*
+- [x] System audio capture: macOS (ScreenCaptureKit / process tap) and Windows (WASAPI loopback) behind a common trait. *(cpal 0.18 does both: an input stream on the output device uses a Core Audio process tap on macOS 14.6+ and WASAPI loopback on Windows. So cpal's API is the common interface, and there's no platform code of our own. Verified on macOS; Windows untested.)*
+- [x] Record both tracks simultaneously with a shared start timestamp. *(Each track is padded with silence so that sample 0 is the shared start. Measured on macOS: the mic hears speaker playback 50–70 ms after the system track records it.)*
+- [x] Resample to 16 kHz mono; add Silero VAD. *(VAD is on by default; see the M2 notes.)*
+- [x] Merge tracks into one "Me" / "Others" transcript, dropping speaker echo from the mic track (`quill-cli transcribe <recording dir>`).
 
 **Accept:** Record a real Zoom/Meet/Teams call on both OSes; both tracks are clean, in sync and transcribable.
 
@@ -273,14 +274,14 @@ Each milestone ends with something runnable. Don't start the next until the acce
 |---|---|---|
 | M0 Foundations | ✅ Done | Workspace (6 lib crates + `quill-cli`), lint config and CI workflow; first CI run green on macOS + Windows (2026-10-11). Learning pass is ongoing alongside M1. |
 | M1 Transcribe file | 🟡 In progress | `quill-cli transcribe` / `models` / `bench` working on macOS with Metal (turbo ≈ 24× real time, see `eval/benchmarks.md`). Resampling pulled forward into `quill-audio`. Beam search is the default after greedy decoding sent large-v3 into a repetition loop. CI green on macOS + Windows (whisper.cpp builds with MSVC). Left: Windows benchmark. |
-| M2 Capture audio | ⬜ | |
+| M2 Capture audio | 🟡 In progress | `record` / VAD / track merge working on macOS: real mic + system capture in sync, echo dropped in the merged transcript. Left: record a real Zoom/Meet/Teams call; Windows loopback test. |
 | M3 Summarize | ⬜ | |
 | M4 Eval harness | ⬜ | |
 | M5 Meeting MVP | ⬜ | |
 | M6 Dictation | ⬜ | |
 | M7 Distribution | ⬜ | |
 
-**Current focus:** M2 (M1 only needs the Windows benchmark, which must be run on the Windows machine). Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
+**Current focus:** M2 acceptance: record a real call on macOS, then test on Windows. Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
 **Open decisions:** project name; license; Svelte vs React; default summary model (decided by M4); whether `quill-eval` ships its own binary or a `quill-cli eval` subcommand (M4).
 
 **Workspace notes (M0):**
@@ -293,3 +294,12 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - The ggml Metal backend compiles its shaders the first time a model loads after a build (~6 s). macOS caches the result, and later loads take under 1 s.
 - whisper.cpp has built-in Silero VAD (`FullParams::enable_vad`, using a ggml VAD model). For M2, compare it with a separate VAD crate before adding one.
 - Building whisper.cpp needs CMake and a C++ compiler. On macOS: `brew install cmake` plus the Xcode Command Line Tools (full Xcode isn't needed, because the Metal shaders are embedded). On Windows, the VS 2022 Build Tools C++ workload includes CMake.
+
+**Notes (M2):**
+- **whisper.cpp's built-in VAD does nothing through whisper-rs.** whisper.cpp only runs it in `whisper_full()`, and whisper-rs calls `whisper_full_with_state()`. `quill-stt` therefore runs Silero itself (`WhisperVadContext`), packs the speech regions together with 0.1 s gaps, and maps segment times back onto the original audio. The ignored test `vad_prevents_hallucinations_in_silence` guards this.
+- **VAD is on by default.** In 65 s of faint room noise around the JFK clip, every model without VAD invented text ("I'm not sure what you're doing." ×13, "Thank you.") and misplaced timestamps. With VAD the output was clean. On continuous speech VAD costs about 20% speed and doesn't change turbo's or small's accuracy. Each track of a two-track meeting is roughly half silence, so it matters there.
+- **Mapping segment times back** snaps a segment's start to the first speech region it substantially overlaps. Whisper often starts a segment in the previous region's trailing silence, which put replies before the questions they answered.
+- **Echo:** with speakers instead of headphones, the mic hears the other people. A mic segment is dropped when at least 60% of its words appear in the system segments overlapping it (within ±1.5 s). On a synthetic 4-person meeting with 30% echo, all 54 segments were labelled and ordered correctly.
+- **On macOS, opening a device blocks with no timeout** while a privacy prompt waits for an answer, and fails with "Unknown property" if nobody answers. `record` prints a hint after 3 s. The real app must request permissions up front (M5 onboarding).
+- Tracks are saved at the device's native rate as 32-bit float WAV, plus a `recording.json` with each track's device name, lead-in, dropped samples and peak. A peak of exactly 0 is flagged as a likely missing permission.
+- The macOS system-audio tap delivers its first buffer only when something starts playing, then continues through silence (checked across a 4 s pause). The lead-in padding handles the late start. The shared start time is taken just before the streams start, so time spent on a permission prompt isn't recorded as silence.

@@ -5,6 +5,7 @@
 //! into that shape.
 
 pub mod models;
+mod vad;
 mod whisper;
 
 pub use whisper::{WhisperConfig, WhisperTranscriber};
@@ -50,6 +51,8 @@ pub trait Transcriber: Send + Sync {
 pub enum SttError {
     #[error("model file not found: {0}")]
     ModelNotFound(std::path::PathBuf),
+    #[error("path is not valid UTF-8: {0}")]
+    NonUtf8Path(std::path::PathBuf),
     #[error("whisper.cpp error: {0}")]
     Whisper(#[from] whisper_rs::WhisperError),
     #[error("model download failed: {0}")]

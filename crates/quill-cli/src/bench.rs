@@ -25,6 +25,9 @@ pub struct Args {
     /// Also run every model on the CPU only, for comparison
     #[arg(long)]
     with_cpu: bool,
+    /// Transcribe silence too, instead of skipping it with Silero VAD
+    #[arg(long)]
+    no_vad: bool,
 }
 
 pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
@@ -38,6 +41,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     // A few seconds of audio to warm up each model before timing, so one-off
     // GPU setup (Metal pipeline compilation, buffer allocation) isn't counted.
     let warmup = &pcm[..pcm.len().min(STT_SAMPLE_RATE as usize * 3)];
+    let vad_model = crate::models::vad_model(!args.no_vad, models_dir)?;
 
     let backends: &[bool] = if args.with_cpu {
         &[true, false]
@@ -59,6 +63,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         for &use_gpu in backends {
             let config = WhisperConfig {
                 use_gpu,
+                vad_model: vad_model.clone(),
                 ..WhisperConfig::default()
             };
             let started = Instant::now();

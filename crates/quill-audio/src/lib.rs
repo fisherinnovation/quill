@@ -1,11 +1,14 @@
 //! Audio capture for Quill: microphone and system audio, resampling to
 //! 16 kHz mono, voice activity detection and WAV writing.
 //!
-//! M1 provides the file side: read a WAV, downmix to mono and resample to the
-//! 16 kHz that Whisper expects. Capture arrives in M2. Audio callbacks must
-//! never block or allocate heavily; they hand samples to a worker thread
-//! through a ring buffer or channel.
+//! - [`capture`]: record the microphone and system audio to WAV files.
+//! - [`load_for_stt`]: read a WAV, downmix to mono and resample to the 16 kHz
+//!   that Whisper expects.
+//!
+//! Audio callbacks must never block or allocate heavily; they hand samples to
+//! a worker thread through a lock-free ring buffer.
 
+pub mod capture;
 mod resample;
 mod wav;
 
@@ -30,6 +33,25 @@ pub enum AudioError {
     UnsupportedFormat(String),
     #[error("resampling failed: {0}")]
     Resample(String),
+    #[error("no default {0} device")]
+    NoDevice(&'static str),
+    #[error("{context}: {source}")]
+    Device {
+        context: &'static str,
+        source: cpal::Error,
+    },
+    #[error("capture failed: {0}")]
+    Capture(String),
+    #[error("WAV writer thread panicked")]
+    WriterPanicked,
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+impl AudioError {
+    fn device(context: &'static str, source: cpal::Error) -> Self {
+        Self::Device { context, source }
+    }
 }
 
 /// Loads a WAV file as 16 kHz mono `f32` samples in `-1.0..=1.0`, ready to

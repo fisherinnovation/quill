@@ -5,6 +5,7 @@
 
 mod bench;
 mod models;
+mod record;
 mod transcribe;
 
 use std::path::PathBuf;
@@ -39,6 +40,8 @@ enum Command {
     Models(models::Command),
     /// Measure transcription speed of several models on one file
     Bench(bench::Args),
+    /// Record the microphone and system audio to WAV files
+    Record(record::Args),
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -58,6 +61,7 @@ fn main() -> anyhow::Result<()> {
         Command::Transcribe(args) => transcribe::run(args, &models_dir),
         Command::Models(cmd) => models::run(cmd, &models_dir),
         Command::Bench(args) => bench::run(args, &models_dir),
+        Command::Record(args) => record::run(args),
     }
 }
 
