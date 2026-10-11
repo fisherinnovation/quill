@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b5bdb"/>
+      <stop offset="1" stop-color="#7048e8"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <!-- quill feather -->
+  <path d="M742 236c-170 40-310 170-370 340l-58 172 40 14 52-120c92-6 196-60 258-150-70 20-130 14-172 2 88-24 176-90 222-168-40 6-82 4-112-6 70-30 120-56 140-84z"
+        fill="#ffffff"/>
+  <!-- sound wave under the nib -->
+  <path d="M250 800h60l30-50 40 100 40-150 40 120 30-20h284" fill="none" stroke="#ffffff"
+        stroke-width="34" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+</svg>

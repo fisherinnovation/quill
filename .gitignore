@@ -18,3 +18,8 @@ Thumbs.db
 
 # Generated benchmark audio (rebuild with eval/bench/make_bench_audio.sh)
 /eval/bench/*.wav
+
+# App frontend
+/app/node_modules/
+/app/dist/
+/app/src-tauri/gen/

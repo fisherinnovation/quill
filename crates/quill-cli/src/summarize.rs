@@ -8,8 +8,7 @@ use quill_llm::Privacy;
 use quill_stt::Segment;
 use serde_json::json;
 
-/// Default until the M4 eval picks one: cheap, fast, 1M-token context.
-pub const DEFAULT_MODEL: &str = "anthropic/claude-haiku-5.5";
+use quill_core::settings::DEFAULT_SUMMARY_MODEL;
 
 #[derive(Debug, clap::Args)]
 pub struct Args {
@@ -17,7 +16,7 @@ pub struct Args {
     /// containing transcript.json; summary.md is then saved next to it
     input: PathBuf,
     /// OpenRouter model id, or `ollama:<model>` for a local model
-    #[arg(long, short, default_value = DEFAULT_MODEL)]
+    #[arg(long, short, default_value = DEFAULT_SUMMARY_MODEL)]
     model: String,
     /// Date for the title [default: the recording's date, else today]
     #[arg(long)]
@@ -69,6 +68,9 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     eprintln!("\n{}", stats(&summary));
     if let Some(dir) = out_dir {
         save(&dir, &summary, &args.model)?;
+        if let Some((library, id)) = crate::library::meeting_for(&dir)? {
+            library.save_summary(&id, &summary)?;
+        }
         eprintln!("Saved {}", dir.join("summary.md").display());
     }
     Ok(())

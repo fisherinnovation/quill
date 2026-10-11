@@ -2,9 +2,9 @@
 # it a "virtual manifest": it only groups the member crates so they share one
 # Cargo.lock (identical dependency versions everywhere) and one target/ dir.
 [workspace]
-# Every directory under crates/ is a member. The Tauri app in app/ is added
-# explicitly in M5 so the library crates never depend on Tauri.
-members = ["crates/*"]
+# Every directory under crates/ is a member, plus the Tauri app. Tauri depends
+# on the library crates, never the other way round.
+members = ["crates/*", "app/src-tauri"]
 # Virtual manifests must choose the dependency resolver explicitly; "3" is the
 # default for edition 2024.
 resolver = "3"
@@ -61,6 +61,10 @@ jiff = "0.2"
 # Windows; includes FTS5 for transcript search in M5.
 rusqlite = { version = "0.40", features = ["bundled"] }
 csv = "1"
+toml = "1"
+# Desktop app shell (stable v2 line; 3.0 is still alpha).
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri-build = { version = "2.7", features = [] }
 
 # Our own crates, so members depend on each other with `x.workspace = true`.
 quill-audio = { path = "crates/quill-audio" }

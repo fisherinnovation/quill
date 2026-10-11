@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the bundled app's Info.plist by Tauri. macOS shows these
+     strings in its permission prompts; without them, asking for the
+     microphone or system audio terminates the app. -->
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Quill records your side of the meeting so it can be transcribed. Audio stays on this Mac.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Quill records the meeting audio playing on your Mac (the other participants) so it can be transcribed. Audio stays on this Mac.</string>
+</dict>
+</plist>

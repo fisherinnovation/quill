@@ -5,7 +5,9 @@
 
 mod bench;
 mod eval;
+mod import;
 mod keys;
+mod library;
 mod models;
 mod record;
 mod summarize;
@@ -47,6 +49,8 @@ enum Command {
     Record(record::Args),
     /// Summarize a transcript into meeting notes with an LLM
     Summarize(summarize::Args),
+    /// Add a recording folder made elsewhere to the meeting library
+    Import(import::Args),
     /// Compare models' summaries: cost, latency and LLM-judged quality
     Eval(eval::Args),
     /// Store or remove LLM API keys in the OS keychain
@@ -75,6 +79,7 @@ fn main() -> anyhow::Result<()> {
         Command::Summarize(args) => summarize::run(args),
         Command::Keys(cmd) => keys::run(cmd),
         Command::Eval(args) => eval::run(args),
+        Command::Import(args) => import::run(args),
     }
 }
 

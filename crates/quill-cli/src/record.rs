@@ -1,17 +1,16 @@
 //! `quill-cli record`: capture the microphone and/or system audio to WAVs.
 
 use std::io::BufRead;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::{Context, bail};
 use quill_audio::capture::{self, Source, TrackRequest, TrackSummary};
-use serde_json::json;
 
 #[derive(Debug, clap::Args)]
 pub struct Args {
-    /// Directory for the WAV files [default: <data dir>/recordings/<timestamp>]
+    /// Record to this folder instead of a new meeting in the library
     #[arg(long, short)]
     out: Option<PathBuf>,
     /// Stop automatically after this many seconds (otherwise press Enter)
@@ -26,9 +25,18 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> anyhow::Result<()> {
-    let out_dir = match args.out {
-        Some(dir) => dir,
-        None => default_dir()?,
+    // By default the recording becomes a new meeting in the library (and
+    // shows up in the app); `--out` records to a plain folder instead.
+    let (out_dir, meeting) = match args.out {
+        Some(dir) => (dir, None),
+        None => {
+            let library = crate::library::open()?;
+            let meeting = library.create_meeting()?;
+            (
+                library.meeting_dir(&meeting.id),
+                Some((library, meeting.id)),
+            )
+        }
     };
     std::fs::create_dir_all(&out_dir).with_context(|| format!("creating {}", out_dir.display()))?;
 
@@ -99,17 +107,21 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             );
         }
     }
-    write_metadata(&out_dir, &tracks)?;
+    quill_core::meeting::write_recording_info(&out_dir, &tracks)
+        .with_context(|| format!("writing {}", out_dir.join("recording.json").display()))?;
+    if let Some((library, id)) = meeting {
+        let longest = tracks
+            .iter()
+            .map(TrackSummary::duration_secs)
+            .fold(0.0, f64::max);
+        library.set_duration(&id, (longest * 1000.0) as u64)?;
+        eprintln!(
+            "Saved as meeting {id}. Next: quill-cli transcribe {}",
+            out_dir.display()
+        );
+    }
     println!("{}", out_dir.display());
     Ok(())
-}
-
-fn default_dir() -> anyhow::Result<PathBuf> {
-    let base = quill_core::paths::data_dir().context("could not find a home directory")?;
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    Ok(base.join("recordings").join(format!("recording-{secs}")))
 }
 
 /// Blocks until the user presses Enter (or stdin closes).
@@ -142,34 +154,4 @@ fn hint(source: Source) -> &'static str {
         (Source::Microphone, false) => "Check the OS microphone privacy settings.",
         (Source::SystemAudio, false) => "Was anything playing on the default output device?",
     }
-}
-
-/// Saves what was recorded next to the WAVs, for the transcribe step and for
-/// debugging sync issues later.
-fn write_metadata(dir: &Path, tracks: &[TrackSummary]) -> anyhow::Result<()> {
-    let tracks: Vec<_> = tracks
-        .iter()
-        .map(|t| {
-            json!({
-                "source": match t.source {
-                    Source::Microphone => "microphone",
-                    Source::SystemAudio => "system",
-                },
-                "file": t.path.file_name().map(|f| f.to_string_lossy()),
-                "device": t.device,
-                "sample_rate": t.sample_rate,
-                "channels": t.channels,
-                "frames": t.frames,
-                "lead_in_ms": t.lead_in_ms,
-                "dropped_samples": t.dropped_samples,
-                "peak": t.peak,
-            })
-        })
-        .collect();
-    let path = dir.join("recording.json");
-    std::fs::write(
-        &path,
-        serde_json::to_string_pretty(&json!({ "tracks": tracks }))?,
-    )
-    .with_context(|| format!("writing {}", path.display()))
 }

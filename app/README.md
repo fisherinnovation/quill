@@ -1,7 +1,20 @@
 # app/
 
-The Tauri v2 desktop app (`src-tauri/` + `frontend/`) is scaffolded in **M5**.
-Svelte vs React is still an open decision (see `docs/PROJECT_PLAN.md`, section 8).
+Quill's desktop app: Tauri v2 (Rust, `src-tauri/`) with a React + TypeScript
+UI (`src/`, built by Vite). All the work happens in the library crates in
+`crates/`; the UI only displays state and calls the commands in
+`src-tauri/src/commands.rs`.
 
-When it is added, list `app/src-tauri` in the root `Cargo.toml` `members`.
-Tauri depends on the library crates in `crates/`, never the other way round.
+```sh
+cd app
+npm install
+npx tauri dev     # run with hot reload
+npx tauri build   # release bundle (.app / .dmg on macOS, .msi / .exe on Windows)
+```
+
+The app and `quill-cli` share one meeting library in the data directory
+(`~/Library/Application Support/com.fisherinnovation.Quill` on macOS).
+
+`app-icon.svg` is the icon source; regenerate the icon set with
+`npx tauri icon app-icon.svg -o src-tauri/icons` (then delete the android/ios
+and Square* files, which a desktop app doesn't need).

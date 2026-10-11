@@ -37,6 +37,20 @@ jobs:
       # Caches ~/.cargo and target/ between runs, keyed on Cargo.lock.
       - uses: Swatinem/rust-cache@v2
 
+      # The Tauri app embeds the built frontend (app/dist) at compile time,
+      # so it must exist before any cargo step that compiles quill-app.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Frontend (type-check + build)
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+
       - name: Format
         run: cargo fmt --all --check
 

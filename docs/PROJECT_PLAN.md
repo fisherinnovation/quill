@@ -193,12 +193,12 @@ Each milestone ends with something runnable. Don't start the next until the acce
 **Accept:** One command produces a ranked table that answers which model is best for the money. Choose the default model from this.
 
 ### M5 — Tauri app: meeting notes MVP
-- [ ] Tauri v2 shell with a tray/menu-bar icon: Start/Stop recording, recording indicator.
-- [ ] Meetings list, transcript view (with speaker labels and timestamps), summary view, re-summarize with a different model/prompt.
-- [ ] Settings: STT model, LLM provider/model, API key, storage location, prompt template.
-- [ ] Permission onboarding (mic, screen/system audio on macOS) with clear explanations.
-- [ ] Full-text search over transcripts (SQLite FTS5).
-- [ ] Export summary as Markdown; copy to clipboard.
+- [x] Tauri v2 shell with a tray/menu-bar icon: Start/Stop recording, recording indicator. *(Template mic icon with a "● m:ss" timer while recording. Closing the window keeps Quill running in the menu bar.)*
+- [x] Meetings list, transcript view (with speaker labels and timestamps), summary view, re-summarize. *(Re-summarize uses the model currently set in Settings; picking a prompt version in the UI isn't done yet.)*
+- [ ] Settings: STT model, LLM provider/model, API key, storage location, prompt template. *(Done: STT model, language, VAD, summary model, ZDR, auto-summarize, and the API key, which is saved to the keychain by the app. Still to do: storage location, prompt template.)*
+- [ ] Permission onboarding (mic, screen/system audio on macOS) with clear explanations. *(The Info.plist usage strings are in place. The onboarding screen isn't done.)*
+- [x] Full-text search over transcripts (SQLite FTS5). *(Search as you type; clicking a hit jumps to that transcript line.)*
+- [ ] Export summary as Markdown; copy to clipboard. *(Copy is done; exporting to a file isn't.)*
 
 **Accept:** Daily-driveable for real meetings on macOS and Windows.
 
@@ -277,12 +277,12 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | M2 Capture audio | 🟡 In progress | `record` / VAD / track merge working on macOS: real mic + system capture in sync, echo dropped in the merged transcript. Left: record a real Zoom/Meet/Teams call; Windows loopback test. |
 | M3 Summarize | 🟡 In progress | `summarize` working end to end with Ollama (qwen3:8b, local, 34 s for a 4-min meeting). Prompts are in `prompts/summary-v1/`. Left: first OpenRouter run (needs a key). |
 | M4 Eval harness | 🟡 In progress | Harness complete and tested end to end with local models. Left: a cloud run with a strong judge (needs the OpenRouter key), more transcripts (real meetings in `private/`), then choose the default model. |
-| M5 Meeting MVP | ⬜ | |
+| M5 Meeting MVP | 🟡 In progress | Record → transcribe → summarize works end to end in the app (first real run: 27 s test meeting, Haiku summary in 4.1 s for $0.0004). Meeting library in SQLite with FTS5 search, shared with the CLI. Left: permission onboarding, file export, storage location, prompt choice, Windows check. |
 | M6 Dictation | ⬜ | |
 | M7 Distribution | ⬜ | |
 
-**Current focus:** M2 acceptance: record a real call on macOS, then test on Windows. Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
-**Open decisions:** project name; license; Svelte vs React; default summary model (decided by M4; `anthropic/claude-haiku-5.5` until then). 
+**Current focus:** M5 (desktop app). Pending on real use: M2/M4 acceptance (a real call; a cloud eval with a strong judge). Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
+**Open decisions:** project name; license; default summary model (decided by M4; `anthropic/claude-haiku-5.5` until then). 
 
 **Workspace notes (M0):**
 - Section 6 conventions are enforced as lints in the root `Cargo.toml`: `unsafe_code` is denied, and clippy's `unwrap_used`, `expect_used` and `undocumented_unsafe_blocks` are warnings, which CI's `-D warnings` turns into errors. `clippy.toml` allows unwrap/expect in tests; `main` setup must opt in with a local `#[allow]`.
@@ -315,3 +315,9 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - Rubric lesson: the first version had a "hallucinations" criterion where 10 meant *none*. The local judge read "0 hallucinations" and scored 0. Renamed to "faithfulness" so every criterion points the same way (10 = best).
 - Judge caveats: a judge that is also a candidate, or from the same family, may favour its own style. A small judge also misses subtle omissions (qwen3:8b gave itself 10/10 although its notes left two decisions out of "Decisions"). Use a strong judge from a different family than the leading candidates when choosing the default, and spot-check `review.md`.
 - One synthetic transcript isn't enough to choose a default model. Add real meetings to `eval/transcripts/private/` (from `quill-cli transcribe <recording dir>` → `transcript.json`).
+
+**Notes (M5):**
+- Decided: Tauri v2 with React + TypeScript (Vite). Rust does all the work; the UI calls commands and listens for `recording-state` / `meeting-progress` events.
+- The library (`quill.sqlite`, with audio in `recordings/<id>/`) is shared by the app and the CLI: `record` creates library meetings, and `import <dir>` adds existing recording folders.
+- Recording runs on its own thread, controlled through channels (cpal streams aren't guaranteed to be movable between threads). Start/stop run off the main thread, because opening devices can block on a macOS permission prompt.
+- Keychain with unsigned dev builds: a program that didn't create the item gets a password prompt, and "Always Allow" fails for unsigned binaries (it looks like a wrong password; "Allow" works). Mitigations: the app reads the key once per launch, and saving the key from Settings makes the app the item's owner. Code signing (M7) is the real fix.

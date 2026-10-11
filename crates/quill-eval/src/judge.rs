@@ -108,8 +108,7 @@ async fn judge_case(
     summaries: &[&str],
 ) -> Result<(Vec<Scores>, Option<f64>), JudgeError> {
     let labels: Vec<String> = (0..summaries.len()).map(label).collect();
-    let transcript = case
-        .segments
+    let transcript = quill_core::meeting::turns(&case.segments)
         .iter()
         .map(transcript_line)
         .collect::<Vec<_>>()

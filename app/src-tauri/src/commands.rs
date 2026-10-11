@@ -1,0 +1,243 @@
+//! Functions the UI can call with `invoke("name", { args })`.
+//!
+//! Each `#[tauri::command]` function's arguments are deserialized from the
+//! JS call (camelCase in JS → snake_case here) and its `Ok` value is
+//! serialized back as JSON. Errors must be serializable too; we send their
+//! message as a string.
+
+use quill_core::library::{LibraryError, Meeting, MeetingDetail, SearchHit};
+use quill_core::settings::{Settings, SettingsError};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, State};
+
+use crate::pipeline::{self, Steps};
+use crate::recorder::ActiveRecording;
+use crate::{AppState, tray};
+
+/// Sent to the UI whenever recording starts or stops.
+pub const RECORDING_EVENT: &str = "recording-state";
+
+#[derive(Debug, thiserror::Error)]
+pub enum CommandError {
+    #[error(transparent)]
+    Library(#[from] LibraryError),
+    #[error(transparent)]
+    Settings(#[from] SettingsError),
+    #[error(transparent)]
+    Llm(#[from] quill_llm::LlmError),
+    #[error("{0}")]
+    Other(String),
+}
+
+// Tauri requires command errors to be `Serialize`; the UI only needs the
+// message.
+impl serde::Serialize for CommandError {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+type CommandResult<T> = Result<T, CommandError>;
+
+#[tauri::command]
+pub fn list_meetings(state: State<'_, AppState>) -> CommandResult<Vec<Meeting>> {
+    Ok(state.library.list()?)
+}
+
+#[tauri::command]
+pub fn get_meeting(state: State<'_, AppState>, id: String) -> CommandResult<MeetingDetail> {
+    Ok(state.library.get(&id)?)
+}
+
+#[tauri::command]
+pub fn search_transcripts(
+    state: State<'_, AppState>,
+    query: String,
+) -> CommandResult<Vec<SearchHit>> {
+    Ok(state.library.search(&query, 50)?)
+}
+
+#[tauri::command]
+pub fn rename_meeting(state: State<'_, AppState>, id: String, title: String) -> CommandResult<()> {
+    Ok(state.library.rename(&id, title.trim())?)
+}
+
+#[tauri::command]
+pub fn delete_meeting(state: State<'_, AppState>, id: String) -> CommandResult<()> {
+    Ok(state.library.delete(&id)?)
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> Settings {
+    lock(&state.settings).clone()
+}
+
+#[tauri::command]
+pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> CommandResult<()> {
+    settings.save(&state.data_dir)?;
+    *lock(&state.settings) = settings;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RecordingState {
+    pub recording: bool,
+    pub meeting_id: Option<String>,
+    pub elapsed_ms: u64,
+}
+
+#[tauri::command]
+pub fn recording_state(state: State<'_, AppState>) -> RecordingState {
+    current(&state)
+}
+
+// Async commands run off the main thread. Starting can block for as long as
+// a macOS permission prompt is open, and stopping waits for the WAV files to
+// be finalized; neither should freeze the window, so both run on a
+// blocking-friendly worker thread.
+#[tauri::command]
+pub async fn start_recording(app: AppHandle) -> CommandResult<Meeting> {
+    tauri::async_runtime::spawn_blocking(move || start(&app))
+        .await
+        .map_err(|e| CommandError::Other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn stop_recording(app: AppHandle) -> CommandResult<String> {
+    tauri::async_runtime::spawn_blocking(move || stop(&app))
+        .await
+        .map_err(|e| CommandError::Other(e.to_string()))?
+}
+
+/// Re-runs processing for a meeting: `transcribe` = transcribe (+ summarize
+/// if enabled in settings); otherwise summarize the existing transcript.
+#[tauri::command]
+pub fn process_meeting(app: AppHandle, id: String, transcribe: bool) {
+    let steps = if !transcribe {
+        Steps::SummarizeOnly
+    } else if lock(&app.state::<AppState>().settings).auto_summarize {
+        Steps::TranscribeAndSummarize
+    } else {
+        Steps::TranscribeOnly
+    };
+    pipeline::spawn(app, id, steps);
+}
+
+/// Where the OpenRouter key comes from ("keychain" / "environment"), or
+/// `None` if there isn't one. Doesn't read the key, so never prompts.
+#[tauri::command]
+pub async fn openrouter_key_status() -> CommandResult<Option<String>> {
+    blocking(|| Ok(quill_llm::keys::openrouter_key_source()?.map(String::from))).await
+}
+
+/// Saves the key to the keychain from the app, which makes the app the
+/// item's owner (no access prompts for it afterwards).
+#[tauri::command]
+pub async fn set_openrouter_key(app: AppHandle, key: String) -> CommandResult<()> {
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err(CommandError::Other("the key is empty".into()));
+    }
+    let cached = key.clone();
+    blocking(move || Ok(quill_llm::keys::set(quill_llm::keys::OPENROUTER, &key)?)).await?;
+    *lock(&app.state::<AppState>().openrouter_key) = Some(cached);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_openrouter_key(app: AppHandle) -> CommandResult<()> {
+    blocking(|| Ok(quill_llm::keys::delete(quill_llm::keys::OPENROUTER).map(|_| ())?)).await?;
+    *lock(&app.state::<AppState>().openrouter_key) = None;
+    Ok(())
+}
+
+/// Runs keychain work off the main thread: it can block on a macOS prompt.
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> CommandResult<T> + Send + 'static,
+) -> CommandResult<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| CommandError::Other(e.to_string()))?
+}
+
+/// Starts recording into a new meeting (shared by the UI and the tray).
+pub fn start(app: &AppHandle) -> CommandResult<Meeting> {
+    let state = app.state::<AppState>();
+    let mut recording = lock(&state.recording);
+    if recording.is_some() {
+        return Err(CommandError::Other("already recording".into()));
+    }
+    let meeting = state.library.create_meeting()?;
+    let dir = state.library.meeting_dir(&meeting.id);
+    match ActiveRecording::start(meeting.id.clone(), dir) {
+        Ok(active) => *recording = Some(active),
+        Err(e) => {
+            // Don't leave an empty meeting behind.
+            let _ = state.library.delete(&meeting.id);
+            return Err(CommandError::Other(format!(
+                "could not start recording: {e}"
+            )));
+        }
+    }
+    drop(recording);
+    notify(app);
+    Ok(meeting)
+}
+
+/// Stops recording and starts processing the meeting in the background.
+/// Returns the meeting id.
+pub fn stop(app: &AppHandle) -> CommandResult<String> {
+    let state = app.state::<AppState>();
+    let active = lock(&state.recording)
+        .take()
+        .ok_or_else(|| CommandError::Other("not recording".into()))?;
+    let id = active.meeting_id.clone();
+    let tracks = active.stop().map_err(CommandError::Other)?;
+    let dir = state.library.meeting_dir(&id);
+    if let Err(e) = quill_core::meeting::write_recording_info(&dir, &tracks) {
+        tracing::warn!("could not write recording info: {e}");
+    }
+    for t in tracks.iter().filter(|t| t.peak == 0.0) {
+        // Pure silence usually means a missing permission (macOS delivers
+        // zeros rather than an error).
+        tracing::warn!(source = ?t.source, device = %t.device, "track is silent");
+    }
+    let longest = tracks
+        .iter()
+        .map(quill_audio::capture::TrackSummary::duration_secs)
+        .fold(0.0, f64::max);
+    state.library.set_duration(&id, (longest * 1000.0) as u64)?;
+    notify(app);
+
+    let steps = if lock(&state.settings).auto_summarize {
+        Steps::TranscribeAndSummarize
+    } else {
+        Steps::TranscribeOnly
+    };
+    pipeline::spawn(app.clone(), id.clone(), steps);
+    Ok(id)
+}
+
+fn current(state: &AppState) -> RecordingState {
+    let recording = lock(&state.recording);
+    RecordingState {
+        recording: recording.is_some(),
+        meeting_id: recording.as_ref().map(|r| r.meeting_id.clone()),
+        elapsed_ms: recording.as_ref().map_or(0, |r| {
+            u64::try_from(r.started.elapsed().as_millis()).unwrap_or(0)
+        }),
+    }
+}
+
+/// Tells the tray and the UI that recording started or stopped.
+fn notify(app: &AppHandle) {
+    let state = current(&app.state::<AppState>());
+    tray::set_recording(app, state.recording);
+    let _ = app.emit(RECORDING_EVENT, state);
+}
+
+/// Locks a mutex, recovering from poisoning (a panic elsewhere while it was
+/// held); our guarded values are plain data that stay valid.
+pub fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}

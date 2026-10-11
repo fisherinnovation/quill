@@ -8,6 +8,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use quill_audio::capture::{Source, TrackSummary};
 use quill_stt::{Segment, SttError, TranscribeOptions, Transcriber};
 
 pub const MIC_FILE: &str = "mic.wav";
@@ -27,6 +28,36 @@ pub enum MeetingError {
     },
     #[error(transparent)]
     Stt(#[from] SttError),
+}
+
+/// File next to the WAVs describing what was recorded (devices, formats,
+/// lead-in, dropped samples, peaks), for debugging sync or permission
+/// problems later.
+pub const RECORDING_INFO_FILE: &str = "recording.json";
+
+/// Writes [`RECORDING_INFO_FILE`] for a finished recording.
+pub fn write_recording_info(dir: &Path, tracks: &[TrackSummary]) -> std::io::Result<()> {
+    let tracks: Vec<_> = tracks
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "source": match t.source {
+                    Source::Microphone => "microphone",
+                    Source::SystemAudio => "system",
+                },
+                "file": t.path.file_name().map(|f| f.to_string_lossy()),
+                "device": t.device,
+                "sample_rate": t.sample_rate,
+                "channels": t.channels,
+                "frames": t.frames,
+                "lead_in_ms": t.lead_in_ms,
+                "dropped_samples": t.dropped_samples,
+                "peak": t.peak,
+            })
+        })
+        .collect();
+    let json = serde_json::to_string_pretty(&serde_json::json!({ "tracks": tracks }))?;
+    std::fs::write(dir.join(RECORDING_INFO_FILE), json)
 }
 
 /// Transcribes whichever tracks exist in a recording directory and merges
@@ -93,6 +124,37 @@ fn with_speaker(segment: Segment, speaker: &str) -> Segment {
         speaker: Some(speaker.to_string()),
         ..segment
     }
+}
+
+/// Longest pause (ms) within one speaker's turn.
+pub const TURN_MAX_GAP_MS: u64 = 5_000;
+/// Longest turn (ms) before starting a new one, so timestamps stay useful.
+pub const TURN_MAX_LEN_MS: u64 = 60_000;
+
+/// Joins consecutive segments by the same speaker into turns.
+///
+/// Whisper cuts segments at arbitrary points ("…identified based on" /
+/// "which audio device…"). Merging them reads better and gives the LLM
+/// whole sentences. A new turn starts when the speaker changes, after a
+/// pause longer than [`TURN_MAX_GAP_MS`], or once a turn reaches
+/// [`TURN_MAX_LEN_MS`]. (The app's transcript view groups with the same
+/// rules.)
+pub fn turns(segments: &[Segment]) -> Vec<Segment> {
+    let mut out: Vec<Segment> = Vec::with_capacity(segments.len());
+    for s in segments {
+        if let Some(last) = out.last_mut()
+            && last.speaker == s.speaker
+            && s.start_ms <= last.end_ms + TURN_MAX_GAP_MS
+            && s.end_ms.saturating_sub(last.start_ms) <= TURN_MAX_LEN_MS
+        {
+            last.text.push(' ');
+            last.text.push_str(&s.text);
+            last.end_ms = last.end_ms.max(s.end_ms);
+            continue;
+        }
+        out.push(s.clone());
+    }
+    out
 }
 
 /// How far apart (ms) two segments can be and still count as overlapping.
@@ -228,6 +290,52 @@ mod tests {
         let merged = merge_tracks(mic, system);
 
         assert_eq!(merged.len(), 2);
+    }
+
+    #[test]
+    fn merges_consecutive_segments_into_turns() {
+        let segs = vec![
+            seg(0, 3000, "identified based on"),
+            seg(3200, 6000, "which audio device"),
+            seg(30_000, 31_000, "Later."),
+        ];
+        let mut others = seg(6500, 7000, "Right.");
+        others.speaker = Some(OTHERS.into());
+        let mut all = merge_tracks(segs, vec![others]);
+        all.push(Segment {
+            speaker: Some(ME.into()),
+            ..seg(31_500, 32_000, "And more.")
+        });
+
+        let t = turns(&all);
+
+        let summary: Vec<_> = t
+            .iter()
+            .map(|s| (s.start_ms, s.end_ms, s.text.as_str()))
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                (0, 6000, "identified based on which audio device"),
+                (6500, 7000, "Right."),
+                // The 23 s pause would also split, but the speaker change
+                // already did; "Later." and "And more." are 0.5 s apart.
+                (30_000, 32_000, "Later. And more."),
+            ]
+        );
+    }
+
+    #[test]
+    fn long_monologues_are_split_into_turns_of_at_most_a_minute() {
+        let segs: Vec<Segment> = (0..30)
+            .map(|i| Segment {
+                speaker: Some(ME.into()),
+                ..seg(i * 4000, i * 4000 + 3900, "words")
+            })
+            .collect();
+        let t = turns(&segs);
+        assert!(t.len() >= 2);
+        assert!(t.iter().all(|s| s.end_ms - s.start_ms <= TURN_MAX_LEN_MS));
     }
 
     #[test]

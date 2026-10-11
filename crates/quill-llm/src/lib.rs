@@ -110,6 +110,8 @@ pub enum LlmError {
     MissingKey(&'static str),
     #[error("keychain error: {0}")]
     Keyring(#[from] keyring::Error),
+    #[error("keychain access to the API key was denied (the macOS prompt was cancelled)")]
+    KeychainDenied,
 }
 
 /// Picks a provider from a model spec:
@@ -121,12 +123,22 @@ pub fn provider_for(
     spec: &str,
     privacy: Privacy,
 ) -> Result<(Box<dyn LlmProvider>, String), LlmError> {
+    provider_for_with_key(spec, privacy, keys::openrouter_key)
+}
+
+/// Like [`provider_for`], but the OpenRouter key comes from `key` (called
+/// only if an OpenRouter model is chosen). The app uses this to read the key
+/// once and keep it in memory.
+pub fn provider_for_with_key(
+    spec: &str,
+    privacy: Privacy,
+    key: impl FnOnce() -> Result<String, LlmError>,
+) -> Result<(Box<dyn LlmProvider>, String), LlmError> {
     if let Some(model) = spec.strip_prefix("ollama:") {
         let host = std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".into());
         return Ok((Box::new(Ollama::new(host)), model.to_string()));
     }
-    let key = keys::openrouter_key()?;
-    Ok((Box::new(OpenRouter::new(key, privacy)), spec.to_string()))
+    Ok((Box::new(OpenRouter::new(key()?, privacy)), spec.to_string()))
 }
 
 /// Rough token count for budgeting. English averages ~4 characters per

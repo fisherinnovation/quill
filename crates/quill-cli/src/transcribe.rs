@@ -84,6 +84,9 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         let path = args.file.join("transcript.json");
         std::fs::write(&path, serde_json::to_string_pretty(&segments)?)
             .with_context(|| format!("writing {}", path.display()))?;
+        if let Some((library, id)) = crate::library::meeting_for(&args.file)? {
+            library.save_transcript(&id, &segments)?;
+        }
     }
 
     match args.format {

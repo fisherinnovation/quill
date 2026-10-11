@@ -57,6 +57,8 @@ pub async fn summarize(
     segments: &[Segment],
     date: &str,
 ) -> Result<Summary, SummaryError> {
+    // Whole turns rather than Whisper's arbitrary segment cuts.
+    let segments = &crate::meeting::turns(segments);
     let lines: Vec<String> = segments.iter().map(transcript_line).collect();
     if lines.is_empty() {
         return Err(SummaryError::EmptyTranscript);
@@ -213,8 +215,19 @@ fn clock(ms: u64) -> String {
     format!("{:02}:{:02}", secs / 60, secs % 60)
 }
 
+/// Meeting length for the prompt: exact for short meetings (a 2:22 call is
+/// "2 min 22 s", not "3 min", which a model will repeat back), rounded to
+/// the nearest minute for longer ones.
 fn format_duration(ms: u64) -> String {
-    let mins = ms.div_ceil(60_000);
+    let secs = (ms + 500) / 1000;
+    if secs < 10 * 60 {
+        return match (secs / 60, secs % 60) {
+            (0, s) => format!("{s} s"),
+            (m, 0) => format!("{m} min"),
+            (m, s) => format!("{m} min {s} s"),
+        };
+    }
+    let mins = (secs + 30) / 60;
     if mins >= 60 {
         format!("{} h {} min", mins / 60, mins % 60)
     } else {
@@ -328,6 +341,15 @@ mod tests {
     async fn empty_transcript_is_an_error() {
         let result = summarize(&fake(100_000), "m", &SUMMARY, &[], "d").await;
         assert!(matches!(result, Err(SummaryError::EmptyTranscript)));
+    }
+
+    #[test]
+    fn durations_are_exact_when_short_and_rounded_when_long() {
+        assert_eq!(format_duration(141_838), "2 min 22 s");
+        assert_eq!(format_duration(45_000), "45 s");
+        assert_eq!(format_duration(180_000), "3 min");
+        assert_eq!(format_duration(29 * 60_000 + 40_000), "30 min");
+        assert_eq!(format_duration(77 * 60_000), "1 h 17 min");
     }
 
     #[test]
