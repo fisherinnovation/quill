@@ -35,6 +35,9 @@ pub struct Args {
     /// Transcribe silence too, instead of skipping it with Silero VAD
     #[arg(long)]
     no_vad: bool,
+    /// Recording directories: don't remove speaker echo from the mic track
+    #[arg(long)]
+    no_aec: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -67,9 +70,13 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     };
     let started = Instant::now();
     let (segments, audio_secs) = if args.file.is_dir() {
-        let segments =
-            quill_core::meeting::transcribe_recording(&args.file, &transcriber, &opts)
-                .with_context(|| format!("transcribing recording {}", args.file.display()))?;
+        let segments = quill_core::meeting::transcribe_recording(
+            &args.file,
+            &transcriber,
+            &opts,
+            !args.no_aec,
+        )
+        .with_context(|| format!("transcribing recording {}", args.file.display()))?;
         (segments, None)
     } else {
         let pcm = quill_audio::load_for_stt(&args.file)

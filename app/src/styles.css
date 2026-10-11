@@ -430,3 +430,113 @@ mark {
   flex: 1;
   min-width: 200px;
 }
+
+/* Access check */
+.access-check {
+  display: grid;
+  gap: 10px;
+}
+
+.access-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.access-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.access-list p {
+  margin: 2px 0 0;
+}
+
+.access-list .mark {
+  font-weight: 700;
+  width: 1em;
+}
+
+.access-list .ok .mark {
+  color: var(--me);
+}
+
+.access-list .missing .mark {
+  color: var(--danger);
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.error-text {
+  color: var(--danger);
+}
+
+/* Onboarding */
+.onboarding {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--bg-side);
+}
+
+.onboarding-card {
+  max-width: 560px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+}
+
+.onboarding-card h1 {
+  margin-top: 0;
+  font-size: 24px;
+}
+
+.onboarding-card h2 {
+  font-size: 16px;
+  margin-top: 1.6em;
+}
+
+.onboarding .tracks {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.onboarding .tracks .speaker {
+  display: inline-block;
+  width: 56px;
+}
+
+.onboarding-actions {
+  margin-top: 24px;
+}
+
+/* Storage */
+.storage {
+  display: grid;
+  gap: 4px;
+}
+
+.storage p {
+  margin: 0;
+}
+
+.path {
+  word-break: break-all;
+  background: var(--bg-side);
+  border-radius: 6px;
+  padding: 4px 8px;
+}

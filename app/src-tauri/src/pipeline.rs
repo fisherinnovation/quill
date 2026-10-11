@@ -59,6 +59,14 @@ pub fn spawn(app: AppHandle, meeting_id: String, steps: Steps) {
         tracing::info!(meeting_id, "already processing");
         return;
     }
+    // Checked after registering, so a move starting now sees us (see
+    // `storage::relocate`).
+    if state.moving.load(std::sync::atomic::Ordering::SeqCst) {
+        lock(&state.processing).remove(&meeting_id);
+        let message = "recordings are being moved; try again in a moment".to_string();
+        emit(&app, &meeting_id, Stage::Failed, None, Some(message));
+        return;
+    }
     tauri::async_runtime::spawn(async move {
         let result = run(&app, &meeting_id, steps).await;
         let state = app.state::<AppState>();
@@ -92,7 +100,7 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
                 language: settings2.language.clone(),
                 initial_prompt: None,
             };
-            let segments = meeting::transcribe_recording(&dir, transcriber.as_ref(), &opts)
+            let segments = meeting::transcribe_recording(&dir, transcriber.as_ref(), &opts, true)
                 .map_err(|e| e.to_string())?;
             // Also save as a file, like `quill-cli transcribe <dir>` does.
             if let Ok(json) = serde_json::to_string_pretty(&segments) {

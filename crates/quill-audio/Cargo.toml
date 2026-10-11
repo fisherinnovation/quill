@@ -11,6 +11,7 @@ rtrb.workspace = true
 tracing.workspace = true
 hound.workspace = true
 rubato.workspace = true
+sonora.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

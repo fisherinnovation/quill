@@ -2,13 +2,16 @@
 //! 16 kHz mono, voice activity detection and WAV writing.
 //!
 //! - [`capture`]: record the microphone and system audio to WAV files.
+//! - [`check`]: a short test recording that confirms both sources are heard.
 //! - [`load_for_stt`]: read a WAV, downmix to mono and resample to the 16 kHz
 //!   that Whisper expects.
 //!
 //! Audio callbacks must never block or allocate heavily; they hand samples to
 //! a worker thread through a lock-free ring buffer.
 
+pub mod aec;
 pub mod capture;
+pub mod check;
 mod resample;
 mod wav;
 

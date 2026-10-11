@@ -6,7 +6,8 @@
 //! braces like `{topic}` are instructions to the model and left alone.
 //!
 //! To change a prompt, copy the directory to the next version
-//! (`summary-v2/`), edit it, and point [`SUMMARY`] at it, so summaries made
+//! (`summary-v3/`), edit it, add it to [`SUMMARY_VERSIONS`] and point
+//! [`SUMMARY`] at it, so summaries made
 //! with the old version stay attributable and comparable (M4 evals).
 
 /// One version of the summary prompts.
@@ -35,7 +36,7 @@ macro_rules! prompt {
     };
 }
 
-pub const SUMMARY: SummaryPrompts = SummaryPrompts {
+pub const SUMMARY_V1: SummaryPrompts = SummaryPrompts {
     version: "summary-v1",
     system: prompt!("summary-v1/system.md"),
     single: prompt!("summary-v1/single.md"),
@@ -43,9 +44,23 @@ pub const SUMMARY: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v1/reduce.md"),
 };
 
+/// v2: resolves "I/you/we" relative to each speaker (v1 once reversed who
+/// was on the speakers vs. the mic) and calls the recorder "you" rather
+/// than "Me". Templates otherwise unchanged.
+pub const SUMMARY_V2: SummaryPrompts = SummaryPrompts {
+    version: "summary-v2",
+    system: prompt!("summary-v2/system.md"),
+    single: prompt!("summary-v2/single.md"),
+    chunk: prompt!("summary-v2/chunk.md"),
+    reduce: prompt!("summary-v2/reduce.md"),
+};
+
+/// The version used by default.
+pub const SUMMARY: SummaryPrompts = SUMMARY_V2;
+
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
-pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY];
+pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY_V1, SUMMARY_V2];
 
 /// Looks up a summary prompt version by name, e.g. `summary-v1`.
 pub fn find_summary(version: &str) -> Option<&'static SummaryPrompts> {
@@ -142,7 +157,18 @@ mod tests {
     /// comment promises (catches template typos at test time).
     #[test]
     fn shipped_templates_render() {
-        let p = SUMMARY;
+        for p in SUMMARY_VERSIONS {
+            check_summary_templates(p);
+        }
+        render(JUDGE.system, &[]).unwrap();
+        render(
+            JUDGE.user,
+            &[("labels", "A, B"), ("transcript", "t"), ("candidates", "c")],
+        )
+        .unwrap();
+    }
+
+    fn check_summary_templates(p: &SummaryPrompts) {
         render(p.system, &[]).unwrap();
         render(
             p.single,
@@ -169,12 +195,6 @@ mod tests {
             ],
         )
         .unwrap();
-        render(JUDGE.system, &[]).unwrap();
-        render(
-            JUDGE.user,
-            &[("labels", "A, B"), ("transcript", "t"), ("candidates", "c")],
-        )
-        .unwrap();
     }
 
     /// Golden file: the fully rendered single-pass prompt for a tiny
@@ -195,7 +215,7 @@ mod tests {
         )
         .unwrap();
         let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/golden/summary-v1-single.md");
+            .join(format!("tests/golden/{}-single.md", SUMMARY.version));
         if std::env::var_os("UPDATE_GOLDEN").is_some() {
             std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
             std::fs::write(&golden, &rendered).unwrap();

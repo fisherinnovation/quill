@@ -51,6 +51,28 @@ export interface Settings {
   summary_model: string;
   zdr: boolean;
   auto_summarize: boolean;
+  /** Changed only via chooseRecordingsDir/resetRecordingsDir. */
+  recordings_dir: string | null;
+  onboarded: boolean;
+}
+
+export interface StorageInfo {
+  path: string;
+  is_default: boolean;
+  /** False if the folder is missing (e.g. a disconnected drive). */
+  available: boolean;
+  bytes: number;
+}
+
+export interface TrackAccess {
+  device: string;
+  heard: boolean;
+  peak_db: number | null;
+}
+
+export interface AccessReport {
+  microphone: TrackAccess;
+  system_audio: TrackAccess;
 }
 
 export interface RecordingState {
@@ -86,7 +108,23 @@ export const api = {
   openrouterKeyStatus: () => invoke<string | null>("openrouter_key_status"),
   setOpenrouterKey: (key: string) => invoke<void>("set_openrouter_key", { key }),
   deleteOpenrouterKey: () => invoke<void>("delete_openrouter_key"),
+  storageInfo: () => invoke<StorageInfo>("storage_info"),
+  /** Opens a folder picker and moves all recordings there; null if cancelled. */
+  chooseRecordingsDir: () => invoke<StorageInfo | null>("choose_recordings_dir"),
+  resetRecordingsDir: () => invoke<StorageInfo>("reset_recordings_dir"),
+  showRecordingsDir: () => invoke<void>("show_recordings_dir"),
+  /** Opens a save dialog; resolves to the saved path, or null if cancelled. */
+  exportSummary: (id: string) => invoke<string | null>("export_summary", { id }),
+  revealFile: (path: string) => invoke<void>("reveal_file", { path }),
+  /** Records ~4 s from mic + system audio while playing a chime. */
+  checkAudioAccess: () => invoke<AccessReport>("check_audio_access"),
+  openPrivacySettings: (pane: "microphone" | "system_audio") => invoke<void>("open_privacy_settings", { pane }),
+  finishOnboarding: () => invoke<void>("finish_onboarding"),
 };
+
+export const isMac = navigator.userAgent.includes("Mac");
+/** The OS file manager's name, for "Show in …" buttons. */
+export const fileManager = isMac ? "Finder" : "Explorer";
 
 // Events emitted by the Rust side (see commands.rs / pipeline.rs).
 export const events = {
@@ -119,6 +157,18 @@ export function shortDate(rfc3339: string): string {
 export function minutes(ms: number): string {
   const m = Math.round(ms / 60000);
   return m < 1 ? "<1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+/** "1.2 GB", "340 MB". */
+export function fileSize(bytes: number): string {
+  const units = ["bytes", "KB", "MB", "GB", "TB"];
+  let n = bytes;
+  let i = 0;
+  while (n >= 1000 && i < units.length - 1) {
+    n /= 1000;
+    i++;
+  }
+  return `${i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
 }
 
 /** Tauri command errors arrive as plain strings. */

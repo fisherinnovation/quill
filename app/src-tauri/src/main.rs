@@ -9,13 +9,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod onboarding;
 mod pipeline;
 mod recorder;
+mod storage;
 mod tray;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 
 use quill_core::library::Library;
 use quill_core::settings::Settings;
@@ -38,6 +41,9 @@ pub struct AppState {
     /// OpenRouter key, read from the keychain once per launch (each read
     /// of an unsigned dev build's item can show a macOS prompt).
     pub openrouter_key: Mutex<Option<String>>,
+    /// Set while recordings are moving to a new folder; recording and
+    /// processing wait for it.
+    pub moving: AtomicBool,
 }
 
 // `expect` is allowed here only: if the data directory or database can't be
@@ -53,11 +59,12 @@ fn main() {
         .init();
 
     let data_dir = quill_core::paths::data_dir().expect("no home directory");
-    let library = Library::open(&data_dir).expect("could not open the meeting library");
     let settings = Settings::load(&data_dir).unwrap_or_else(|e| {
         tracing::warn!("using default settings: {e}");
         Settings::default()
     });
+    let library = Library::open(&data_dir, &settings.recordings_dir(&data_dir))
+        .expect("could not open the meeting library");
 
     tauri::Builder::default()
         .manage(AppState {
@@ -69,7 +76,10 @@ fn main() {
             processing: Mutex::new(HashSet::new()),
             tray: Mutex::new(None),
             openrouter_key: Mutex::new(None),
+            moving: AtomicBool::new(false),
         })
+        // Native open/save dialogs, used from Rust only (see storage.rs).
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let tray = tray::create(app.handle())?;
             *commands::lock(&app.state::<AppState>().tray) = Some(tray);
@@ -99,6 +109,15 @@ fn main() {
             commands::openrouter_key_status,
             commands::set_openrouter_key,
             commands::delete_openrouter_key,
+            storage::storage_info,
+            storage::choose_recordings_dir,
+            storage::reset_recordings_dir,
+            storage::show_recordings_dir,
+            storage::export_summary,
+            storage::reveal_file,
+            onboarding::check_audio_access,
+            onboarding::open_privacy_settings,
+            onboarding::finish_onboarding,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Quill");

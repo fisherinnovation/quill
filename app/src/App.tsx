@@ -4,6 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { MeetingView } from "./components/MeetingView";
 import { SettingsView } from "./components/SettingsView";
 import { RecordButton } from "./components/RecordButton";
+import { Onboarding } from "./components/Onboarding";
 
 type View = { kind: "meeting"; id: string; at?: number } | { kind: "settings" } | { kind: "empty" };
 
@@ -20,6 +21,8 @@ export function App() {
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // Bumped when a meeting's data changes on the Rust side, so views refetch.
   const [version, setVersion] = useState(0);
+  // null until settings load; false shows the first-run screen.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -32,6 +35,10 @@ export function App() {
   useEffect(() => {
     void refresh();
     void api.recordingState().then(setRecording);
+    api
+      .getSettings()
+      .then((s) => setOnboarded(s.onboarded))
+      .catch(() => setOnboarded(true));
   }, [refresh]);
 
   // Subscribe to Rust events for the app's lifetime.
@@ -64,6 +71,9 @@ export function App() {
       setView({ kind: "meeting", id: meetings[0].id });
     }
   }, [meetings, view.kind]);
+
+  if (onboarded === null) return null;
+  if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />;
 
   return (
     <div className="app">

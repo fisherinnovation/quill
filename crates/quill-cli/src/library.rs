@@ -4,10 +4,13 @@ use std::path::Path;
 
 use anyhow::Context;
 use quill_core::library::Library;
+use quill_core::settings::Settings;
 
 pub fn open() -> anyhow::Result<Library> {
     let data_dir = quill_core::paths::data_dir().context("could not find a home directory")?;
-    Library::open(&data_dir).context("opening the meeting library")
+    let settings = Settings::load(&data_dir).context("reading settings")?;
+    Library::open(&data_dir, &settings.recordings_dir(&data_dir))
+        .context("opening the meeting library")
 }
 
 /// If `dir` is a meeting folder inside the library, the library and the

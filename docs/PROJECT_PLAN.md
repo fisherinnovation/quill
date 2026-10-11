@@ -277,7 +277,7 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | M2 Capture audio | 🟡 In progress | `record` / VAD / track merge working on macOS: real mic + system capture in sync, echo dropped in the merged transcript. Left: record a real Zoom/Meet/Teams call; Windows loopback test. |
 | M3 Summarize | 🟡 In progress | `summarize` working end to end with Ollama (qwen3:8b, local, 34 s for a 4-min meeting). Prompts are in `prompts/summary-v1/`. Left: first OpenRouter run (needs a key). |
 | M4 Eval harness | 🟡 In progress | Harness complete and tested end to end with local models. Left: a cloud run with a strong judge (needs the OpenRouter key), more transcripts (real meetings in `private/`), then choose the default model. |
-| M5 Meeting MVP | 🟡 In progress | Record → transcribe → summarize works end to end in the app (first real run: 27 s test meeting, Haiku summary in 4.1 s for $0.0004). Meeting library in SQLite with FTS5 search, shared with the CLI. Left: permission onboarding, file export, storage location, prompt choice, Windows check. |
+| M5 Meeting MVP | 🟡 In progress | Record → transcribe → summarize works end to end in the app (first real run: 27 s test meeting, Haiku summary in 4.1 s for $0.0004). Meeting library in SQLite with FTS5 search, shared with the CLI. First-run onboarding with an audio access check, Markdown export, and a movable recordings folder. Left: prompt choice, Windows check. |
 | M6 Dictation | ⬜ | |
 | M7 Distribution | ⬜ | |
 
@@ -320,4 +320,17 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - Decided: Tauri v2 with React + TypeScript (Vite). Rust does all the work; the UI calls commands and listens for `recording-state` / `meeting-progress` events.
 - The library (`quill.sqlite`, with audio in `recordings/<id>/`) is shared by the app and the CLI: `record` creates library meetings, and `import <dir>` adds existing recording folders.
 - Recording runs on its own thread, controlled through channels (cpal streams aren't guaranteed to be movable between threads). Start/stop run off the main thread, because opening devices can block on a macOS permission prompt.
-- Keychain with unsigned dev builds: a program that didn't create the item gets a password prompt, and "Always Allow" fails for unsigned binaries (it looks like a wrong password; "Allow" works). Mitigations: the app reads the key once per launch, and saving the key from Settings makes the app the item's owner. Code signing (M7) is the real fix.
+- Keychain with unsigned dev builds: a program that didn't create the item gets a password prompt, and "Always Allow" fails for unsigned binaries (it looks like a wrong password; "Allow" works). Mitigations: the app reads the key once per launch, and saving the key from Settings makes the app the item's owner. For development, `npm run app` (`app/scripts/dev.sh`) reads the key once with Apple's signed `security` tool (where "Always Allow" sticks) and passes it in `QUILL_OPENROUTER_API_KEY`, so rebuilds never touch the keychain. Code signing (M7) is the real fix.
+- **Echo cancellation** (`quill_audio::aec`, WebRTC AEC3 via the pure-Rust `sonora` crate). After recording, the mic track is cleaned using the system track as the reference, before transcription. On the first real call (ChatGPT voice on speakers, 2:22):
+
+  | | Echo leaked into "Me" words (`eval/bench/echo_leak.py`) | Notes |
+  |---|---:|---|
+  | No AEC (before) | 7.8% | "Me" text all lowercase, no punctuation; one of my sentences lost |
+  | **AEC (now the default)** | **0.0%** | Proper punctuation/capitals; lost sentence recovered; 13% faster overall |
+  | No AEC + punctuated prompt | 13.8% | Longer segments mixed in more echo |
+  | AEC + punctuated prompt | 0.0% | 30 s+ segments, coarse timestamps, a sentence dropped |
+
+  The missing punctuation was caused by the echo confusing Whisper, not by Whisper's style, so no initial prompt is needed. `quill-cli transcribe <dir> --no-aec` turns AEC off for comparison. The text-level echo filter in `merge_tracks` stays as a second line of defence.
+- **Onboarding / access check** (`quill_audio::check`). macOS reports a denied permission as silence, not an error, so the first-run screen records 4 s from both sources while playing a quiet chime. The system tap records every process, Quill included, so hearing nothing (not even the chime) means system-audio access was denied; a working mic always picks up some noise. Running the check also triggers both permission prompts before the first real meeting. It can be re-run from Settings, and the test audio is deleted afterwards.
+- **Recordings folder** (`Settings.recordings_dir`, default `<data dir>/recordings`). Changing it moves every meeting folder (rename, or copy then delete across drives). It's all or nothing, and refused while recording or processing. The database stays in the data directory. Audio is about 2 GB per hour (32-bit float, 48 kHz, stereo system track); a smaller format is a candidate for later.
+- File and folder pickers (export, recordings folder) open from Rust via `tauri-plugin-dialog`, so the web view never passes in a path to write to and needs no plugin permissions.

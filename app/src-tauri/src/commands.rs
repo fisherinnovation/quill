@@ -7,6 +7,8 @@
 
 use quill_core::library::{LibraryError, Meeting, MeetingDetail, SearchHit};
 use quill_core::settings::{Settings, SettingsError};
+use std::sync::atomic::Ordering;
+
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -37,7 +39,7 @@ impl serde::Serialize for CommandError {
     }
 }
 
-type CommandResult<T> = Result<T, CommandError>;
+pub type CommandResult<T> = Result<T, CommandError>;
 
 #[tauri::command]
 pub fn list_meetings(state: State<'_, AppState>) -> CommandResult<Vec<Meeting>> {
@@ -72,8 +74,15 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
     lock(&state.settings).clone()
 }
 
+/// Saves the settings form. The recordings folder and onboarding flag have
+/// their own commands, so the stored values win over whatever the form sent.
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> CommandResult<()> {
+pub fn save_settings(state: State<'_, AppState>, mut settings: Settings) -> CommandResult<()> {
+    {
+        let current = lock(&state.settings);
+        settings.recordings_dir.clone_from(&current.recordings_dir);
+        settings.onboarded = current.onboarded;
+    }
     settings.save(&state.data_dir)?;
     *lock(&state.settings) = settings;
     Ok(())
@@ -151,8 +160,9 @@ pub async fn delete_openrouter_key(app: AppHandle) -> CommandResult<()> {
     Ok(())
 }
 
-/// Runs keychain work off the main thread: it can block on a macOS prompt.
-async fn blocking<T: Send + 'static>(
+/// Runs work that can block (keychain prompts, dialogs, file moves) off the
+/// main thread.
+pub async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> CommandResult<T> + Send + 'static,
 ) -> CommandResult<T> {
     tauri::async_runtime::spawn_blocking(f)
@@ -166,6 +176,11 @@ pub fn start(app: &AppHandle) -> CommandResult<Meeting> {
     let mut recording = lock(&state.recording);
     if recording.is_some() {
         return Err(CommandError::Other("already recording".into()));
+    }
+    if state.moving.load(Ordering::SeqCst) {
+        return Err(CommandError::Other(
+            "recordings are being moved; try again in a moment".into(),
+        ));
     }
     let meeting = state.library.create_meeting()?;
     let dir = state.library.meeting_dir(&meeting.id);

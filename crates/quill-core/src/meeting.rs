@@ -61,38 +61,56 @@ pub fn write_recording_info(dir: &Path, tracks: &[TrackSummary]) -> std::io::Res
 }
 
 /// Transcribes whichever tracks exist in a recording directory and merges
-/// them into one transcript labelled "Me" / "Others".
+/// them into one transcript labelled "Me" / "Others". With
+/// `echo_cancellation`, speaker sound is first removed from the mic track
+/// using the system track as the reference (see `quill_audio::aec`).
 pub fn transcribe_recording(
     dir: &Path,
     transcriber: &dyn Transcriber,
     opts: &TranscribeOptions,
+    echo_cancellation: bool,
 ) -> Result<Vec<Segment>, MeetingError> {
-    let mic = transcribe_track(&dir.join(MIC_FILE), transcriber, opts)?;
-    let system = transcribe_track(&dir.join(SYSTEM_FILE), transcriber, opts)?;
+    let mut mic = load_track(&dir.join(MIC_FILE))?;
+    let system = load_track(&dir.join(SYSTEM_FILE))?;
     if mic.is_none() && system.is_none() {
         return Err(MeetingError::NoTracks(dir.to_path_buf()));
     }
-    Ok(merge_tracks(
-        mic.unwrap_or_default(),
-        system.unwrap_or_default(),
-    ))
+    // Remove what the speakers played from the mic before transcribing, so
+    // the other people's words don't end up in "Me" lines.
+    if echo_cancellation && let (Some(m), Some(s)) = (mic.as_mut(), system.as_ref()) {
+        tracing::info!("cancelling speaker echo in the mic track");
+        *m = quill_audio::aec::cancel_echo(m, s, quill_audio::STT_SAMPLE_RATE).map_err(
+            |source| MeetingError::Audio {
+                path: dir.join(MIC_FILE),
+                source,
+            },
+        )?;
+    }
+    let transcribe = |pcm: Option<Vec<f32>>, name: &str| -> Result<Vec<Segment>, MeetingError> {
+        match pcm {
+            Some(pcm) => {
+                tracing::info!(track = name, "transcribing");
+                Ok(transcriber.transcribe(&pcm, opts)?)
+            }
+            None => Ok(Vec::new()),
+        }
+    };
+    let mic_segments = transcribe(mic, MIC_FILE)?;
+    let system_segments = transcribe(system, SYSTEM_FILE)?;
+    Ok(merge_tracks(mic_segments, system_segments))
 }
 
-/// `Ok(None)` if the file doesn't exist.
-fn transcribe_track(
-    path: &Path,
-    transcriber: &dyn Transcriber,
-    opts: &TranscribeOptions,
-) -> Result<Option<Vec<Segment>>, MeetingError> {
+/// 16 kHz mono samples of a track, or `None` if the file doesn't exist.
+fn load_track(path: &Path) -> Result<Option<Vec<f32>>, MeetingError> {
     if !path.is_file() {
         return Ok(None);
     }
-    let pcm = quill_audio::load_for_stt(path).map_err(|source| MeetingError::Audio {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    tracing::info!(track = %path.display(), "transcribing");
-    Ok(Some(transcriber.transcribe(&pcm, opts)?))
+    quill_audio::load_for_stt(path)
+        .map(Some)
+        .map_err(|source| MeetingError::Audio {
+            path: path.to_path_buf(),
+            source,
+        })
 }
 
 /// Labels and interleaves the two tracks, dropping echo.

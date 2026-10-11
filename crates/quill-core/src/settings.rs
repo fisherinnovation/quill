@@ -3,7 +3,7 @@
 //! Every field has a default, and unknown or missing fields are tolerated,
 //! so older and newer versions of the app can share one file.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +25,11 @@ pub struct Settings {
     pub zdr: bool,
     /// Summarize automatically after transcribing.
     pub auto_summarize: bool,
+    /// Where meeting audio lives; `None` = `<data dir>/recordings`. Change it
+    /// with `Library::move_recordings` so existing meetings move too.
+    pub recordings_dir: Option<PathBuf>,
+    /// The app's first-run screen has been completed.
+    pub onboarded: bool,
 }
 
 impl Default for Settings {
@@ -36,6 +41,8 @@ impl Default for Settings {
             summary_model: DEFAULT_SUMMARY_MODEL.into(),
             zdr: false,
             auto_summarize: true,
+            recordings_dir: None,
+            onboarded: false,
         }
     }
 }
@@ -51,6 +58,13 @@ pub enum SettingsError {
 }
 
 impl Settings {
+    /// The recordings folder in effect.
+    pub fn recordings_dir(&self, data_dir: &Path) -> PathBuf {
+        self.recordings_dir
+            .clone()
+            .unwrap_or_else(|| data_dir.join("recordings"))
+    }
+
     /// Reads `settings.toml` from `data_dir`, or defaults if it doesn't exist.
     pub fn load(data_dir: &Path) -> Result<Self, SettingsError> {
         match std::fs::read_to_string(data_dir.join("settings.toml")) {
@@ -82,6 +96,7 @@ mod tests {
         let custom = Settings {
             language: Some("en".into()),
             summary_model: "ollama:qwen3:8b".into(),
+            recordings_dir: Some("/Volumes/Archive/Quill".into()),
             ..Settings::default()
         };
         custom.save(dir.path()).unwrap();

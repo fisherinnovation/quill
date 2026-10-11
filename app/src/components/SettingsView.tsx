@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, errorText, type Settings } from "../api";
+import { api, errorText, fileManager, fileSize, type Settings, type StorageInfo } from "../api";
+import { AccessCheck } from "./AccessCheck";
 
 const STT_MODELS = ["tiny", "base", "small", "medium", "turbo-q5", "turbo", "large-v3"];
 
@@ -99,7 +100,88 @@ export function SettingsView() {
         </button>
         {status && <span className="muted">{status}</span>}
       </div>
+
+      <Storage />
+
+      <fieldset>
+        <legend>Audio access</legend>
+        <p className="muted small">
+          Records a few seconds from your microphone and the system audio, playing a short chime, to confirm Quill can
+          hear both.
+        </p>
+        <AccessCheck />
+      </fieldset>
     </form>
+  );
+}
+
+/** Where meeting audio lives. Changes apply immediately (no Save needed). */
+function Storage() {
+  const [info, setInfo] = useState<StorageInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .storageInfo()
+      .then(setInfo)
+      .catch((e) => setMessage(errorText(e)));
+  }, []);
+
+  async function move(action: () => Promise<StorageInfo | null>) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const moved = await action();
+      if (moved) {
+        setInfo(moved);
+        setMessage("Recordings moved.");
+      }
+    } catch (e) {
+      setMessage(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <fieldset>
+      <legend>Storage</legend>
+      <div className="storage">
+        <span>Recordings folder</span>
+        <code className="path">{info?.path ?? "…"}</code>
+        {info && (
+          <p className="muted small">
+            {info.available
+              ? `${fileSize(info.bytes)} of recordings${info.is_default ? " · default location" : ""}`
+              : "Folder not found. Is the drive connected?"}
+          </p>
+        )}
+      </div>
+      <div className="toolbar">
+        <button type="button" disabled={busy} onClick={() => move(api.chooseRecordingsDir)}>
+          {busy ? "Moving…" : "Change…"}
+        </button>
+        {info && !info.is_default && (
+          <button type="button" className="subtle" disabled={busy} onClick={() => move(api.resetRecordingsDir)}>
+            Use default
+          </button>
+        )}
+        <button
+          type="button"
+          className="subtle"
+          disabled={busy || !info?.available}
+          onClick={() => api.showRecordingsDir().catch((e) => setMessage(errorText(e)))}
+        >
+          Show in {fileManager}
+        </button>
+        {message && <span className="muted small">{message}</span>}
+      </div>
+      <p className="muted small">
+        Audio takes about 2 GB per hour of meeting. Changing the folder moves existing recordings too; transcripts and
+        summaries stay in Quill&apos;s library.
+      </p>
+    </fieldset>
   );
 }
 

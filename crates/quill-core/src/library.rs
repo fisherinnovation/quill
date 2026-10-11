@@ -1,12 +1,13 @@
 //! The meeting library: every recording, its transcript and its summaries.
 //!
-//! Audio stays on disk in `<data dir>/recordings/<id>/` (mic.wav,
-//! system.wav). Everything you browse or search lives in SQLite
+//! Audio stays on disk in `<recordings dir>/<id>/` (mic.wav, system.wav);
+//! the recordings folder defaults to `<data dir>/recordings` and can be moved
+//! (see [`Library::move_recordings`]). Everything you browse or search lives in SQLite
 //! (`<data dir>/quill.sqlite`), with an FTS5 full-text index over transcript
 //! text. The CLI and the app share the same library.
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 
 use quill_stt::Segment;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -64,6 +65,8 @@ pub enum LibraryError {
     Io(#[from] std::io::Error),
     #[error("no meeting with id {0}")]
     NotFound(String),
+    #[error("{0}")]
+    Move(String),
 }
 
 /// A meeting as shown in the list.
@@ -115,16 +118,21 @@ pub struct SearchHit {
 /// threads at once.
 pub struct Library {
     conn: Mutex<Connection>,
-    recordings_dir: PathBuf,
+    recordings_dir: RwLock<PathBuf>,
 }
 
 impl Library {
-    /// Opens (creating and migrating if needed) the library in `data_dir`.
-    pub fn open(data_dir: &Path) -> Result<Self, LibraryError> {
-        let recordings_dir = data_dir.join("recordings");
-        std::fs::create_dir_all(&recordings_dir)?;
+    /// Opens (creating and migrating if needed) the library database in
+    /// `data_dir`, with meeting audio under `recordings_dir`.
+    pub fn open(data_dir: &Path, recordings_dir: &Path) -> Result<Self, LibraryError> {
+        std::fs::create_dir_all(data_dir)?;
+        // Not fatal: the folder may be on a drive that isn't connected right
+        // now. Browsing still works; recording reports the error.
+        if let Err(e) = std::fs::create_dir_all(recordings_dir) {
+            tracing::warn!(dir = %recordings_dir.display(), "recordings folder unavailable: {e}");
+        }
         let conn = Connection::open(data_dir.join("quill.sqlite"))?;
-        Self::init(conn, recordings_dir)
+        Self::init(conn, recordings_dir.to_path_buf())
     }
 
     /// An in-memory library for tests.
@@ -143,7 +151,7 @@ impl Library {
         }
         Ok(Self {
             conn: Mutex::new(conn),
-            recordings_dir,
+            recordings_dir: RwLock::new(recordings_dir),
         })
     }
 
@@ -156,13 +164,69 @@ impl Library {
     }
 
     /// The directory holding every meeting's folder.
-    pub fn recordings_dir(&self) -> &Path {
-        &self.recordings_dir
+    pub fn recordings_dir(&self) -> PathBuf {
+        self.recordings_dir
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     /// Where a meeting's audio files live.
     pub fn meeting_dir(&self, id: &str) -> PathBuf {
-        self.recordings_dir.join(id)
+        self.recordings_dir().join(id)
+    }
+
+    /// Moves every meeting's audio folder into `to` and uses it from now on.
+    /// Returns how many meetings moved.
+    ///
+    /// All or nothing: if any folder can't be moved, the ones already moved
+    /// go back. Only meeting folders move; anything else in either folder is
+    /// left alone. The caller must make sure nothing is recording or being
+    /// processed meanwhile.
+    pub fn move_recordings(&self, to: &Path) -> Result<usize, LibraryError> {
+        let from = self.recordings_dir();
+        std::fs::create_dir_all(to)?;
+        let to = to.canonicalize()?;
+        if let Ok(from) = from.canonicalize() {
+            if from == to {
+                return Ok(0);
+            }
+            if to.starts_with(&from) {
+                return Err(LibraryError::Move(
+                    "choose a folder outside the current recordings folder".into(),
+                ));
+            }
+        }
+
+        let ids: Vec<String> = {
+            let conn = self.conn();
+            let mut stmt = conn.prepare("SELECT id FROM meetings")?;
+            stmt.query_map([], |r| r.get(0))?
+                .collect::<Result<_, _>>()?
+        };
+        let to_move: Vec<&String> = ids.iter().filter(|id| from.join(id).exists()).collect();
+        if let Some(id) = to_move.iter().find(|id| to.join(id).exists()) {
+            return Err(LibraryError::Move(format!(
+                "{} already has a folder named {id}",
+                to.display()
+            )));
+        }
+
+        for (done, id) in to_move.iter().enumerate() {
+            if let Err(e) = move_dir(&from.join(id), &to.join(id)) {
+                for id in to_move.iter().take(done).rev() {
+                    if let Err(undo) = move_dir(&to.join(id), &from.join(id)) {
+                        tracing::error!(%id, "could not move recording back: {undo}");
+                    }
+                }
+                return Err(LibraryError::Move(format!("could not move {id}: {e}")));
+            }
+        }
+        *self
+            .recordings_dir
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = to;
+        Ok(to_move.len())
     }
 
     /// Creates a meeting starting now and its directory. The id is the local
@@ -490,14 +554,82 @@ fn fts_query(input: &str) -> Option<String> {
     Some(query)
 }
 
+/// A file name for exporting a meeting, e.g. `2026-10-11 Product sync.md`:
+/// the local start date, then the title with characters that macOS or
+/// Windows reject in file names replaced.
+pub fn export_file_name(meeting: &Meeting) -> String {
+    let date = meeting
+        .started_at
+        .parse::<jiff::Timestamp>()
+        .map(|t| {
+            t.to_zoned(jiff::tz::TimeZone::system())
+                .strftime("%Y-%m-%d")
+                .to_string()
+        })
+        .unwrap_or_default();
+    let title: String = meeting
+        .title
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
+            c if c.is_control() => ' ',
+            c => c,
+        })
+        .take(100)
+        .collect();
+    // A leading dot hides the file; Windows drops trailing dots and spaces.
+    let title = title.trim().trim_matches('.').trim();
+    let name = [date.as_str(), title]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if name.is_empty() {
+        "Meeting.md".into()
+    } else {
+        format!("{name}.md")
+    }
+}
+
+/// Renames `from` to `to`, or copies then deletes when they're on different
+/// drives (where rename fails). A failed copy leaves `from` untouched.
+fn move_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    if std::fs::rename(from, to).is_ok() {
+        return Ok(());
+    }
+    if let Err(e) = copy_dir(from, to) {
+        let _ = std::fs::remove_dir_all(to);
+        return Err(e);
+    }
+    std::fs::remove_dir_all(from)
+}
+
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn library() -> (Library, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
-        let lib = Library::open(dir.path()).unwrap();
+        let lib = open(dir.path());
         (lib, dir)
+    }
+
+    fn open(dir: &Path) -> Library {
+        Library::open(dir, &dir.join("recordings")).unwrap()
     }
 
     fn seg(start_s: u64, speaker: &str, text: &str) -> Segment {
@@ -618,13 +750,77 @@ mod tests {
     fn ids_are_unique_within_a_second_and_reopening_keeps_data() {
         let dir = tempfile::tempdir().unwrap();
         let (a, b) = {
-            let lib = Library::open(dir.path()).unwrap();
+            let lib = open(dir.path());
             (lib.create_meeting().unwrap(), lib.create_meeting().unwrap())
         };
         assert_ne!(a.id, b.id);
 
-        let lib = Library::open(dir.path()).unwrap();
+        let lib = open(dir.path());
         assert_eq!(lib.list().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn recordings_move_to_a_new_folder_and_stay_findable() {
+        let (lib, dir) = library();
+        let m = lib.create_meeting().unwrap();
+        std::fs::write(lib.meeting_dir(&m.id).join("mic.wav"), b"audio").unwrap();
+        let stray = lib.recordings_dir().join("notes.txt");
+        std::fs::write(&stray, b"not ours").unwrap();
+
+        let to = dir.path().join("elsewhere");
+        assert_eq!(lib.move_recordings(&to).unwrap(), 1);
+        assert_eq!(lib.recordings_dir(), to.canonicalize().unwrap());
+        assert_eq!(
+            std::fs::read(lib.meeting_dir(&m.id).join("mic.wav")).unwrap(),
+            b"audio"
+        );
+        assert!(stray.exists(), "only meeting folders move");
+        // Moving to where it already is does nothing.
+        assert_eq!(lib.move_recordings(&to).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_move_that_would_overwrite_changes_nothing() {
+        let (lib, dir) = library();
+        let m = lib.create_meeting().unwrap();
+        let to = dir.path().join("elsewhere");
+        std::fs::create_dir_all(to.join(&m.id)).unwrap();
+        let before = lib.recordings_dir();
+
+        assert!(matches!(
+            lib.move_recordings(&to),
+            Err(LibraryError::Move(_))
+        ));
+        assert_eq!(lib.recordings_dir(), before);
+        assert!(lib.meeting_dir(&m.id).exists());
+        // Nor can the new folder sit inside the current one.
+        assert!(lib.move_recordings(&before.join("sub")).is_err());
+    }
+
+    #[test]
+    fn export_names_are_dated_and_safe_on_every_os() {
+        let meeting = |title: &str| Meeting {
+            id: "x".into(),
+            title: title.into(),
+            // Midday UTC is the same date in every time zone but UTC+12..14.
+            started_at: "2026-10-11T12:00:00Z".into(),
+            duration_ms: 0,
+            has_transcript: false,
+            has_summary: false,
+        };
+        assert_eq!(
+            export_file_name(&meeting("Product sync")),
+            "2026-10-11 Product sync.md"
+        );
+        assert_eq!(
+            export_file_name(&meeting("Meeting Oct 11, 7:15 PM")),
+            "2026-10-11 Meeting Oct 11, 7-15 PM.md"
+        );
+        assert_eq!(
+            export_file_name(&meeting("Q3/Q4: plan?")),
+            "2026-10-11 Q3-Q4- plan-.md"
+        );
+        assert_eq!(export_file_name(&meeting("..")), "2026-10-11.md");
     }
 
     #[test]

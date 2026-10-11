@@ -307,7 +307,7 @@ mod tests {
 
         assert_eq!(summary.requests, 1);
         assert_eq!(summary.markdown, "answer 1");
-        assert_eq!(summary.prompt_version, "summary-v1");
+        assert_eq!(summary.prompt_version, SUMMARY.version);
         let requests = provider.requests.lock().unwrap();
         let user = &requests[0].messages[1].content;
         assert!(user.contains("[00:05] Others: Sentence number 1"), "{user}");

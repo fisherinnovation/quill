@@ -5,6 +5,7 @@ import {
   api,
   clock,
   errorText,
+  fileManager,
   minutes,
   shortDate,
   type MeetingDetail,
@@ -33,6 +34,7 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
   const [tab, setTab] = useState<"summary" | "transcript">(jumpTo !== undefined ? "transcript" : "summary");
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exported, setExported] = useState<{ path: string } | { error: string } | null>(null);
 
   useEffect(() => {
     api
@@ -54,6 +56,15 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
     await navigator.clipboard.writeText(summary.markdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function exportSummary() {
+    try {
+      const path = await api.exportSummary(id);
+      if (path) setExported({ path });
+    } catch (e) {
+      setExported({ error: errorText(e) });
+    }
   }
 
   return (
@@ -87,6 +98,7 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
             <button onClick={() => process(false)}>{summary ? "Re-summarize" : "Summarize"}</button>
           )}
           {summary && <button onClick={copySummary}>{copied ? "Copied ✓" : "Copy as Markdown"}</button>}
+          {summary && <button onClick={exportSummary}>Export…</button>}
           {confirmDelete ? (
             <>
               <span className="small">Delete meeting and audio?</span>
@@ -111,6 +123,22 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
         </div>
       </header>
 
+      {exported && (
+        <div className={`banner ${"path" in exported ? "info" : "error"}`} role="status">
+          {"path" in exported ? (
+            <>
+              <span>Saved {exported.path.split(/[\\/]/).pop()}</span>
+              <button onClick={() => void api.revealFile(exported.path)}>Show in {fileManager}</button>
+            </>
+          ) : (
+            <span>Export failed: {exported.error}</span>
+          )}
+          <span className="spacer" />
+          <button className="subtle" onClick={() => setExported(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {recording && <RecordingBanner state={recording} />}
       {progress && progress.stage !== "done" && (
         <ProgressBanner progress={progress} onRetry={() => process(segments.length === 0)} />
