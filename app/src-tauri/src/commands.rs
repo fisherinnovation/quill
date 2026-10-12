@@ -134,6 +134,31 @@ pub fn process_meeting(app: AppHandle, id: String, transcribe: bool) {
     pipeline::spawn(app, id, steps);
 }
 
+/// Splits the people on the call into speakers again, into `speakers` if
+/// given (otherwise as many as their voices suggest). Replaces names given
+/// to speakers. Progress arrives as `meeting-progress` events.
+#[tauri::command]
+pub fn split_speakers(app: AppHandle, id: String, speakers: Option<usize>) {
+    pipeline::spawn(app, id, Steps::Speakers(speakers.filter(|&n| n > 0)));
+}
+
+/// Renames a speaker in a meeting's transcript; a name another speaker
+/// already has merges them.
+#[tauri::command]
+pub fn rename_speaker(
+    state: State<'_, AppState>,
+    id: String,
+    from: String,
+    to: String,
+) -> CommandResult<()> {
+    let to = to.trim();
+    if to.is_empty() {
+        return Err(CommandError::Other("a speaker needs a name".into()));
+    }
+    state.library.rename_speaker(&id, &from, to)?;
+    Ok(())
+}
+
 /// Where the OpenRouter key comes from ("keychain" / "environment"), or
 /// `None` if there isn't one. Doesn't read the key, so never prompts.
 #[tauri::command]

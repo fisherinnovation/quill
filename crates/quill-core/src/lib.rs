@@ -10,4 +10,5 @@ pub mod library;
 pub mod meeting;
 pub mod paths;
 pub mod settings;
+pub mod speakers;
 pub mod summary;

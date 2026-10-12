@@ -24,6 +24,7 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 - [Features](#features)
 - [Privacy](#privacy)
 - [Platform support](#platform-support)
+- [Installing](#installing)
 - [Building from source](#building-from-source)
 - [Using Quill](#using-quill)
 - [Summary and clean-up models](#summary-and-clean-up-models)
@@ -41,7 +42,8 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 ### Meeting notes
 
 - **Works with any call app.** Zoom, Google Meet, Teams, a browser tab, a phone app mirrored to your computer. Nothing joins the call as a bot.
-- **Two tracks, real speaker labels.** Your microphone is recorded as **You**, the system audio as **Others**, so the transcript knows who said what without a diarization model.
+- **Two tracks, real speaker labels.** Your microphone is recorded as **You** and the call audio separately, so your words are never mixed up with anyone else's.
+- **Tells the other people apart.** Voices on the call are separated into **Speaker 1**, **Speaker 2**… on your computer ([pyannote](https://github.com/pyannote/pyannote-audio) segmentation and voice fingerprints via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)). Rename them in the transcript (typing an existing name merges two), or say how many people were on the call to split them again instantly. The notes use the names.
 - **Echo cancellation.** If you use speakers instead of headphones, a WebRTC echo canceller removes the call's audio from your microphone track before transcription.
 - **Local transcription** with [Whisper](https://github.com/openai/whisper) through [whisper.cpp](https://github.com/ggerganov/whisper.cpp), GPU-accelerated on Apple Silicon. Silence is skipped first, so Whisper doesn't invent text in quiet stretches.
 - **Structured notes** written by a model you choose: TL;DR, decisions, action items with owners, discussion by topic and open questions. Long meetings are summarized in parts and combined.
@@ -87,9 +89,23 @@ For dictation, Quill reads the *name* of the frontmost app (for per-app style an
 | Transcription | Metal GPU on Apple Silicon | CPU; CUDA or Vulkan available in the CLI with a build flag |
 | Meeting notes | ✅ Used daily | 🧪 Builds and passes CI; not yet tested in real use |
 | Dictation | ✅ Used daily | 🧪 Builds and passes CI; not yet tested in real use |
-| Signed installers | Not yet (planned) | Not yet (planned) |
+| Installers | `.dmg`, Apple Silicon, not yet notarized | `.exe` / `.msi`, not yet signed |
 
 Apple Silicon is strongly recommended on macOS: Whisper runs several times faster on its GPU. Linux isn't supported.
+
+## Installing
+
+Installers are attached to each [release](https://github.com/fisherinnovation/quill/releases):
+
+- **macOS:** `Quill_<version>_aarch64.dmg` (Apple Silicon). Open it and drag Quill to Applications.
+- **Windows:** `Quill_<version>_x64-setup.exe` (installs for your user account; recommended), or the `.msi`.
+
+The builds aren't signed by a registered developer yet, so the first launch needs one extra approval:
+
+- **macOS:** opening Quill shows a message that Apple couldn't check it for malicious software. Click **Done**, then open **System Settings → Privacy & Security**, scroll to Security, and click **Open Anyway** next to the message about Quill. This is needed only once. Later versions keep your microphone, system-audio and Accessibility permissions.
+- **Windows:** SmartScreen shows "Windows protected your PC". Click **More info**, then **Run anyway**.
+
+Speech models download the first time they're needed (see [First run](#first-run)). The installers are built by [GitHub Actions](.github/workflows/release.yml) from the tagged source.
 
 ## Building from source
 
@@ -140,11 +156,12 @@ The first build compiles whisper.cpp and takes several minutes; later builds are
 Click **Record meeting** in the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. Quill then:
 
 1. Cleans speaker echo out of your microphone track.
-2. Transcribes both tracks locally and merges them into one transcript labelled **You** and **Others**.
-3. Writes the notes, if *Summarize automatically* is on (Settings).
-4. Compacts the audio to FLAC.
+2. Transcribes both tracks locally and merges them into one transcript, with your lines labelled **You**.
+3. Tells the people on the call apart by voice (*Tell speakers apart* in Settings), as **Speaker 1**, **Speaker 2**…
+4. Writes the notes, if *Summarize automatically* is on (Settings).
+5. Compacts the audio to FLAC.
 
-Progress shows in the meeting view and the sidebar. From a meeting you can re-summarize, copy the notes as Markdown, export them to a `.md` file, search its transcript, or delete it along with its audio.
+Progress shows in the meeting view and the sidebar. In the **Transcript** tab, click a speaker to name them. With 10 people on a call, Quill reliably separates everyone who talks for more than a minute or so, but people who say only a sentence or two may be merged into someone else; choosing the number of people under **People on the call** helps most. Telling speakers apart adds about 2 minutes per hour of audio, and the voice models (46 MB) download the first time. From a meeting you can re-summarize, copy the notes as Markdown, export them to a `.md` file, search its transcript, or delete it along with its audio.
 
 Closing the window keeps Quill running in the menu bar, so a recording isn't cut off. Quit from the menu-bar icon.
 
@@ -196,10 +213,11 @@ cargo run --release -p quill-cli -- --help
 | Command | What it does |
 |---|---|
 | `record` | Record the microphone and system audio into a new library meeting (or `--out <dir>`). |
-| `transcribe <file or dir>` | Transcribe a WAV/FLAC file or a recording folder (echo cancellation and VAD on by default). |
+| `transcribe <file or dir>` | Transcribe a WAV/FLAC file or a recording folder (echo cancellation and VAD on by default; `--diarize [--speakers N]` tells the people on the call apart). |
+| `diarize <file or dir>` | Who spoke when, optionally scored against a reference RTTM (see [`eval/diarization`](eval/diarization)). |
 | `summarize <dir or transcript.json>` | Write meeting notes (`-m` picks the model, e.g. `-m ollama:qwen3:8b`). |
 | `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models. |
-| `models list` / `models download <name>` | Manage Whisper models: `tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`. |
+| `models list` / `models download <name>` | Manage models: Whisper (`tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`), VAD and the diarization models. |
 | `bench <file>` | Compare transcription speed across models (`--short-clip` for dictation settings). |
 | `eval` | Compare summary models on cost, latency and quality judged by an LLM. |
 | `import <dir>` | Add a recording folder made elsewhere to the library. |
@@ -217,7 +235,7 @@ The CLI and the app share one library, so meetings recorded or imported in eithe
 Inside it:
 
 - `quill.sqlite`: meetings, transcripts, summaries, dictation history and insight counts.
-- `recordings/<meeting id>/`: audio (`mic`/`system`, `.wav` while recording and `.flac` afterwards), `transcript.json`, `summary.md`, `recording.json`. The recordings folder can be moved in **Settings → Storage**.
+- `recordings/<meeting id>/`: audio (`mic`/`system`, `.wav` while recording and `.flac` afterwards), `transcript.json` (the two-track transcript), `speakers.json` (voice fingerprints of the people on the call, used to re-split speakers; deleted with the meeting), `summary.md`, `recording.json`. The recordings folder can be moved in **Settings → Storage**.
 - `models/`: downloaded Whisper and VAD models.
 - `settings.toml`: settings (safe to edit while Quill isn't running).
 - `logs/`: daily log files, kept for two weeks.
@@ -232,8 +250,9 @@ flowchart LR
         A[Mic + system audio<br/>cpal] --> B[Echo cancellation<br/>WebRTC AEC3]
         B --> C[Silero VAD]
         C --> D[Whisper<br/>whisper.cpp]
-        D --> E[Merge tracks<br/>You / Others]
-        E --> F[Summary<br/>OpenRouter or Ollama]
+        D --> E[Merge tracks<br/>You / the call]
+        E --> S[Tell speakers apart<br/>pyannote + voice embeddings]
+        S --> F[Summary<br/>OpenRouter or Ollama]
         F --> G[(SQLite + FTS5)]
     end
 ```
@@ -257,7 +276,8 @@ The Rust workspace is split so that the app and the CLI are thin layers over lib
 | [`quill-audio`](crates/quill-audio) | Microphone and system-audio capture (cpal: Core Audio process taps on macOS, WASAPI loopback on Windows), live mic for dictation, resampling, echo cancellation, WAV/FLAC, sounds. |
 | [`quill-stt`](crates/quill-stt) | Speech-to-text behind a `Transcriber` trait: whisper.cpp via whisper-rs, Silero VAD, model catalog and verified downloads. |
 | [`quill-llm`](crates/quill-llm) | LLM providers behind an `LlmProvider` trait (OpenRouter, Ollama), keychain access, versioned prompt templates. |
-| [`quill-core`](crates/quill-core) | Meeting pipeline, track merging, summaries, the dictation pipeline, the SQLite library, settings, insights. |
+| [`quill-diarize`](crates/quill-diarize) | Telling speakers apart: sherpa-onnx segmentation and voice embeddings, Quill's own clustering, DER scoring. |
+| [`quill-core`](crates/quill-core) | Meeting pipeline, track merging, speaker labelling, summaries, the dictation pipeline, the SQLite library, settings, insights. |
 | [`quill-insert`](crates/quill-insert) | Typing text into the focused app (clipboard + simulated paste) and identifying that app. |
 | [`quill-eval`](crates/quill-eval) | The evaluation harness for summary models. |
 | [`quill-cli`](crates/quill-cli) | The `quill-cli` command-line tool. |
@@ -289,6 +309,8 @@ cargo test --workspace --locked
 
 CI runs exactly these on macOS and Windows for every push and pull request.
 
+**Releases:** bump `version` in `app/src-tauri/tauri.conf.json` (and `app/package.json`), commit, and push a matching tag (`git tag v0.2.0 && git push origin v0.2.0`). The [release workflow](.github/workflows/release.yml) builds the macOS `.dmg` and the Windows installers and attaches them to a draft GitHub Release to review and publish. Running the workflow by hand (Actions → Release → Run workflow) builds the same installers as downloadable artifacts, without a release. Locally, `cd app && npx tauri build --bundles app && sh scripts/package-macos.sh` makes the `.dmg` in `dist-release/`.
+
 - **Tests that need models** are ignored by default. Run them with `QUILL_TEST_MODEL=<path to ggml model> QUILL_TEST_VAD_MODEL=<path to VAD model> cargo test -p quill-stt -- --ignored`.
 - **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`.
 - **Evaluating summary models:** see [`eval/README.md`](eval/README.md). Put your own meeting transcripts in `eval/transcripts/private/`, which is gitignored.
@@ -304,13 +326,15 @@ Development is organized in milestones; status is tracked in [`docs/PROJECT_PLAN
 - ✅ Desktop app: meeting library, search, export, onboarding, storage management
 - 🟡 Dictation (feature-complete on macOS, in real-world testing)
 - ⬜ Distribution: signed and notarized builds, auto-update, data retention settings, Windows testing
-- 💡 Ideas: live captions during meetings, named speakers, asking questions across past meetings, auto-detecting when a meeting starts
+- 🟡 Telling speakers apart: in the app; remembering voices across meetings is next
+- 💡 Ideas: live captions during meetings, asking questions across past meetings, auto-detecting when a meeting starts
 
 ## Known limitations
 
 - **No signed builds yet.** You'll build Quill yourself, and macOS permissions reset on rebuilds unless you use a signing certificate (see [Building from source](#building-from-source)).
 - **Windows is untested in real use**, and transcription runs on the CPU there.
-- **Speaker labels are You vs. Others**, not individual names. Several people in one room on one microphone are all "You".
+- **People who barely speak** on a large call may be merged into someone else, and two similar voices are sometimes treated as one. Fix either in the transcript. Voices aren't remembered between meetings yet.
+- **Several people in one room on one microphone** are all "You".
 - **Language:** Whisper supports about 100 languages, but the summary prompts and the dictation tests are English-first.
 - **The floating indicator** may not appear over full-screen apps on macOS.
 - **The default dictation shortcut** (<kbd>⌥ Space</kbd>) is also the default for some launchers and assistants. If another app already uses it, Quill says so and you can choose another.
@@ -335,7 +359,7 @@ at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
-Speech models downloaded at runtime have their own licenses: [Whisper](https://github.com/openai/whisper) (MIT) and [Silero VAD](https://github.com/snakers4/silero-vad) (MIT).
+Speech models downloaded at runtime have their own licenses: [Whisper](https://github.com/openai/whisper) (MIT), [Silero VAD](https://github.com/snakers4/silero-vad) (MIT), [pyannote segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) (MIT) and NVIDIA NeMo [TitaNet-small](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_small) (CC BY 4.0), the last two as exported to ONNX by sherpa-onnx.
 
 ## Acknowledgments
 
@@ -343,6 +367,7 @@ Quill stands on excellent open-source work, including:
 
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and [whisper-rs](https://codeberg.org/tazz4843/whisper-rs), with OpenAI's [Whisper](https://github.com/openai/whisper) models
 - [Silero VAD](https://github.com/snakers4/silero-vad) for voice activity detection
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), [pyannote](https://github.com/pyannote/pyannote-audio) and NVIDIA [NeMo](https://github.com/NVIDIA/NeMo) for telling speakers apart, and the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) for testing it
 - [Tauri](https://tauri.app) for the desktop shell
 - [cpal](https://github.com/RustAudio/cpal) for audio capture, and [rubato](https://github.com/HEnquist/rubato) for resampling
 - [sonora](https://github.com/dignifiedquire/sonora), a Rust port of WebRTC's audio processing, for echo cancellation

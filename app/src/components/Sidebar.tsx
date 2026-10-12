@@ -159,7 +159,12 @@ function Status({ meeting, progress, recording }: { meeting: Meeting; progress?:
     );
   }
   if (progress && progress.stage !== "done" && progress.stage !== "failed") {
-    const label = { downloading: "Downloading", transcribing: "Transcribing", summarizing: "Summarizing" }[
+    const label = {
+      downloading: "Downloading",
+      transcribing: "Transcribing",
+      identifying: "Finding speakers",
+      summarizing: "Summarizing",
+    }[
       progress.stage
     ];
     return (

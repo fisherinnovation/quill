@@ -38,6 +38,12 @@ pub struct Args {
     /// Recording directories: don't remove speaker echo from the mic track
     #[arg(long)]
     no_aec: bool,
+    /// Recording directories: split "Others" into Speaker 1, 2, … by voice
+    #[arg(long)]
+    diarize: bool,
+    /// With --diarize: how many other people were on the call, if known
+    #[arg(long, requires = "diarize")]
+    speakers: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -78,6 +84,16 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
             !args.no_aec,
         )
         .with_context(|| format!("transcribing recording {}", args.file.display()))?;
+        // Kept as the two-track ("Me" / "Others") transcript: `summarize
+        // <dir>` reads it, and speakers are split again from it.
+        quill_core::speakers::save_track_transcript(&args.file, &segments)
+            .context("saving transcript.json")?;
+        let mut segments = segments;
+        if args.diarize {
+            let found =
+                crate::diarize::label_others(&args.file, &mut segments, args.speakers, models_dir)?;
+            eprintln!("diarization: {found} speakers on the call");
+        }
         (segments, None)
     } else {
         let pcm = quill_audio::load_for_stt(&args.file)
@@ -87,14 +103,11 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     };
     let stt_secs = started.elapsed().as_secs_f64();
 
-    // A recording directory keeps its transcript, for `summarize <dir>`.
-    if args.file.is_dir() {
-        let path = args.file.join("transcript.json");
-        std::fs::write(&path, serde_json::to_string_pretty(&segments)?)
-            .with_context(|| format!("writing {}", path.display()))?;
-        if let Some((library, id)) = crate::library::meeting_for(&args.file)? {
-            library.save_transcript(&id, &segments)?;
-        }
+    // A recording directory in the library gets the transcript too.
+    if args.file.is_dir()
+        && let Some((library, id)) = crate::library::meeting_for(&args.file)?
+    {
+        library.save_transcript(&id, &segments)?;
     }
 
     match args.format {

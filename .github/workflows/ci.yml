@@ -37,6 +37,14 @@ jobs:
       # Caches ~/.cargo and target/ between runs, keyed on Cargo.lock.
       - uses: Swatinem/rust-cache@v2
 
+      # Prebuilt sherpa-onnx libraries for diarization, checked against
+      # pinned hashes. (Left to itself, the crate's build script downloads
+      # them unchecked into target/, where a restored cache can leave them
+      # incomplete.)
+      - name: sherpa-onnx libraries
+        shell: bash
+        run: echo "SHERPA_ONNX_LIB_DIR=$(scripts/fetch-sherpa-onnx.sh "$RUNNER_TEMP/sherpa-onnx")" >> "$GITHUB_ENV"
+
       # The Tauri app embeds the built frontend (app/dist) at compile time,
       # so it must exist before any cargo step that compiles quill-app.
       - uses: actions/setup-node@v7

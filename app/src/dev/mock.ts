@@ -38,15 +38,18 @@ The team agreed to ship the onboarding redesign on **Friday** behind a feature f
 - Should the invite step move after the first project is created?
 `;
 
-const SEGMENTS = [
+// ?others: the call side as one "Others" track, as before speakers are told apart.
+const other = (n: number) => (flags.has("others") ? "Others" : `Speaker ${n}`);
+let SEGMENTS = [
   [0, 6, "Me", "Okay, let's get started. Main things today are the onboarding launch and the analytics problem."],
-  [7, 15, "Others", "Sure. So the usability study came back and completion went from forty-one to fifty-eight percent."],
-  [15, 22, "Others", "Most of the remaining drop-off is the invite step. People don't have teammates ready yet."],
+  [7, 15, other(1), "Sure. So the usability study came back and completion went from forty-one to fifty-eight percent."],
+  [15, 22, other(1), "Most of the remaining drop-off is the invite step. People don't have teammates ready yet."],
   [23, 31, "Me", "Could we make the invite skippable and nudge them later, after they've created a project?"],
-  [32, 38, "Others", "Yes, that's easy. I'd still ship Friday behind the flag and test that separately."],
+  [32, 38, other(2), "Yes, that's easy. I'd still ship Friday behind the flag and test that separately."],
   [40, 52, "Me", "Agreed. Ten percent of new sign-ups to start. I'll write up the rollout plan for support."],
-  [55, 70, "Others", "On analytics: signups have been about twelve percent too high since the SDK upgrade. There's a retry that re-sends the event."],
+  [55, 70, other(3), "On analytics: signups have been about twelve percent too high since the SDK upgrade. There's a retry that re-sends the event."],
   [71, 78, "Me", "Then let's hold the pricing experiments until that's fixed. No point testing on bad data."],
+  [79, 83, other(2), "Fine by me. I'll prepare two pricing-page variants for next sprint."],
 ].map(([s, e, speaker, text]) => ({
   start_ms: (s as number) * 1000,
   end_ms: (e as number) * 1000,
@@ -75,6 +78,7 @@ const settings = {
   summary_model: "anthropic/claude-haiku-5.5",
   zdr: false,
   auto_summarize: true,
+  identify_speakers: true,
   recordings_dir: null,
   onboarded: !flags.has("onboarding"),
   dictation: {
@@ -127,6 +131,10 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   start_recording: () => meetings[0],
   stop_recording: () => "m1",
   process_meeting: () => null,
+  split_speakers: () => null,
+  rename_speaker: ({ from, to }) => {
+    SEGMENTS = SEGMENTS.map((seg) => (seg.speaker === from ? { ...seg, speaker: String(to) } : seg));
+  },
   openrouter_key_status: () => "keychain",
   storage_info: () => ({ path: "/Users/you/Library/Application Support/com.fisherinnovation.Quill/recordings", is_default: true, available: true, bytes: 3_412_000_000 }),
   check_audio_access: async () => {

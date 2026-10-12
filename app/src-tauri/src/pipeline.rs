@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use quill_core::meeting;
 use quill_core::settings::Settings;
+use quill_core::speakers;
 use quill_core::summary;
 use quill_llm::Privacy;
 use quill_stt::models::{self, ModelInfo};
@@ -22,6 +23,7 @@ pub const PROGRESS_EVENT: &str = "meeting-progress";
 pub enum Stage {
     Downloading,
     Transcribing,
+    Identifying,
     Summarizing,
     Done,
     Failed,
@@ -49,6 +51,8 @@ pub enum Steps {
     TranscribeOnly,
     TranscribeAndSummarize,
     SummarizeOnly,
+    /// Split the call's speakers again, into this many if given.
+    Speakers(Option<usize>),
 }
 
 /// Processes a meeting in the background. Returns immediately; progress
@@ -78,7 +82,7 @@ pub fn spawn(app: AppHandle, meeting_id: String, steps: Steps) {
         }
         // Shrink the audio once it's been transcribed. Still registered as
         // processing meanwhile, so the recordings can't be moved under it.
-        if steps != Steps::SummarizeOnly {
+        if matches!(steps, Steps::TranscribeOnly | Steps::TranscribeAndSummarize) {
             let app2 = app.clone();
             let id = meeting_id.clone();
             let _ = tauri::async_runtime::spawn_blocking(move || compact(&app2, &id)).await;
@@ -141,6 +145,26 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
     let state = app.state::<AppState>();
     let settings = lock(&state.settings).clone();
 
+    if let Steps::Speakers(count) = steps {
+        let app2 = app.clone();
+        let id2 = id.to_string();
+        let segments = tauri::async_runtime::spawn_blocking(move || {
+            let state = app2.state::<AppState>();
+            let dir = state.library.meeting_dir(&id2);
+            let track = speakers::load_track_transcript(&dir)
+                .or_else(|| two_track_from_library(&app2, &id2))
+                .ok_or("this meeting's original transcript is missing; transcribe it again")?;
+            identify_speakers(&app2, &id2, &track, count)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        state
+            .library
+            .save_transcript(id, &segments)
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
     if steps != Steps::SummarizeOnly {
         emit(app, id, Stage::Transcribing, None, None);
         let app2 = app.clone();
@@ -158,11 +182,22 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
             };
             let segments = meeting::transcribe_recording(&dir, transcriber.as_ref(), &opts, true)
                 .map_err(|e| e.to_string())?;
-            // Also save as a file, like `quill-cli transcribe <dir>` does.
-            if let Ok(json) = serde_json::to_string_pretty(&segments) {
-                let _ = std::fs::write(dir.join("transcript.json"), json);
+            // Kept as a file, like `quill-cli transcribe <dir>` does; speakers
+            // are split again from it.
+            if let Err(e) = speakers::save_track_transcript(&dir, &segments) {
+                tracing::warn!(meeting_id = id2, "couldn't save transcript.json: {e}");
             }
-            Ok::<_, String>(segments)
+            if !settings2.identify_speakers {
+                return Ok::<_, String>(segments);
+            }
+            // Telling speakers apart is a bonus: if it fails, keep "Others".
+            match identify_speakers(&app2, &id2, &segments, None) {
+                Ok(labelled) => Ok(labelled),
+                Err(e) => {
+                    tracing::warn!(meeting_id = id2, "couldn't tell speakers apart: {e}");
+                    Ok(segments)
+                }
+            }
         })
         .await
         .map_err(|e| e.to_string())??;
@@ -198,6 +233,68 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
         .save_summary(id, &summary)
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Relabels the "Others" lines of a two-track transcript by voice. The
+/// models run only the first time for a meeting; later calls (a different
+/// speaker count) reuse the cached analysis. Blocking.
+fn identify_speakers(
+    app: &AppHandle,
+    id: &str,
+    track: &[quill_stt::Segment],
+    count: Option<usize>,
+) -> Result<Vec<quill_stt::Segment>, String> {
+    if !track
+        .iter()
+        .any(|s| s.speaker.as_deref() == Some(meeting::OTHERS))
+    {
+        return Ok(track.to_vec());
+    }
+    let dir = app.state::<AppState>().library.meeting_dir(id);
+    let started = std::time::Instant::now();
+    let analysis = match speakers::cached_analysis(&dir, speakers::VOICE_MODEL) {
+        Some(analysis) => analysis,
+        None => {
+            emit(app, id, Stage::Identifying, None, None);
+            for model in speakers::required_models() {
+                ensure_downloaded(app, Some(id), model)?;
+            }
+            emit(app, id, Stage::Identifying, None, None);
+            let models_dir = quill_core::paths::models_dir().ok_or("no home directory")?;
+            let diarizer = speakers::diarizer(&models_dir).map_err(|e| e.to_string())?;
+            match speakers::analyze(&dir, speakers::VOICE_MODEL, &diarizer)
+                .map_err(|e| e.to_string())?
+            {
+                Some(analysis) => analysis,
+                None => return Ok(track.to_vec()),
+            }
+        }
+    };
+    let (labelled, found) = speakers::label(track, &analysis, count);
+    tracing::info!(
+        meeting_id = id,
+        speakers = found,
+        requested = count,
+        ms = started.elapsed().as_millis(),
+        "told speakers apart"
+    );
+    Ok(labelled)
+}
+
+/// For meetings transcribed before `transcript.json` was kept as the
+/// two-track original: the stored transcript, if it's still only "Me" and
+/// "Others".
+fn two_track_from_library(app: &AppHandle, id: &str) -> Option<Vec<quill_stt::Segment>> {
+    let segments = app.state::<AppState>().library.get(id).ok()?.segments;
+    segments
+        .iter()
+        .all(|s| {
+            matches!(
+                s.speaker.as_deref(),
+                Some(meeting::ME | meeting::OTHERS) | None
+            )
+        })
+        .then_some(segments)
 }
 
 /// Loads the Whisper model in the background at startup, if it's already
@@ -294,7 +391,11 @@ fn ensure_downloaded(
     if model.is_downloaded(&dir) {
         return Ok(model.path_in(&dir));
     }
-    let message = Some(format!("Downloading {} model", model.name));
+    let message = Some(if speakers::required_models().contains(&model) {
+        "Downloading the voice models".to_string()
+    } else {
+        format!("Downloading the {} speech model", model.name)
+    });
     let mut last = -1.0;
     models::download(model, &dir, |done, total| {
         let fraction = done as f64 / total.max(1) as f64;

@@ -43,6 +43,11 @@ sonora = "0.2"
 # `tracing_backend` routes whisper.cpp's own log output into `tracing`
 # instead of letting it print straight to stderr.
 whisper-rs = { version = "0.16", features = ["tracing_backend"] }
+# Speaker diarization (pyannote segmentation + speaker embeddings + clustering)
+# through the official sherpa-onnx bindings. Pinned exactly: its build script
+# downloads the matching prebuilt C++ libraries (onnxruntime included) from
+# the sherpa-onnx GitHub release. Link mode is chosen per OS in quill-diarize.
+sherpa-onnx = { version = "=1.13.8", default-features = false }
 # Blocking client for model downloads; rustls means no OpenSSL dependency.
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
 sys-locale = "0.3"
@@ -83,6 +88,7 @@ tauri-plugin-opener = "2.6"
 # Our own crates, so members depend on each other with `x.workspace = true`.
 quill-audio = { path = "crates/quill-audio" }
 quill-core = { path = "crates/quill-core" }
+quill-diarize = { path = "crates/quill-diarize" }
 quill-insert = { path = "crates/quill-insert" }
 quill-eval = { path = "crates/quill-eval" }
 quill-llm = { path = "crates/quill-llm" }

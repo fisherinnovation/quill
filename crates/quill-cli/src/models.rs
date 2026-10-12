@@ -24,14 +24,14 @@ pub fn run(cmd: Command, models_dir: &Path) -> anyhow::Result<()> {
     match cmd {
         Command::List => {
             println!("Models directory: {}\n", models_dir.display());
-            for m in MODELS.iter().chain([&models::VAD_MODEL]) {
+            for m in MODELS.iter().chain(models::support_models()) {
                 let mark = if m.is_downloaded(models_dir) {
                     "✓"
                 } else {
                     " "
                 };
                 println!(
-                    "{mark} {:<9} {:>8}  {}",
+                    "{mark} {:<19} {:>8}  {}",
                     m.name,
                     format_size(m.size_bytes),
                     m.description
@@ -53,7 +53,11 @@ pub fn lookup(name: &str) -> anyhow::Result<&'static ModelInfo> {
     match models::find(name) {
         Some(m) => Ok(m),
         None => {
-            let names: Vec<_> = MODELS.iter().map(|m| m.name).collect();
+            let names: Vec<_> = MODELS
+                .iter()
+                .chain(models::support_models())
+                .map(|m| m.name)
+                .collect();
             bail!(
                 "unknown model `{name}`; choose one of: {}",
                 names.join(", ")
@@ -83,7 +87,7 @@ pub fn vad_model(enabled: bool, models_dir: &Path) -> anyhow::Result<Option<Path
     download_with_progress(&models::VAD_MODEL, models_dir).map(Some)
 }
 
-fn download_with_progress(model: &ModelInfo, models_dir: &Path) -> anyhow::Result<PathBuf> {
+pub fn download_with_progress(model: &ModelInfo, models_dir: &Path) -> anyhow::Result<PathBuf> {
     if model.is_downloaded(models_dir) {
         return Ok(model.path_in(models_dir));
     }

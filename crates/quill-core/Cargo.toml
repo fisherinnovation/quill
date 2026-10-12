@@ -12,6 +12,7 @@ directories.workspace = true
 futures.workspace = true
 jiff.workspace = true
 quill-audio.workspace = true
+quill-diarize.workspace = true
 quill-llm.workspace = true
 quill-stt.workspace = true
 rusqlite.workspace = true

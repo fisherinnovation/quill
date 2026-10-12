@@ -1,0 +1,26 @@
+[package]
+name = "quill-diarize"
+description = "Speaker diarization: who spoke when, on one audio track"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quill-stt.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# Static on macOS (one self-contained binary). On Windows the static build
+# uses the static C runtime (/MT), which can't link alongside whisper.cpp's
+# /MD objects, so use the DLLs there; the build script copies them next to
+# the binaries.
+[target.'cfg(not(windows))'.dependencies]
+sherpa-onnx = { workspace = true, features = ["static"] }
+[target.'cfg(windows)'.dependencies]
+sherpa-onnx = { workspace = true, features = ["shared"] }
+
+[lints]
+workspace = true

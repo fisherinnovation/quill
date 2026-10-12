@@ -1,9 +1,10 @@
-//! Catalog of downloadable Whisper models and a checksum-verified downloader.
+//! Catalog of downloadable speech models and a checksum-verified downloader.
 //!
-//! Models come from the official whisper.cpp ggml conversions on Hugging Face
-//! (Whisper models from `ggerganov/whisper.cpp`, the Silero VAD model from
-//! `ggml-org/whisper-vad`). Sizes and SHA-256 hashes are the Git LFS metadata
-//! of those files.
+//! Models come from Hugging Face: Whisper from the official whisper.cpp ggml
+//! conversions (`ggerganov/whisper.cpp`), the Silero VAD model from
+//! `ggml-org/whisper-vad`, and the diarization models from sherpa-onnx's ONNX
+//! exports (`csukuangfj/...`). Sizes and SHA-256 hashes are the Git LFS
+//! metadata of those files.
 
 use std::fs::{self, File};
 use std::io::{BufWriter, Read, Write};
@@ -22,8 +23,11 @@ pub struct ModelInfo {
     pub name: &'static str,
     /// Hugging Face repository the file is downloaded from.
     pub repo: &'static str,
-    /// File name on Hugging Face and on disk.
+    /// File name on disk, and on Hugging Face unless `remote_name` is set.
     pub file_name: &'static str,
+    /// Path within the Hugging Face repository, when it differs from
+    /// `file_name` (e.g. a generic `model.onnx`).
+    pub remote_name: Option<&'static str>,
     pub size_bytes: u64,
     pub sha256: &'static str,
     pub description: &'static str,
@@ -35,6 +39,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "tiny",
         repo: WHISPER_REPO,
         file_name: "ggml-tiny.bin",
+        remote_name: None,
         size_bytes: 77_691_713,
         sha256: "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
         description: "39M params; fastest, lowest accuracy",
@@ -43,6 +48,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "base",
         repo: WHISPER_REPO,
         file_name: "ggml-base.bin",
+        remote_name: None,
         size_bytes: 147_951_465,
         sha256: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
         description: "74M params",
@@ -51,6 +57,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "small",
         repo: WHISPER_REPO,
         file_name: "ggml-small.bin",
+        remote_name: None,
         size_bytes: 487_601_967,
         sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
         description: "244M params",
@@ -59,6 +66,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "medium",
         repo: WHISPER_REPO,
         file_name: "ggml-medium.bin",
+        remote_name: None,
         size_bytes: 1_533_763_059,
         sha256: "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
         description: "769M params",
@@ -67,6 +75,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "turbo-q5",
         repo: WHISPER_REPO,
         file_name: "ggml-large-v3-turbo-q5_0.bin",
+        remote_name: None,
         size_bytes: 574_041_195,
         sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
         description: "large-v3-turbo quantized to 5 bits; ~1/3 the size of turbo",
@@ -75,6 +84,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "turbo",
         repo: WHISPER_REPO,
         file_name: "ggml-large-v3-turbo.bin",
+        remote_name: None,
         size_bytes: 1_624_555_275,
         sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
         description: "large-v3 with a 4-layer decoder; near large-v3 accuracy, much faster",
@@ -83,6 +93,7 @@ pub const MODELS: &[ModelInfo] = &[
         name: "large-v3",
         repo: WHISPER_REPO,
         file_name: "ggml-large-v3.bin",
+        remote_name: None,
         size_bytes: 3_095_033_483,
         sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
         description: "1.55B params; most accurate, slowest",
@@ -94,16 +105,100 @@ pub const VAD_MODEL: ModelInfo = ModelInfo {
     name: "vad",
     repo: "ggml-org/whisper-vad",
     file_name: "ggml-silero-v6.2.0.bin",
+    remote_name: None,
     size_bytes: 885_098,
     sha256: "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
     description: "Silero VAD v6.2: skips silence so Whisper doesn't invent text",
 };
 
-/// Looks up a Whisper model, or the VAD model (`"vad"`), by its short name.
+/// pyannote's segmentation-3.0 (MIT), exported to ONNX by sherpa-onnx: finds
+/// who speaks when, up to three overlapping speakers per 10 s window, but not
+/// who is who across windows. That's the voice models' job.
+pub const SEGMENTATION_MODEL: ModelInfo = ModelInfo {
+    name: "segmentation",
+    repo: "csukuangfj/sherpa-onnx-pyannote-segmentation-3-0",
+    file_name: "pyannote-segmentation-3.0.onnx",
+    remote_name: Some("model.onnx"),
+    size_bytes: 5_992_913,
+    sha256: "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+    description: "pyannote segmentation 3.0: where speaker turns are",
+};
+
+const VOICE_REPO: &str = "csukuangfj/speaker-embedding-models";
+
+/// Speaker-embedding ("voice fingerprint") models for diarization, from
+/// sherpa-onnx's exports. Several are listed so they can be compared with
+/// `quill-cli diarize --voice`.
+pub const VOICE_MODELS: &[ModelInfo] = &[
+    ModelInfo {
+        name: "voice-campplus",
+        repo: VOICE_REPO,
+        file_name: "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+        remote_name: None,
+        size_bytes: 29_596_978,
+        sha256: "357a834f702b80161e5b981182c038e18553c1f2ca752ed6cec2052365d4129b",
+        description: "3D-Speaker CAM++, VoxCeleb (Apache-2.0)",
+    },
+    ModelInfo {
+        name: "voice-eres2net",
+        repo: VOICE_REPO,
+        file_name: "3dspeaker_speech_eres2net_sv_en_voxceleb_16k.onnx",
+        remote_name: None,
+        size_bytes: 26_485_263,
+        sha256: "c59158379255ad66e161679cca6af8d52d51e389e3224ab7d7a7baae295c2db5",
+        description: "3D-Speaker ERes2Net, VoxCeleb (Apache-2.0)",
+    },
+    ModelInfo {
+        name: "voice-eres2net-200k",
+        repo: VOICE_REPO,
+        file_name: "3dspeaker_speech_eres2net_base_200k_sv_zh-cn_16k-common.onnx",
+        remote_name: None,
+        size_bytes: 39_593_765,
+        sha256: "e2d2048292e055f7b61cdec3db010503f35369b245bf0b3bbad021c9a91e4053",
+        description: "3D-Speaker ERes2Net base, 200k speakers (Apache-2.0)",
+    },
+    ModelInfo {
+        name: "voice-resnet34",
+        repo: VOICE_REPO,
+        file_name: "wespeaker_en_voxceleb_resnet34_LM.onnx",
+        remote_name: None,
+        size_bytes: 26_530_550,
+        sha256: "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
+        description: "WeSpeaker ResNet34-LM, VoxCeleb (CC BY 4.0)",
+    },
+    ModelInfo {
+        name: "voice-titanet-small",
+        repo: VOICE_REPO,
+        file_name: "nemo_en_titanet_small.onnx",
+        remote_name: None,
+        size_bytes: 40_257_283,
+        sha256: "ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e",
+        description: "NVIDIA NeMo TitaNet small (CC BY 4.0)",
+    },
+    ModelInfo {
+        name: "voice-titanet-large",
+        repo: VOICE_REPO,
+        file_name: "nemo_en_titanet_large.onnx",
+        remote_name: None,
+        size_bytes: 101_405_493,
+        sha256: "d51abcf31717ef28162f26acb9d44dd4127c3d44c9b8624f699f3425daca8e77",
+        description: "NVIDIA NeMo TitaNet large (CC BY 4.0)",
+    },
+];
+
+/// Every non-Whisper model: VAD and the diarization models.
+pub fn support_models() -> impl Iterator<Item = &'static ModelInfo> {
+    [&VAD_MODEL, &SEGMENTATION_MODEL]
+        .into_iter()
+        .chain(VOICE_MODELS)
+}
+
+/// Looks up any model by its short name: Whisper, `"vad"`, or a
+/// diarization model.
 pub fn find(name: &str) -> Option<&'static ModelInfo> {
     MODELS
         .iter()
-        .chain(std::iter::once(&VAD_MODEL))
+        .chain(support_models())
         .find(|m| m.name == name)
 }
 
@@ -122,7 +217,8 @@ impl ModelInfo {
     fn url(&self) -> String {
         format!(
             "https://huggingface.co/{}/resolve/main/{}",
-            self.repo, self.file_name
+            self.repo,
+            self.remote_name.unwrap_or(self.file_name)
         )
     }
 }
@@ -216,7 +312,7 @@ mod tests {
 
     #[test]
     fn names_are_unique_and_hashes_well_formed() {
-        let all: Vec<_> = MODELS.iter().chain([&VAD_MODEL]).collect();
+        let all: Vec<_> = MODELS.iter().chain(support_models()).collect();
         for (i, m) in all.iter().enumerate() {
             assert!(all[i + 1..].iter().all(|o| o.name != m.name));
             assert_eq!(m.sha256.len(), 64, "{}", m.name);

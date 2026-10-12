@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -36,6 +36,8 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exported, setExported] = useState<{ path: string } | { error: string } | null>(null);
+  // When speakers were last renamed or re-split here, to flag older notes.
+  const [speakersEditedAt, setSpeakersEditedAt] = useState<number | null>(null);
 
   useEffect(() => {
     api
@@ -59,7 +61,20 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
   const summary = summaries[0];
   const busy = progress !== undefined && progress.stage !== "done" && progress.stage !== "failed";
   const process = (transcribe: boolean) => void api.processMeeting(id, transcribe).catch((e) => setError(errorText(e)));
-  const speakers = new Set(segments.map((s) => s.speaker).filter(Boolean)).size;
+  const people = callSpeakers(segments);
+  const notesOutdated =
+    summary !== undefined && speakersEditedAt !== null && Date.parse(summary.created_at) < speakersEditedAt;
+
+  async function renameSpeaker(from: string, to: string) {
+    await api.renameSpeaker(id, from, to);
+    setDetail((d) => d && { ...d, segments: d.segments.map((s) => (s.speaker === from ? { ...s, speaker: to } : s)) });
+    setSpeakersEditedAt(Date.now());
+  }
+
+  function splitSpeakers(count: number | null) {
+    setSpeakersEditedAt(Date.now());
+    void api.splitSpeakers(id, count).catch((e) => setError(errorText(e)));
+  }
 
   async function copySummary() {
     if (!summary) return;
@@ -139,7 +154,7 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
         <div className="meeting-meta">
           <span>{longDate(meeting.started_at)}</span>
           {meeting.duration_ms > 0 && <span className="dot-sep">{minutes(meeting.duration_ms)}</span>}
-          {speakers > 1 && <span className="dot-sep">You and others</span>}
+          {people.length > 0 && <span className="dot-sep">{peopleText(people)}</span>}
         </div>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === "summary"} onClick={() => setTab("summary")}>
@@ -186,6 +201,11 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
         <ProgressBanner progress={progress} onRetry={() => process(segments.length === 0)} />
       )}
 
+      {tab === "summary" && notesOutdated && !busy && (
+        <Banner kind="info" icon="sparkle" action={<button onClick={() => process(false)}>Re-summarize</button>}>
+          Speakers have changed since these notes were written.
+        </Banner>
+      )}
       {tab === "summary" &&
         (summary ? (
           <section className="summary">
@@ -211,6 +231,9 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
           />
         ))}
 
+      {tab === "transcript" && segments.length > 0 && !recording && (
+        <SpeakerBar segments={segments} busy={busy} onRename={renameSpeaker} onSplit={splitSpeakers} />
+      )}
       {tab === "transcript" && <Transcript segments={segments} jumpTo={jumpTo} recording={!!recording} />}
     </article>
   );
@@ -244,6 +267,7 @@ function RecordingBanner({ state }: { state: RecordingState }) {
 const STAGE_TEXT: Record<Progress["stage"], string> = {
   downloading: "Downloading the speech model",
   transcribing: "Transcribing on this Mac",
+  identifying: "Telling the speakers apart",
   summarizing: "Writing the summary",
   done: "Done",
   failed: "Failed",
@@ -284,6 +308,7 @@ function Transcript({
 }) {
   const target = useRef<HTMLDivElement>(null);
   const paragraphs = useMemo(() => turns(segments), [segments]);
+  const colors = useMemo(() => speakerColors(segments), [segments]);
   // The turn containing the search hit, if any.
   const targetIndex =
     jumpTo === undefined ? -1 : paragraphs.findIndex((t) => t.start_ms <= jumpTo && jumpTo <= t.end_ms);
@@ -308,10 +333,12 @@ function Transcript({
   return (
     <section className="transcript">
       {paragraphs.map((t, i) => {
-        const me = t.speaker === "Me";
+        const me = t.speaker === ME;
         return (
           <div key={i} ref={i === targetIndex ? target : undefined} className={`turn${i === targetIndex ? " highlight" : ""}`}>
-            <div className={`avatar ${me ? "me" : "others"}`}>{me ? "Me" : (t.speaker ?? "?").slice(0, 1)}</div>
+            <div className={`avatar ${me ? "me" : "others"}`} style={colorStyle(colors, t.speaker)}>
+              {me ? "Me" : initial(t.speaker)}
+            </div>
             <div>
               <div className="turn-head">
                 <span className="turn-speaker">{me ? "You" : (t.speaker ?? "Speaker")}</span>
@@ -323,6 +350,212 @@ function Transcript({
         );
       })}
     </section>
+  );
+}
+
+const ME = "Me";
+const OTHERS = "Others";
+
+interface CallSpeaker {
+  name: string;
+  talkMs: number;
+}
+
+/** Everyone but "Me", in order of first appearance, with how long they talk. */
+function callSpeakers(segments: MeetingDetail["segments"]): CallSpeaker[] {
+  const byName = new Map<string, CallSpeaker>();
+  for (const s of segments) {
+    if (!s.speaker || s.speaker === ME) continue;
+    const entry = byName.get(s.speaker) ?? { name: s.speaker, talkMs: 0 };
+    entry.talkMs += s.end_ms - s.start_ms;
+    byName.set(s.speaker, entry);
+  }
+  return [...byName.values()];
+}
+
+/** "You and 3 others", or "You and others" when they weren't told apart. */
+function peopleText(people: CallSpeaker[]): string {
+  if (people.length === 1 && people[0].name === OTHERS) return "You and others";
+  if (people.length === 1) return `You and ${people[0].name.startsWith("Speaker ") ? "1 other" : people[0].name}`;
+  return `You and ${people.length} others`;
+}
+
+/** Each call speaker's colour slot, by first appearance. */
+function speakerColors(segments: MeetingDetail["segments"]): Map<string, number> {
+  return new Map(callSpeakers(segments).map((p, i) => [p.name, i]));
+}
+
+function colorStyle(colors: Map<string, number>, speaker: string | null | undefined) {
+  const slot = speaker ? colors.get(speaker) : undefined;
+  return slot === undefined ? undefined : ({ "--spk": `var(--spk-${(slot % 8) + 1})` } as CSSProperties);
+}
+
+/** "3" for "Speaker 3", else the first letter of the name. */
+function initial(name: string | null | undefined): string {
+  if (!name) return "?";
+  const numbered = /^Speaker (\d+)$/.exec(name);
+  return numbered ? numbered[1] : name.slice(0, 1).toUpperCase();
+}
+
+function talkTime(ms: number): string {
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s}s` : `${Math.round(s / 60)}m`;
+}
+
+/**
+ * The people on the call above the transcript: click one to rename them
+ * (typing another speaker's name merges the two), or say how many people
+ * there were to split the voices again.
+ */
+function SpeakerBar({
+  segments,
+  busy,
+  onRename,
+  onSplit,
+}: {
+  segments: MeetingDetail["segments"];
+  busy: boolean;
+  onRename: (from: string, to: string) => Promise<void>;
+  onSplit: (count: number | null) => void;
+}) {
+  const people = callSpeakers(segments);
+  const colors = speakerColors(segments);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [pending, setPending] = useState<number | null | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  if (people.length === 0) return null;
+
+  const together = people.length === 1 && people[0].name === OTHERS;
+  // Names the user gave would be replaced by a re-split.
+  const named = people.some((p) => p.name !== OTHERS && !/^Speaker \d+$/.test(p.name));
+  const split = (count: number | null) => {
+    if (named) setPending(count);
+    else onSplit(count);
+  };
+  const max = Math.max(12, people.length);
+
+  return (
+    <div className="speaker-bar">
+      {people.map((p) =>
+        editing === p.name ? (
+          <RenameSpeaker
+            key={p.name}
+            name={p.name}
+            others={people.map((o) => o.name).filter((n) => n !== p.name)}
+            onDone={async (to) => {
+              setEditing(null);
+              if (to && to !== p.name) {
+                try {
+                  await onRename(p.name, to);
+                  setError(null);
+                } catch (e) {
+                  setError(errorText(e));
+                }
+              }
+            }}
+          />
+        ) : (
+          <button
+            key={p.name}
+            className={`speaker-chip${together ? " static" : ""}`}
+            title={together ? undefined : "Rename"}
+            disabled={busy}
+            onClick={() => !together && setEditing(p.name)}
+          >
+            <span className="dot" style={colorStyle(colors, p.name)}>
+              {initial(p.name)}
+            </span>
+            {p.name}
+            <span className="talk">{talkTime(p.talkMs)}</span>
+          </button>
+        ),
+      )}
+      {error && <span className="muted">{error}</span>}
+      <span className="speaker-count">
+        {pending !== undefined ? (
+          <>
+            This replaces the names you've given.
+            <button
+              className="primary"
+              onClick={() => {
+                onSplit(pending);
+                setPending(undefined);
+              }}
+            >
+              Split again
+            </button>
+            <button onClick={() => setPending(undefined)}>Cancel</button>
+          </>
+        ) : together ? (
+          <button disabled={busy} onClick={() => split(null)}>
+            Tell speakers apart
+          </button>
+        ) : (
+          <>
+            People on the call
+            <select
+              disabled={busy}
+              value=""
+              onChange={(e) => split(e.target.value === "auto" ? null : Number(e.target.value))}
+              aria-label="People on the call"
+            >
+              <option value="" disabled hidden>
+                {people.length}
+              </option>
+              <option value="auto">Let Quill decide</option>
+              {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function RenameSpeaker({
+  name,
+  others,
+  onDone,
+}: {
+  name: string;
+  others: string[];
+  onDone: (to: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(/^Speaker \d+$/.test(name) || name === OTHERS ? "" : name);
+  const merging = others.find((o) => o.toLowerCase() === draft.trim().toLowerCase());
+  const listId = `speakers-${name.replace(/\W/g, "")}`;
+  // Enter or Escape unmounts the input, which can also fire a blur.
+  const finished = useRef(false);
+  const finish = (save: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    onDone(save && draft.trim() ? (merging ?? draft.trim()) : null);
+  };
+  return (
+    <span className="speaker-rename">
+      <input
+        autoFocus
+        list={listId}
+        placeholder={`Name for ${name}`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => finish(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") finish(true);
+          if (e.key === "Escape") finish(false);
+        }}
+      />
+      <datalist id={listId}>
+        {others.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+      <span className="hint">{merging ? `Merges with ${merging}` : "Enter to save, Esc to cancel"}</span>
+    </span>
   );
 }
 

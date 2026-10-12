@@ -52,7 +52,9 @@ environment variable.
 **Data at rest.** Meetings, transcripts, notes, dictation history and audio
 are stored **unencrypted** in Quill's data folder (see the README), protected
 by your operating-system account. Use full-disk encryption (FileVault or
-BitLocker) if that matters for you. Logs contain events, timings and errors,
+BitLocker) if that matters for you. Telling speakers apart stores voice
+fingerprints (embeddings) of the people on a call in that meeting's folder
+(`speakers.json`); they're deleted with the meeting and never sent anywhere. Logs contain events, timings and errors,
 never transcripts, notes, dictated text or keys.
 
 **Permissions.**

@@ -24,3 +24,11 @@ Thumbs.db
 /app/dist/
 /app/src-tauri/gen/
 /eval/dictation/clips/
+/eval/diarization/data/
+
+# Verified sherpa-onnx libraries (scripts/fetch-sherpa-onnx.sh)
+/.sherpa-onnx/
+
+# Release builds (.github/workflows/release.yml)
+/dist-release/
+/app/src-tauri/windows-libs/

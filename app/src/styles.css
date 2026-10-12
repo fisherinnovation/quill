@@ -47,6 +47,16 @@
   --amber-soft: rgb(230 150 20 / 0.14);
   --me: var(--sky);
   --others: var(--grape);
+  /* People on the call, told apart by voice. Mid tones carry white text in
+     both themes. The first is the old "Others" grape. */
+  --spk-1: #6c6ea0;
+  --spk-2: #2f8a83;
+  --spk-3: #a8641c;
+  --spk-4: #b44d77;
+  --spk-5: #43699c;
+  --spk-6: #6b7a2c;
+  --spk-7: #a64b37;
+  --spk-8: #7d5a99;
   --mark: rgb(102 199 244 / 0.35);
 
   --shadow-sm: none;
@@ -1186,7 +1196,101 @@ mark {
 }
 
 .avatar.others {
-  background: var(--others);
+  background: var(--spk, var(--others));
+}
+
+/* Speakers on the call, above the transcript */
+.speaker-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 14px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.speaker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.speaker-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.speaker-chip .dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--spk, var(--others));
+}
+
+.speaker-chip .dot.me {
+  background: var(--me);
+  color: #0b2c3d;
+}
+
+.speaker-chip .talk {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.speaker-chip.static {
+  cursor: default;
+}
+
+.speaker-chip.static:hover {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.speaker-rename {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.speaker-rename input {
+  height: 28px;
+  width: 170px;
+  font-size: 12.5px;
+}
+
+.speaker-rename .hint {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.speaker-count {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.speaker-count select {
+  width: auto;
+  height: 28px;
+  font-size: 12.5px;
 }
 
 .turn-head {

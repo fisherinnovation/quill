@@ -129,6 +129,8 @@ fn main() {
             commands::start_recording,
             commands::stop_recording,
             commands::process_meeting,
+            commands::split_speakers,
+            commands::rename_speaker,
             commands::openrouter_key_status,
             commands::set_openrouter_key,
             commands::delete_openrouter_key,

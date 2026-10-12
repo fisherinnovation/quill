@@ -51,6 +51,8 @@ export interface Settings {
   summary_model: string;
   zdr: boolean;
   auto_summarize: boolean;
+  /** Split "Others" into Speaker 1, 2… by voice. */
+  identify_speakers: boolean;
   /** Changed only via chooseRecordingsDir/resetRecordingsDir. */
   recordings_dir: string | null;
   onboarded: boolean;
@@ -168,7 +170,7 @@ export interface RecordingState {
   elapsed_ms: number;
 }
 
-export type Stage = "downloading" | "transcribing" | "summarizing" | "done" | "failed";
+export type Stage = "downloading" | "transcribing" | "identifying" | "summarizing" | "done" | "failed";
 
 /** Background processing progress for one meeting. */
 export interface Progress {
@@ -191,6 +193,10 @@ export const api = {
   stopRecording: () => invoke<string>("stop_recording"),
   /** transcribe=true: transcribe (+ summarize per settings); false: summarize only. */
   processMeeting: (id: string, transcribe: boolean) => invoke<void>("process_meeting", { id, transcribe }),
+  /** Re-split the people on the call, into `speakers` if given. Replaces names; progress arrives as events. */
+  splitSpeakers: (id: string, speakers: number | null) => invoke<void>("split_speakers", { id, speakers }),
+  /** Renaming to a name another speaker has merges them. */
+  renameSpeaker: (id: string, from: string, to: string) => invoke<void>("rename_speaker", { id, from, to }),
   /** "keychain" | "environment", or null if no key is configured. Never reads the key. */
   openrouterKeyStatus: () => invoke<string | null>("openrouter_key_status"),
   setOpenrouterKey: (key: string) => invoke<void>("set_openrouter_key", { key }),

@@ -5,6 +5,7 @@
 
 mod bench;
 mod compact;
+mod diarize;
 mod dictate;
 mod eval;
 mod import;
@@ -49,6 +50,9 @@ enum Command {
     Bench(bench::Args),
     /// Record the microphone and system audio to WAV files
     Record(record::Args),
+    /// Find who spoke when in an audio file, optionally scored against a
+    /// reference
+    Diarize(diarize::Args),
     /// Run the dictation pipeline on WAV files, with timings
     Dictate(dictate::Args),
     /// Summarize a transcript into meeting notes with an LLM
@@ -82,6 +86,7 @@ fn main() -> anyhow::Result<()> {
         Command::Models(cmd) => models::run(cmd, &models_dir),
         Command::Bench(args) => bench::run(args, &models_dir),
         Command::Record(args) => record::run(args),
+        Command::Diarize(args) => diarize::run(args, &models_dir),
         Command::Dictate(args) => dictate::run(args, &models_dir),
         Command::Summarize(args) => summarize::run(args),
         Command::Keys(cmd) => keys::run(cmd),

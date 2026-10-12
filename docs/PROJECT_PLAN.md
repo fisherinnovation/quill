@@ -213,7 +213,8 @@ Each milestone ends with something runnable. Don't start the next until the acce
 **Accept:** Under ~1 s perceived latency on Apple Silicon for short utterances; works in Slack, browser, VS Code and email.
 
 ### M7 — Polish & distribution
-- [ ] Code signing + notarization (macOS), signing (Windows), installers via Tauri bundler.
+- [x] Installers built in CI (`.github/workflows/release.yml`): a version tag builds a macOS `.dmg` (Apple Silicon, signed ad hoc with Quill's stable designated requirement, so permissions survive updates) and Windows NSIS/MSI installers (with the sherpa-onnx DLLs), and attaches them to a draft release.
+- [ ] Code signing + notarization (macOS: Developer ID, set `APPLE_SIGNING_IDENTITY` in `app/scripts/package-macos.sh`, plus notarytool), signing (Windows).
 - [ ] Auto-update (`tauri-plugin-updater`).
 - [ ] Crash/error logging to a local file; opt-in only for anything remote.
 - [ ] Data retention settings (auto-delete audio after N days, keep transcripts).
@@ -221,6 +222,10 @@ Each milestone ends with something runnable. Don't start the next until the acce
 ### Stretch goals
 - Live captions during meetings (streaming chunks).
 - Local speaker diarization with named speakers (voice fingerprints).
+  - [x] Phase 1 (trial): `quill-diarize` crate, `quill-cli diarize` with scoring, and `quill-cli transcribe <dir> --diarize [--speakers N]` (splits "Others" into Speaker 1..N). Results are in `eval/diarization/README.md`.
+  - [x] Phase 2: in the app. Speakers are told apart after transcribing (Settings → *Tell speakers apart*, on by default). The Transcript tab's speaker bar renames (a name another speaker has merges them) and re-splits into a chosen number of people, instantly from the cached analysis (`speakers.json`). Prompt `summary-v3` handles "Speaker N" and given names; on the test meeting it named Daniel, Moira and Karen from how they addressed each other and never wrote "Speaker N".
+  - [ ] Phase 3: remembered voices across meetings, from stored per-speaker embeddings.
+  - [ ] Optional: speaker names from the meeting app's active-speaker display (opt-in; reads window contents).
 - "Ask your meetings" — semantic search / chat across past transcripts (embeddings in SQLite via `sqlite-vec`).
 - Auto-detect meeting start (mic in use + Zoom/Teams/Meet active).
 - Notes pad: user's typed notes merged with the transcript in the summary (Granola-style).
@@ -334,6 +339,15 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - **Onboarding / access check** (`quill_audio::check`). macOS reports a denied permission as silence, not an error, so the first-run screen records 4 s from both sources while playing a quiet chime. The system tap records every process, Quill included, so hearing nothing (not even the chime) means system-audio access was denied; a working mic always picks up some noise. Running the check also triggers both permission prompts before the first real meeting. It can be re-run from Settings, and the test audio is deleted afterwards.
 - **Recordings folder** (`Settings.recordings_dir`, default `<data dir>/recordings`). Changing it moves every meeting folder (rename, or copy then delete across drives). It's all or nothing, and refused while recording or processing. The database stays in the data directory. Recording writes about 2 GB per hour (32-bit float, 48 kHz, stereo system track); once a meeting is transcribed the tracks are replaced with 16 kHz mono 16-bit FLAC, about 70 MB per hour (the 2:22 test call went from 81.7 MB to 2.8 MB). It's the exact audio the pipeline uses; word error rate on the benchmark meeting is the same (2.6%) from the FLAC as from the WAV, though beam search makes the wording not byte-identical. Older meetings are compacted at startup; `quill-cli compact` does it by hand.
 - File and folder pickers (export, recordings folder) open from Rust via `tauri-plugin-dialog`, so the web view never passes in a path to write to and needs no plugin permissions.
+
+**Notes (diarization trial):**
+- **Library:** the official `sherpa-onnx` Rust crate (1.13.8), pinned exactly. Its build script downloads prebuilt sherpa-onnx and onnxruntime libraries from the project's GitHub release. These are static on macOS. On Windows the DLLs are used instead, because the static build uses `/MT` and whisper.cpp uses `/MD`. That download isn't hash-checked, so CI (and anyone who wants to) uses `scripts/fetch-sherpa-onnx.sh` instead. It checks the archive against pinned SHA-256 hashes and sets `SHERPA_ONNX_LIB_DIR`. Release builds should do the same.
+- **Models:** pyannote segmentation-3.0 (MIT, 6 MB) and NeMo TitaNet-small (CC BY 4.0, 40 MB). Both go through the same SHA-256-checked downloader as Whisper.
+- **Clustering:** sherpa-onnx's clustering (complete linkage, no outlier handling) merged real people as soon as a speaker count was given. Quill re-clusters embeddings of clean pieces of each turn by centroid distance, and folds groups with under 4 s of speech into the nearest speaker. On a 10-person call (real AMI voices through Opus):
+  - without a speaker count, 7 of 10 speakers are found, with 8.6% confusion; the people who said about 5 s were merged into others;
+  - with the count, 10 of 10, with 5.9% confusion.
+- **AMI accuracy:** about 18–22% DER, in line with pyannote's published 18.8%. Confusion is 4–6%; the rest is segmentation.
+- **Speed:** about 35× real time on the M3 Pro CPU.
 
 **Notes (M6):**
 - Latency: Whisper `short_clip` mode (greedy decoding, the encoder sized to the clip, VAD trimming only the outer silence) takes 0.27 s median on turbo, versus 0.6–0.7 s with meeting settings. The polish step (default `google/gemini-3.5-flash-lite`, 0.66 s median) runs only when `needs_polish` finds fillers, corrections, lists or stutters; on clean speech the model returned Whisper's text unchanged 7 times out of 9. Details are in `eval/dictation/README.md`.

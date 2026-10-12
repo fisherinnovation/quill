@@ -1,0 +1,51 @@
+# A 10-person planning call read by macOS voices, for diarization tests.
+# "Voice|line". A line starting with "~" overlaps the end of the line before
+# it (an interjection). Participation is deliberately uneven: Samantha runs
+# the call, a few people talk a lot, and some say only a sentence or two.
+Samantha|Hi everyone, thanks for making time. We've got a full house today, so let's keep it moving. The goal is to agree on the launch plan for the mobile release and figure out who owns what.
+Daniel|Before we start, can everyone hear me okay? I'm on the train, so the connection might drop.
+Samantha|You're fine, Daniel. Okay, quick round of updates first. Karen, do you want to kick us off with engineering?
+Karen|Sure. The release branch was cut on Monday. We have eleven open bugs, three of them marked critical. Two of the critical ones are in the offline sync code, and one is a crash on older Android phones when you rotate the screen during checkout.
+Rishi|The rotation crash is mine. I have a fix in review, it should land today.
+Karen|Great. The offline sync bugs are harder. We think it's a race between the background refresh and the user editing a record at the same moment.
+Samantha|Do we have a date for those?
+Karen|Realistically, end of next week. I'd rather not promise sooner.
+~Fred|Yeah, that's fair.
+Samantha|Okay. Moira, design?
+Moira|All the final screens are handed off. The only open item is the empty state for the new activity feed. We tested two versions with users and the simpler one did better, so we're going with that.
+Tessa|Can I ask a question about the activity feed? Are we showing notifications from shared projects, or only the user's own projects?
+Moira|Only their own for launch. Shared projects come in the next release.
+Tessa|Okay, that makes support a lot easier. Thanks.
+Samantha|Marketing next. Fred, where are we?
+Fred|The launch page is drafted, the press list is ready, and we have three customers lined up to give quotes. What I don't have yet is a firm date, which makes it hard to book anything with the press.
+Samantha|Understood. That's really the main question for today.
+Tara|From the support side, we'd like at least a week's notice before launch so we can train the team on the new screens and update the help articles.
+Samantha|That's reasonable. Let's make that a rule. Support gets a week's notice for any launch.
+Reed|Sorry to jump in. Legal still needs to review the new data sharing text in the onboarding flow. Has anyone sent that over?
+Moira|I sent it on Tuesday. I'll ping them again this afternoon.
+Reed|Thanks. They usually turn things around in two or three days.
+Samantha|Okay. So, dates. Karen says the sync bugs are end of next week. Legal is two or three days. Support needs a week's notice. Fred needs a firm date for the press.
+Daniel|What if we pick a date two weeks after the sync fixes land, instead of one? It gives us room if something else comes up during testing.
+Karen|I'd support that. A week of buffer has burned us before.
+~Rishi|Agreed.
+Fred|Two weeks puts us right before the holiday weekend, though. Press coverage is terrible that week.
+Samantha|Good point. So either we go a few days earlier, or we push into the following week.
+Shelley|Can I add something from finance? If we launch after the first of the month, the new pricing applies automatically, and we avoid a messy migration for anyone who signs up during the last week.
+Samantha|That's a strong argument for the later date. Fred, does the following week work for press?
+Fred|It's much better for press, honestly. Tuesday or Wednesday would be ideal.
+Samantha|Let's tentatively say Tuesday the fourteenth. Any objections?
+Karen|No objection from engineering, as long as the sync fixes land on time. I'll flag it by Wednesday if they're slipping.
+Tessa|Works for support.
+Samantha|Great. Decision: launch on Tuesday the fourteenth, with a go or no-go check the Wednesday before.
+Daniel|Who runs the go or no-go?
+Samantha|I will. Karen, Fred and Tara, please come with a clear yes or no from your teams.
+Tara|Will do.
+Rishi|One more thing on engineering. We'd like to turn on the new crash reporting before launch, so we catch anything in the first week. It needs a privacy review as well.
+Reed|Send it to me and I'll bundle it with the onboarding text so legal looks at both together.
+Rishi|Perfect, I'll send it today.
+Samantha|Okay, let's recap the action items. Rishi lands the rotation fix today and sends the crash reporting details to Reed. Karen's team fixes the sync bugs by end of next week and flags any slip by Wednesday. Moira follows up with legal this afternoon. Fred books the press for the week of the fourteenth. Tara starts the support training plan. And I'll run the go or no-go check.
+Moira|Sounds right.
+Shelley|I'll send the pricing timeline to everyone so the dates line up.
+Samantha|Thank you, Shelley. Anything else before we wrap?
+Daniel|Just that I'll be offline Friday, so send anything urgent before then.
+Samantha|Noted. Thanks everyone, great meeting.

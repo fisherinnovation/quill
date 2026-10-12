@@ -15,6 +15,7 @@ indicatif.workspace = true
 jiff.workspace = true
 quill-audio.workspace = true
 quill-core.workspace = true
+quill-diarize.workspace = true
 quill-eval.workspace = true
 quill-llm.workspace = true
 quill-stt.workspace = true

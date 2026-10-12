@@ -26,6 +26,11 @@ You'll need stable Rust, Node.js 24, and CMake with a C/C++ compiler.
 cd app && npm ci && npm run app   # runs the app with hot reload
 ```
 
+The first build downloads prebuilt sherpa-onnx libraries (used to tell
+speakers apart) from the project's GitHub release. To use a copy checked
+against pinned hashes instead, as CI does:
+`export SHERPA_ONNX_LIB_DIR="$(scripts/fetch-sherpa-onnx.sh)"`.
+
 On macOS, read the tip about the **Quill Development** signing certificate in
 the README. Without it, the microphone, system-audio and Accessibility
 permissions reset on every rebuild.

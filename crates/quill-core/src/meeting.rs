@@ -35,6 +35,8 @@ pub enum MeetingError {
     },
     #[error(transparent)]
     Stt(#[from] SttError),
+    #[error(transparent)]
+    Diarize(#[from] quill_diarize::DiarizeError),
 }
 
 /// File next to the WAVs describing what was recorded (devices, formats,
@@ -115,6 +117,11 @@ fn track_path(dir: &Path, flac: &str, wav: &str) -> Option<PathBuf> {
         .into_iter()
         .map(|name| dir.join(name))
         .find(|path| path.is_file())
+}
+
+/// The system-audio track as 16 kHz mono, if the recording has one.
+pub fn load_system_track(dir: &Path) -> Result<Option<Vec<f32>>, MeetingError> {
+    load_track(track_path(dir, SYSTEM_FLAC, SYSTEM_FILE).as_deref())
 }
 
 /// Whether a recording folder has any audio.

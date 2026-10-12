@@ -55,12 +55,22 @@ pub const SUMMARY_V2: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v2/reduce.md"),
 };
 
+/// v3: understands voice-separated speakers ("Speaker 1", …) and names the
+/// user gave them, as well as "Me" / "Others". Templates otherwise unchanged.
+pub const SUMMARY_V3: SummaryPrompts = SummaryPrompts {
+    version: "summary-v3",
+    system: prompt!("summary-v3/system.md"),
+    single: prompt!("summary-v3/single.md"),
+    chunk: prompt!("summary-v3/chunk.md"),
+    reduce: prompt!("summary-v3/reduce.md"),
+};
+
 /// The version used by default.
-pub const SUMMARY: SummaryPrompts = SUMMARY_V2;
+pub const SUMMARY: SummaryPrompts = SUMMARY_V3;
 
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
-pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY_V1, SUMMARY_V2];
+pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY_V1, SUMMARY_V2, SUMMARY_V3];
 
 /// Looks up a summary prompt version by name, e.g. `summary-v1`.
 pub fn find_summary(version: &str) -> Option<&'static SummaryPrompts> {

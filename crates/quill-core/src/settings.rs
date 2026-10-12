@@ -29,6 +29,9 @@ pub struct Settings {
     pub zdr: bool,
     /// Summarize automatically after transcribing.
     pub auto_summarize: bool,
+    /// Tell the people on the call apart by voice ("Speaker 1", "Speaker
+    /// 2"…) instead of labelling them all "Others".
+    pub identify_speakers: bool,
     /// Where meeting audio lives; `None` = `<data dir>/recordings`. Change it
     /// with `Library::move_recordings` so existing meetings move too.
     pub recordings_dir: Option<PathBuf>,
@@ -118,6 +121,7 @@ impl Default for Settings {
             summary_model: DEFAULT_SUMMARY_MODEL.into(),
             zdr: false,
             auto_summarize: true,
+            identify_speakers: true,
             recordings_dir: None,
             onboarded: false,
             dictation: DictationSettings::default(),

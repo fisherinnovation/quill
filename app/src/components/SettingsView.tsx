@@ -62,6 +62,16 @@ export function SettingsView() {
         <Row label="Skip silence" hint="Stops the speech model from inventing text during quiet stretches.">
           <Switch label="Skip silence" checked={settings.vad} onChange={(vad) => update({ vad })} />
         </Row>
+        <Row
+          label="Tell speakers apart"
+          hint="Labels the people on the call Speaker 1, 2… by their voices, on this Mac. Rename them in the transcript."
+        >
+          <Switch
+            label="Tell speakers apart"
+            checked={settings.identify_speakers}
+            onChange={(identify_speakers) => update({ identify_speakers })}
+          />
+        </Row>
       </Group>
 
       <Group title="Summaries">

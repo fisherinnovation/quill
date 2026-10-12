@@ -403,6 +403,27 @@ impl Library {
         Ok(())
     }
 
+    /// Renames a speaker throughout a meeting's transcript. Renaming to a
+    /// name another speaker already has merges the two. Returns how many
+    /// segments changed.
+    pub fn rename_speaker(&self, id: &str, from: &str, to: &str) -> Result<usize, LibraryError> {
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        if !exists(&tx, id)? {
+            return Err(LibraryError::NotFound(id.to_string()));
+        }
+        let changed = tx.execute(
+            "UPDATE segments SET speaker = ?3 WHERE meeting_id = ?1 AND speaker = ?2",
+            params![id, from, to],
+        )?;
+        tx.execute(
+            "UPDATE segments_fts SET speaker = ?3 WHERE meeting_id = ?1 AND speaker = ?2",
+            params![id, from, to],
+        )?;
+        tx.commit()?;
+        Ok(changed)
+    }
+
     /// Stores a new summary. Unless the user renamed the meeting, its title
     /// becomes the summary's `# Title — date` heading.
     pub fn save_summary(&self, id: &str, summary: &Summary) -> Result<(), LibraryError> {
@@ -928,6 +949,38 @@ mod tests {
         assert!(d.meeting.has_transcript && d.meeting.has_summary);
         assert_eq!(d.segments[1].text, "Hi there");
         assert_eq!(d.summaries[0].prompt_version, "summary-v1");
+    }
+
+    #[test]
+    fn renaming_a_speaker_relabels_and_can_merge() {
+        let (lib, _dir) = library();
+        let m = lib.create_meeting().unwrap();
+        lib.save_transcript(
+            &m.id,
+            &[
+                seg(0, "Me", "Hello"),
+                seg(5, "Speaker 1", "Hi"),
+                seg(9, "Speaker 2", "Hey"),
+                seg(12, "Speaker 1", "Shall we start"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(lib.rename_speaker(&m.id, "Speaker 1", "Priya").unwrap(), 2);
+        assert_eq!(lib.rename_speaker(&m.id, "Speaker 2", "Priya").unwrap(), 1);
+        let speakers: Vec<_> = lib
+            .get(&m.id)
+            .unwrap()
+            .segments
+            .into_iter()
+            .map(|s| s.speaker.unwrap())
+            .collect();
+        assert_eq!(speakers, ["Me", "Priya", "Priya", "Priya"]);
+        // Search results carry the new name too.
+        assert_eq!(
+            lib.search("start", 5).unwrap()[0].speaker.as_deref(),
+            Some("Priya")
+        );
+        assert!(lib.rename_speaker("nope", "a", "b").is_err());
     }
 
     #[test]
