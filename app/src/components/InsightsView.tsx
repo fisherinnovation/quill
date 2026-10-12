@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, errorText, type Insights } from "../api";
-import { Icon, Logo, type IconName } from "./Icon";
+import { Logo } from "./Icon";
 
 const number = new Intl.NumberFormat();
 
@@ -46,20 +46,17 @@ export function InsightsView() {
 
       <div className="stat-grid">
         <Stat
-          icon="text"
           label="Words dictated"
           value={number.format(d.words)}
           note={d.words_last_7_days > 0 ? `${number.format(d.words_last_7_days)} in the last 7 days` : "None this week"}
         />
-        <Stat icon="clock" label="Time saved" value={duration(d.minutes_saved * 60_000)} note="Compared with typing" accent />
+        <Stat label="Time saved" value={duration(d.minutes_saved * 60_000)} note="Compared with typing" accent />
         <Stat
-          icon="bolt"
           label="Speaking speed"
           value={d.speaking_wpm ? `${Math.round(d.speaking_wpm)} wpm` : "–"}
           note={speedup ? `${speedup.toFixed(1)}× faster than typing` : "After a minute of dictation"}
         />
         <Stat
-          icon="flame"
           label="Streak"
           value={`${insights.streak_days} ${insights.streak_days === 1 ? "day" : "days"}`}
           note={insights.streak_days > 0 ? "In a row, and counting" : "Use Quill today to start one"}
@@ -166,13 +163,11 @@ export function InsightsView() {
 }
 
 function Stat({
-  icon,
   label,
   value,
   note,
   accent,
 }: {
-  icon: IconName;
   label: string;
   value: string;
   note: string;
@@ -180,9 +175,7 @@ function Stat({
 }) {
   return (
     <div className={`stat card${accent ? " accent" : ""}`}>
-      <div className="stat-label">
-        <Icon name={icon} size={14} /> {label}
-      </div>
+      <div className="stat-label">{label}</div>
       <div className="stat-value">{value}</div>
       <div className="stat-note">{note}</div>
     </div>

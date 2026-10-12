@@ -2,6 +2,8 @@
 name = "quill-app"
 description = "Quill desktop app (Tauri v2): menu-bar recorder, meeting library, settings"
 version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition.workspace = true
 publish.workspace = true
 

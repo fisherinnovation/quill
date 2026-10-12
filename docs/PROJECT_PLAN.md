@@ -282,7 +282,7 @@ Each milestone ends with something runnable. Don't start the next until the acce
 | M7 Distribution | ⬜ | |
 
 **Current focus:** M6 (dictation). Pending on real use: M2/M4 acceptance (a real call; a cloud eval with a strong judge). Primary dev machine is now the MacBook (M3 Pro); Windows for platform testing.
-**Open decisions:** project name; license; default summary model (decided by M4; `anthropic/claude-haiku-5.5` until then). 
+**Open decisions:** project name; default summary model (decided by M4; `anthropic/claude-haiku-5.5` until then). 
 
 **Workspace notes (M0):**
 - Section 6 conventions are enforced as lints in the root `Cargo.toml`: `unsafe_code` is denied, and clippy's `unwrap_used`, `expect_used` and `undocumented_unsafe_blocks` are warnings, which CI's `-D warnings` turns into errors. `clippy.toml` allows unwrap/expect in tests; `main` setup must opt in with a local `#[allow]`.
@@ -345,3 +345,5 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - Logs: daily files in `<data dir>/logs` (two weeks kept), including panics; Settings → Troubleshooting opens the folder.
 - Insights page: dictation words, time saved against typing at 40 wpm, speaking speed, streak, a 30-day activity chart and time of day; meeting count and time, your talk share, summary cost. Dictation numbers come from a `dictation_stats` table (counts only, no text), so they survive turning history off or clearing it. Computed on demand in `quill_core::insights`.
 - Per-app tone: when the shortcut is pressed, Quill reads the frontmost app (bundle id and name via NSWorkspace on macOS; executable via the Win32 API on Windows; nothing about its windows or contents). Each app has a style: Casual for chat (a one-sentence message loses its final period, applied locally with no model call), Formal for email, Technical for editors and terminals, or Default. Built-ins cover common apps and can be overridden per app on the Dictation page. When clean-up runs, prompt `dictation-v2` says where the text is going; tone doesn't make clean-up run more often. On the clips the model kept question marks and was never rejected. Insights lists the top apps, and history shows the app.
+- License decided: MIT OR Apache-2.0 (the Rust ecosystem's usual dual license). README, CONTRIBUTING.md and SECURITY.md were added for open-source distribution.
+- Dev signing: `app:bundle` signs ad hoc with an explicit designated requirement (`identifier "com.fisherinnovation.quill"`) instead of the default per-build cdhash, so macOS permissions and keychain "Always Allow" survive rebuilds. That's weaker than a certificate (anything signed with that identifier matches) but fine for development; releases need Developer ID signing (M7).

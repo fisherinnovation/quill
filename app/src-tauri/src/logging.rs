@@ -20,8 +20,10 @@ pub fn dir(data_dir: &Path) -> PathBuf {
 
 /// Sets up logging. If the log folder can't be used, logs only to stderr.
 pub fn init(data_dir: &Path) {
+    // enigo logs an error each time the Accessibility permission is checked
+    // and missing; Quill reports that itself (`inserted=OnClipboard`).
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,whisper_rs=error,flacenc=warn"));
+        .unwrap_or_else(|_| EnvFilter::new("info,whisper_rs=error,flacenc=warn,enigo=off"));
     let file = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("quill")

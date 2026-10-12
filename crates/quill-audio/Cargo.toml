@@ -2,6 +2,8 @@
 name = "quill-audio"
 description = "Audio capture (mic + system), resampling, VAD and WAV writing"
 version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition.workspace = true
 publish.workspace = true
 

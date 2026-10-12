@@ -52,17 +52,11 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
   );
 }
 
-/** The app mark: the icon's gradient tile with the quill and sound wave. */
+/** The app mark: a flat fuchsia tile with the quill and sound wave. */
 export function Logo({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="64 64 896 896" aria-hidden className="logo">
-      <defs>
-        <linearGradient id="quill-logo-bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#3b5bdb" />
-          <stop offset="1" stopColor="#7048e8" />
-        </linearGradient>
-      </defs>
-      <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#quill-logo-bg)" />
+      <rect x="64" y="64" width="896" height="896" rx="190" fill="#ff1053" />
       <path
         d="M742 236c-170 40-310 170-370 340l-58 172 40 14 52-120c92-6 196-60 258-150-70 20-130 14-172 2 88-24 176-90 222-168-40 6-82 4-112-6 70-30 120-56 140-84z"
         fill="#fff"

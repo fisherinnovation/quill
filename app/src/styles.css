@@ -1,6 +1,8 @@
 /* ==========================================================================
-   Quill design tokens. Light first; dark overrides below. Colours follow
-   the app icon's indigo → violet.
+   Quill design tokens. Palette: Hot Fuchsia #ff1053 (the one accent),
+   Dusty Grape #6c6ea0, Sky Blue #66c7f4, Pale Slate #c1cad6, white.
+   Neutrals are tinted towards grape so the greys belong to the palette.
+   Flat colours and borders; no gradients or glows.
    ========================================================================== */
 :root {
   color-scheme: light dark;
@@ -8,39 +10,50 @@
     sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
+  /* The palette itself */
+  --fuchsia: #ff1053;
+  --grape: #6c6ea0;
+  --sky: #66c7f4;
+  --slate: #c1cad6;
+
   --bg: #ffffff;
-  --bg-sidebar: #f3f3f6;
+  --bg-sidebar: #eef1f5;
   --bg-elevated: #ffffff;
-  --bg-subtle: #f6f6f9;
-  --bg-hover: rgb(20 20 50 / 0.05);
-  --bg-active: rgb(20 20 50 / 0.08);
-  --selected: #e6e6fd;
-  --text: #1b1b22;
-  --text-2: #5d5d6b;
-  --text-3: #8d8d9a;
-  --border: rgb(20 20 50 / 0.09);
-  --border-strong: rgb(20 20 50 / 0.15);
+  --bg-subtle: #f5f6f9;
+  --bg-hover: rgb(108 110 160 / 0.08);
+  --bg-active: rgb(108 110 160 / 0.13);
+  --selected: #e4e5ef;
+  --text: #1c1d2b;
+  --text-2: #565973;
+  --text-3: #858aa0;
+  --border: #dde2ea;
+  --border-strong: var(--slate);
 
-  --accent: #5451e0;
-  --accent-hover: #4744cf;
-  --accent-text: #4a47d4;
-  --accent-soft: rgb(84 81 224 / 0.1);
-  --brand: linear-gradient(135deg, #3b5bdb, #7048e8);
-  --red: #e5484d;
-  --red-soft: rgb(229 72 77 / 0.1);
-  --green: #2b9a62;
-  --green-soft: rgb(43 154 98 / 0.12);
-  --amber: #b86e00;
-  --amber-soft: rgb(230 150 20 / 0.13);
-  --me: var(--green);
-  --others: var(--accent);
-  --mark: #ffe48a;
+  /* Fuchsia, a shade deeper where white text sits on it (contrast). */
+  --accent: #e40c4a;
+  --accent-hover: #c90a41;
+  --accent-text: #d00a45;
+  --accent-soft: rgb(255 16 83 / 0.1);
+  --grape-text: #6c6ea0;
+  --sky-text: #0e77ab;
+  --sky-soft: rgb(102 199 244 / 0.2);
+  /* Live states (recording, listening) use the accent. */
+  --red: var(--accent);
+  --red-soft: var(--accent-soft);
+  /* "OK" states use sky; warnings keep a distinct amber. */
+  --green: var(--sky-text);
+  --green-soft: var(--sky-soft);
+  --amber: #a86400;
+  --amber-soft: rgb(230 150 20 / 0.14);
+  --me: var(--sky);
+  --others: var(--grape);
+  --mark: rgb(102 199 244 / 0.35);
 
-  --shadow-sm: 0 1px 2px rgb(20 20 50 / 0.06);
-  --shadow-md: 0 1px 2px rgb(20 20 50 / 0.04), 0 4px 14px rgb(20 20 50 / 0.07);
-  --shadow-lg: 0 2px 6px rgb(20 20 50 / 0.06), 0 16px 48px rgb(20 20 50 / 0.14);
-  --radius: 8px;
-  --radius-lg: 12px;
+  --shadow-sm: none;
+  --shadow-md: 0 1px 2px rgb(28 29 43 / 0.06);
+  --shadow-lg: 0 1px 2px rgb(28 29 43 / 0.05), 0 10px 30px rgb(28 29 43 / 0.08);
+  --radius: 6px;
+  --radius-lg: 8px;
   /* Height of the area the macOS window buttons sit in (0 elsewhere). */
   --titlebar: 0px;
   --sidebar-width: 268px;
@@ -60,34 +73,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #18181b;
-    --bg-sidebar: #1f1f23;
-    --bg-elevated: #232328;
-    --bg-subtle: #25252a;
-    --bg-hover: rgb(255 255 255 / 0.05);
-    --bg-active: rgb(255 255 255 / 0.08);
-    --selected: rgb(124 122 255 / 0.2);
-    --text: #ececf1;
-    --text-2: #a6a6b3;
-    --text-3: #72727e;
-    --border: rgb(255 255 255 / 0.08);
-    --border-strong: rgb(255 255 255 / 0.14);
+    --bg: #14141c;
+    --bg-sidebar: #1b1b26;
+    --bg-elevated: #1f1f2b;
+    --bg-subtle: #232331;
+    --bg-hover: rgb(193 202 214 / 0.06);
+    --bg-active: rgb(193 202 214 / 0.1);
+    --selected: rgb(108 110 160 / 0.3);
+    --text: #eceef4;
+    --text-2: #a9aec1;
+    --text-3: #727890;
+    --border: rgb(193 202 214 / 0.1);
+    --border-strong: rgb(193 202 214 / 0.2);
 
-    --accent: #7673ff;
-    --accent-hover: #8a87ff;
-    --accent-text: #a4a2ff;
-    --accent-soft: rgb(118 115 255 / 0.17);
-    --red: #ff6369;
-    --red-soft: rgb(255 99 105 / 0.14);
-    --green: #3fd28a;
-    --green-soft: rgb(63 210 138 / 0.13);
-    --amber: #ffb224;
-    --amber-soft: rgb(255 178 36 / 0.14);
-    --mark: #6b5713;
+    --accent: #e40c4a;
+    --accent-hover: #ff1053;
+    --accent-text: #ff5c88;
+    --accent-soft: rgb(255 16 83 / 0.16);
+    --grape-text: #a6a8d8;
+    --sky-text: #66c7f4;
+    --sky-soft: rgb(102 199 244 / 0.15);
+    --amber: #f2a93b;
+    --amber-soft: rgb(242 169 59 / 0.14);
+    --mark: rgb(102 199 244 / 0.3);
 
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
-    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.25);
-    --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.3), 0 16px 48px rgb(0 0 0 / 0.45);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.4);
   }
 }
 
@@ -145,11 +156,11 @@ kbd {
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--sky-soft);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--sky-text);
   outline-offset: 2px;
 }
 
@@ -185,9 +196,8 @@ button {
   height: 28px;
   padding: 0 11px;
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--bg-elevated);
-  box-shadow: var(--shadow-sm);
   font-weight: 500;
   font-size: 13px;
   white-space: nowrap;
@@ -216,9 +226,6 @@ button.primary {
   background: var(--accent);
   border-color: transparent;
   color: #fff;
-  box-shadow:
-    var(--shadow-sm),
-    inset 0 1px 0 rgb(255 255 255 / 0.15);
 }
 
 button.primary:hover:not(:disabled) {
@@ -258,7 +265,7 @@ button.link {
   border: none;
   background: none;
   box-shadow: none;
-  color: var(--accent-text);
+  color: var(--grape-text);
   font-weight: 500;
 }
 
@@ -272,11 +279,10 @@ select,
 textarea {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: var(--radius);
   padding: 5px 9px;
   min-height: 30px;
   font-size: 13px;
-  box-shadow: var(--shadow-sm);
   transition:
     border-color 0.12s,
     box-shadow 0.12s;
@@ -286,8 +292,8 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--sky-text);
+  box-shadow: 0 0 0 3px var(--sky-soft);
 }
 
 input::placeholder,
@@ -338,7 +344,7 @@ textarea {
 }
 
 .switch input:checked + .switch-track {
-  background: var(--accent);
+  background: var(--grape);
 }
 
 .switch input:checked + .switch-track::after {
@@ -346,7 +352,7 @@ textarea {
 }
 
 .switch input:focus-visible + .switch-track {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--sky-text);
   outline-offset: 2px;
 }
 
@@ -364,7 +370,7 @@ kbd {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
-  border-radius: 6px;
+  border-radius: 5px;
 }
 
 .keys {
@@ -377,9 +383,8 @@ kbd {
   min-width: 34px;
   height: 34px;
   font-size: 16px;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 0 10px;
-  box-shadow: var(--shadow-sm);
 }
 
 .spinner {
@@ -443,8 +448,8 @@ kbd {
 }
 
 .pill.accent {
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--bg-active);
+  color: var(--grape-text);
 }
 
 .pill.amber {
@@ -550,10 +555,8 @@ kbd {
 
 .list-group {
   padding: 14px 10px 4px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--text-3);
 }
 
@@ -566,7 +569,7 @@ kbd {
   height: auto;
   padding: 7px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: none;
   box-shadow: none;
   text-align: left;
@@ -580,6 +583,7 @@ kbd {
 .list-item.selected,
 .list-item.selected:hover:not(:disabled) {
   background: var(--selected);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .list-title {
@@ -611,7 +615,7 @@ kbd {
 }
 
 .status.working {
-  color: var(--accent-text);
+  color: var(--grape-text);
 }
 
 .status.failed {
@@ -676,42 +680,47 @@ mark {
 .nav-item.selected:hover:not(:disabled) {
   background: var(--selected);
   color: var(--text);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .nav-item .badge {
   margin-left: auto;
 }
 
-/* Record button */
+/* Record button: the app's main action, so it gets the accent. While
+   recording it turns dark, with the live dot in the accent colour. */
 .record {
   width: 100%;
   height: 36px;
   gap: 8px;
-  border-radius: 9px;
+  border-radius: var(--radius);
   font-weight: 600;
   font-size: 13.5px;
-  color: var(--red);
-  background: var(--bg-elevated);
-  border-color: var(--border-strong);
+  color: #fff;
+  background: var(--accent);
+  border-color: transparent;
 }
 
 .record:hover:not(:disabled) {
-  background: var(--red-soft);
-  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  background: var(--accent-hover);
+}
+
+.record .rec-dot {
+  color: #fff;
 }
 
 .record.active {
   color: #fff;
-  background: var(--red);
-  border-color: transparent;
+  background: var(--text);
   font-variant-numeric: tabular-nums;
-  box-shadow:
-    0 0 0 4px var(--red-soft),
-    var(--shadow-sm);
 }
 
 .record.active:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--red) 88%, black);
+  background: color-mix(in srgb, var(--text) 85%, var(--bg));
+}
+
+.record.active .stop-square {
+  color: var(--fuchsia);
 }
 
 .stop-square {
@@ -772,7 +781,7 @@ mark {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   margin-bottom: 16px;
@@ -789,12 +798,12 @@ mark {
 }
 
 .banner.info {
-  background: var(--accent-soft);
+  background: var(--bg-active);
   border-color: transparent;
 }
 
 .banner.info > .icon {
-  color: var(--accent-text);
+  color: var(--grape-text);
 }
 
 .banner.error {
@@ -833,7 +842,7 @@ mark {
 
 .progress > div {
   height: 100%;
-  background: var(--accent);
+  background: var(--sky);
   border-radius: 4px;
   transition: width 0.3s;
 }
@@ -882,7 +891,6 @@ mark {
 
 .logo {
   display: block;
-  filter: drop-shadow(0 6px 16px rgb(84 81 224 / 0.3));
 }
 
 /* ==========================================================================
@@ -932,8 +940,8 @@ mark {
   padding: 1px 5px;
   margin-left: -6px;
   min-height: 0;
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--sky-soft);
+  border-color: var(--sky-text);
 }
 
 .meeting-actions {
@@ -1028,17 +1036,19 @@ mark {
 }
 
 .summary h2 {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-  margin: 2em 0 0.6em;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+  margin: 1.8em 0 0.5em;
+  padding-top: 1.1em;
+  border-top: 1px solid var(--border);
 }
 
 .summary > h1:first-child + h2,
 .summary > h2:first-child {
-  margin-top: 0.4em;
+  margin-top: 0.2em;
+  padding-top: 0;
+  border-top: none;
 }
 
 .summary h3 {
@@ -1086,7 +1096,7 @@ mark {
   position: relative;
   padding: 8px 12px 8px 36px;
   margin: 6px 0;
-  border-radius: 9px;
+  border-radius: var(--radius);
   background: var(--bg-subtle);
   border: 1px solid var(--border);
 }
@@ -1099,7 +1109,7 @@ mark {
   width: 15px;
   height: 15px;
   margin: 0;
-  accent-color: var(--accent);
+  accent-color: var(--grape);
   box-shadow: none;
 }
 
@@ -1131,11 +1141,11 @@ mark {
 .placeholder .placeholder-icon {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--bg-active);
+  color: var(--grape-text);
 }
 
 /* Transcript */
@@ -1150,7 +1160,7 @@ mark {
   gap: 12px;
   padding: 10px 12px;
   margin: 0 -12px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   transition: background 0.3s;
 }
 
@@ -1161,7 +1171,7 @@ mark {
 .avatar {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  border-radius: 7px;
   display: grid;
   place-items: center;
   font-size: 11.5px;
@@ -1172,10 +1182,11 @@ mark {
 
 .avatar.me {
   background: var(--me);
+  color: #0b2c3d;
 }
 
 .avatar.others {
-  background: var(--brand);
+  background: var(--others);
 }
 
 .turn-head {
@@ -1217,7 +1228,6 @@ mark {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
 }
 
 .row {
@@ -1314,12 +1324,12 @@ mark {
 .access-icon {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: var(--radius);
   display: grid;
   place-items: center;
   flex: none;
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--bg-active);
+  color: var(--grape-text);
 }
 
 .access-item.ok .access-icon {
@@ -1360,44 +1370,37 @@ mark {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 22px 24px;
+  padding: 20px 22px;
   margin: 20px 0 16px;
-  border-radius: 16px;
-  background:
-    radial-gradient(120% 140% at 0% 0%, rgb(59 91 219 / 0.1), transparent 55%),
-    radial-gradient(120% 140% at 100% 100%, rgb(112 72 232 / 0.1), transparent 55%), var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
+  border-left: 3px solid var(--grape);
+  transition: border-color 0.2s;
 }
 
 .hero.listening {
-  border-color: color-mix(in srgb, var(--red) 45%, transparent);
-  box-shadow: 0 0 0 4px var(--red-soft);
+  border-color: var(--accent);
+  border-left-color: var(--accent);
 }
 
 .hero-mark {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
   flex: none;
   color: #fff;
-  background: var(--brand);
-  box-shadow: 0 8px 20px rgb(84 81 224 / 0.3);
+  background: var(--grape);
 }
 
 .hero.listening .hero-mark {
-  background: var(--red);
-  box-shadow: 0 8px 20px rgb(229 72 77 / 0.3);
+  background: var(--accent);
 }
 
 .hero.off .hero-mark {
   background: var(--text-3);
-  box-shadow: none;
 }
 
 .hero-body {
@@ -1476,9 +1479,9 @@ button.hotkey {
 }
 
 button.hotkey.capturing {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  color: var(--accent-text);
+  border-color: var(--sky-text);
+  box-shadow: 0 0 0 3px var(--sky-soft);
+  color: var(--sky-text);
 }
 
 .history-list {
@@ -1541,9 +1544,7 @@ button.hotkey.capturing {
   display: grid;
   place-items: center;
   padding: calc(var(--titlebar) + 16px) 24px 32px;
-  background:
-    radial-gradient(70% 60% at 15% 0%, rgb(59 91 219 / 0.13), transparent 70%),
-    radial-gradient(60% 60% at 100% 100%, rgb(112 72 232 / 0.12), transparent 70%), var(--bg-sidebar);
+  background: var(--bg-sidebar);
 }
 
 .onboarding-drag {
@@ -1556,7 +1557,7 @@ button.hotkey.capturing {
   width: min(560px, 100%);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   box-shadow: var(--shadow-lg);
   padding: 32px 36px 28px;
   animation: appear 0.3s ease-out;
@@ -1594,8 +1595,8 @@ button.hotkey.capturing {
 }
 
 .feature .access-icon.me {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--sky-soft);
+  color: var(--sky-text);
 }
 
 .feature p {
@@ -1609,7 +1610,7 @@ button.hotkey.capturing {
   align-items: flex-start;
   margin-top: 18px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--bg-subtle);
   font-size: 12.5px;
   color: var(--text-2);
@@ -1668,10 +1669,9 @@ html.indicator-window #root {
 }
 
 .indicator .rec-dot {
-  color: #ff5a60;
+  color: #ff1053;
   width: 8px;
   height: 8px;
-  box-shadow: 0 0 0 3px rgb(255 90 96 / 0.25);
   animation: pulse 1.4s ease-in-out infinite;
 }
 
@@ -1722,10 +1722,8 @@ html.indicator-window #root {
   gap: 4px;
 }
 
-.stat.accent {
-  background:
-    radial-gradient(120% 140% at 0% 0%, rgb(59 91 219 / 0.12), transparent 60%),
-    radial-gradient(120% 140% at 100% 100%, rgb(112 72 232 / 0.12), transparent 60%), var(--bg-elevated);
+.stat.accent .stat-value {
+  color: var(--accent-text);
 }
 
 .stat-label {
@@ -1738,7 +1736,7 @@ html.indicator-window #root {
 }
 
 .stat-label .icon {
-  color: var(--accent-text);
+  color: var(--grape-text);
 }
 
 .stat-value {
@@ -1780,7 +1778,7 @@ html.indicator-window #root {
 .segmented button[aria-selected="true"] {
   background: var(--bg-elevated);
   color: var(--text);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .chart-card {
@@ -1807,7 +1805,7 @@ html.indicator-window #root {
   height: 100%;
   display: flex;
   align-items: flex-end;
-  border-radius: 4px 4px 0 0;
+  border-radius: 2px 2px 0 0;
 }
 
 .bar-col:hover {
@@ -1816,13 +1814,13 @@ html.indicator-window #root {
 
 .bar {
   width: 100%;
-  border-radius: 4px 4px 1px 1px;
-  background: var(--brand);
+  border-radius: 2px 2px 0 0;
+  background: var(--sky);
   transition: height 0.35s cubic-bezier(0.3, 0.7, 0.4, 1);
 }
 
 .bar.meetings {
-  background: var(--green);
+  background: var(--grape);
 }
 
 .axis {
@@ -1889,7 +1887,7 @@ html.indicator-window #root {
 }
 
 .talk-bar .others {
-  background: var(--brand);
+  background: var(--others);
 }
 
 .legend {
@@ -1897,11 +1895,11 @@ html.indicator-window #root {
 }
 
 .legend.me {
-  color: var(--me);
+  color: var(--sky-text);
 }
 
 .legend.others {
-  color: var(--accent-text);
+  color: var(--grape-text);
 }
 
 .hours-bars {
@@ -1923,8 +1921,8 @@ html.indicator-window #root {
 
 .hour > div {
   width: 100%;
-  background: var(--accent);
-  border-radius: 3px;
+  background: var(--sky);
+  border-radius: 2px;
 }
 
 .insights-footer {
@@ -1956,13 +1954,13 @@ html.indicator-window #root {
 .app-badge {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: var(--radius);
   display: grid;
   place-items: center;
   font-size: 12px;
   font-weight: 700;
-  color: var(--accent-text);
-  background: var(--accent-soft);
+  color: var(--grape-text);
+  background: var(--bg-active);
 }
 
 .app-name {
@@ -1982,7 +1980,7 @@ html.indicator-window #root {
 .app-bar > div {
   height: 100%;
   border-radius: 8px;
-  background: var(--brand);
+  background: var(--sky);
 }
 
 .app-words {

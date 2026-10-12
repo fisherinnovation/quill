@@ -259,7 +259,7 @@ function ProgressBanner({ progress, onRetry }: { progress: Progress; onRetry: ()
   }
   return (
     <div className="banner info">
-      <span className="spinner" style={{ color: "var(--accent-text)" }} />
+      <span className="spinner" style={{ color: "var(--grape-text)" }} />
       <div className="banner-text">
         {progress.message ?? STAGE_TEXT[progress.stage]}
         {progress.fraction != null && ` · ${Math.round(progress.fraction * 100)}%`}…
