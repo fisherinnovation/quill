@@ -1,6 +1,6 @@
 [package]
 name = "quill-insert"
-description = "Types text into the focused app: clipboard + simulated paste, restoring the clipboard"
+description = "Types text into the focused app (clipboard + simulated paste), identifies that app, and watches the macOS fn key"
 version.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 arboard.workspace = true
 enigo.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
@@ -19,6 +20,9 @@ workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+# The fn key: a keyboard event tap on its own run loop.
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFMachPort", "CFRunLoop"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }

@@ -41,7 +41,7 @@ export function AccessCheck({ onResult, framed = true }: { onResult?: (report: A
         <Row
           icon="speaker"
           label="System audio"
-          what="The call, labelled “Others”"
+          what="The call audio"
           track={report?.system_audio}
           running={running}
           missing={

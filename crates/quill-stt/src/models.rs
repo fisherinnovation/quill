@@ -208,6 +208,11 @@ impl ModelInfo {
         models_dir.join(self.file_name)
     }
 
+    /// Where a download in progress is written, until its checksum passes.
+    pub fn part_path_in(&self, models_dir: &Path) -> PathBuf {
+        self.path_in(models_dir).with_extension("bin.part")
+    }
+
     /// True if the file exists with the expected size. (Hashing a 3 GB file on
     /// every run would be slow, so the full checksum is only done on download.)
     pub fn is_downloaded(&self, models_dir: &Path) -> bool {
@@ -242,7 +247,7 @@ pub fn download(
 
     // Write to a `.part` file and rename only after the checksum passes, so a
     // cancelled or corrupt download never looks like a usable model.
-    let part_path = final_path.with_extension("bin.part");
+    let part_path = model.part_path_in(models_dir);
     let result = download_to(model, &part_path, &mut on_progress);
     if let Err(e) = result {
         let _ = fs::remove_file(&part_path);

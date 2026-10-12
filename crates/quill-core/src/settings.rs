@@ -41,13 +41,17 @@ pub struct Settings {
     pub dictation: DictationSettings,
 }
 
+/// `DictationSettings::hotkey` value meaning the fn (🌐) key on its own
+/// (macOS only).
+pub const FN_HOTKEY: &str = "Fn";
+
 /// Global-hotkey dictation (M6).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DictationSettings {
     pub enabled: bool,
-    /// Global shortcut, e.g. "Alt+Space". Hold it to talk, or tap it to
-    /// start and tap again to stop.
+    /// Global shortcut, e.g. "Alt+Space", or [`FN_HOTKEY`] for the fn key on
+    /// macOS. Hold it to talk, or tap it to start and tap again to stop.
     pub hotkey: String,
     /// Spoken language: a code like "en", "auto" to detect it each time
     /// (adds ~0.5 s), or `None` for the system language.

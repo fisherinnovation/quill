@@ -217,6 +217,7 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - [ ] Code signing + notarization (macOS: Developer ID, set `APPLE_SIGNING_IDENTITY` in `app/scripts/package-macos.sh`, plus notarytool), signing (Windows).
 - [ ] Auto-update (`tauri-plugin-updater`).
 - [ ] Crash/error logging to a local file; opt-in only for anything remote.
+- [x] Models on a fresh install: onboarding offers the download (size shown, progress, can continue meanwhile); the dictation shortcut never starts a silent download, it opens the Dictation page with progress instead; Settings → Models lists and downloads models, and deletes or re-downloads any of them (or all), including those in use, with a confirmation; the loaded Whisper model is released so the next use loads the fresh copy. All downloads go through one queue (`app/src-tauri/src/models.rs`), so two features never write the same file.
 - [ ] Data retention settings (auto-delete audio after N days, keep transcripts).
 
 ### Stretch goals

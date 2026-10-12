@@ -63,7 +63,7 @@ never transcripts, notes, dictated text or keys.
 |---|---|
 | Microphone | Recording your side of meetings, and dictation. |
 | System audio recording (macOS) | Recording the call. Windows needs no permission for this. |
-| Accessibility (macOS) | Simulating ⌘V to paste dictated text. Without it, text is left on the clipboard. |
+| Accessibility (macOS) | Simulating ⌘V to paste dictated text. Without it, text is left on the clipboard. With fn as the dictation key, also watching for fn being pressed: Quill looks only at whether fn is down and whether another key was pressed with it, never at which keys or what's typed. |
 
 For dictation, Quill reads the frontmost app's identifier and name, never its
 windows or contents. Dictated text passes through the clipboard: it's marked

@@ -83,6 +83,9 @@ export function App() {
         }
       }),
       events.onDictation(setDictation),
+      events.onNavigate((view) => {
+        if (view === "dictation" || view === "settings" || view === "insights") setView({ kind: view });
+      }),
     ];
     return () => {
       unlisten.forEach((u) => void u.then((f) => f()));

@@ -12,6 +12,7 @@ mod commands;
 mod dictation;
 mod indicator;
 mod logging;
+mod models;
 mod onboarding;
 mod pipeline;
 mod recorder;
@@ -28,6 +29,9 @@ use quill_core::settings::Settings;
 use tauri::Manager;
 
 /// Shared state, available to every command via `tauri::State<AppState>`.
+/// Asks the UI to show a view (`"dictation"`, `"settings"`).
+pub const NAVIGATE_EVENT: &str = "navigate";
+
 pub struct AppState {
     pub data_dir: PathBuf,
     pub library: Library,
@@ -46,6 +50,8 @@ pub struct AppState {
     /// Set while recordings are moving to a new folder; recording and
     /// processing wait for it.
     pub moving: AtomicBool,
+    /// Model downloads in progress.
+    pub downloads: models::Downloads,
 }
 
 // `expect` is allowed here only: if the data directory or database can't be
@@ -74,6 +80,7 @@ fn main() {
             tray: Mutex::new(None),
             openrouter_key: Mutex::new(None),
             moving: AtomicBool::new(false),
+            downloads: models::Downloads::default(),
         })
         // Native open/save dialogs, used from Rust only (see storage.rs).
         .plugin(tauri_plugin_dialog::init())
@@ -130,11 +137,19 @@ fn main() {
             commands::stop_recording,
             commands::process_meeting,
             commands::split_speakers,
+            models::models_info,
+            models::download_needed_models,
+            models::download_model,
+            models::delete_model,
+            models::redownload_model,
+            models::delete_all_models,
+            models::show_models_dir,
             commands::rename_speaker,
             commands::openrouter_key_status,
             commands::set_openrouter_key,
             commands::delete_openrouter_key,
             storage::storage_info,
+            storage::footprint,
             storage::choose_recordings_dir,
             storage::reset_recordings_dir,
             storage::show_recordings_dir,
@@ -155,6 +170,8 @@ fn main() {
             dictation::request_paste_permission,
             dictation::system_language,
             dictation::dictation_apps,
+            dictation::globe_key_action,
+            dictation::open_keyboard_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Quill");

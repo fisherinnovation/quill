@@ -16,6 +16,8 @@
 //! fall back to leaving the text on the clipboard.
 
 mod app;
+#[cfg(target_os = "macos")]
+pub mod fn_key;
 
 pub use app::{FrontApp, frontmost_app};
 

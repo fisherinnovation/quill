@@ -850,7 +850,9 @@ mark {
   margin-top: 6px;
 }
 
-.progress > div {
+.progress > div,
+.progress > span {
+  display: block;
   height: 100%;
   background: var(--sky);
   border-radius: 4px;
@@ -1582,6 +1584,32 @@ button.hotkey {
   height: 32px;
 }
 
+/* Dictation shortcut on macOS: fn, or a recorded shortcut */
+.shortcut-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcut-choice .or {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.shortcut-choice button.hotkey {
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.shortcut-choice button.hotkey:not(.selected):not(.capturing) {
+  opacity: 0.6;
+}
+
+.shortcut-choice button.hotkey.selected:not(.capturing) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 button.hotkey.capturing {
   border-color: var(--sky-text);
   box-shadow: 0 0 0 3px var(--sky-soft);
@@ -2093,4 +2121,125 @@ html.indicator-window #root {
   font-variant-numeric: tabular-nums;
   min-width: 80px;
   text-align: right;
+}
+
+/* Models (Settings) and the speech-model download (onboarding, Dictation) */
+.model-progress {
+  display: block;
+}
+
+.model-progress .progress {
+  display: block;
+  max-width: 280px;
+}
+
+.model-tag {
+  margin-left: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.model-download {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.model-download > div {
+  flex: 1;
+}
+
+.model-download p {
+  margin: 2px 0 0;
+}
+
+.model-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 4px;
+}
+
+.model-confirm .row-hint {
+  margin: 0;
+}
+
+/* Settings → Storage: Quill's disk footprint */
+.footprint .row-label {
+  width: 100%;
+}
+
+.footprint .row-label > span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.footprint-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin: 8px 0 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-active);
+}
+
+.footprint-bar span {
+  min-width: 3px;
+}
+
+.footprint-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.footprint-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footprint-legend b {
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.footprint-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.fp-recordings {
+  background: var(--sky);
+}
+
+.fp-models {
+  background: var(--grape);
+}
+
+.fp-library {
+  background: var(--accent);
+}
+
+.fp-logs {
+  background: var(--spk-3);
+}
+
+.fp-app {
+  background: var(--slate);
 }

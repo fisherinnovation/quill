@@ -45,6 +45,13 @@ pub struct LoadedTranscriber {
     transcriber: Arc<WhisperTranscriber>,
 }
 
+impl LoadedTranscriber {
+    /// The Whisper model's short name, e.g. `turbo`.
+    pub fn model_name(&self) -> &str {
+        &self.model
+    }
+}
+
 /// What to do after transcribing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Steps {
@@ -382,22 +389,20 @@ pub fn transcriber(
     Ok(transcriber)
 }
 
+/// Downloads `model` if needed (see `models::ensure`), showing progress on
+/// meeting `id` too, if given.
 fn ensure_downloaded(
     app: &AppHandle,
     id: Option<&str>,
-    model: &ModelInfo,
+    model: &'static ModelInfo,
 ) -> Result<std::path::PathBuf, String> {
-    let dir = quill_core::paths::models_dir().ok_or("no home directory")?;
-    if model.is_downloaded(&dir) {
-        return Ok(model.path_in(&dir));
-    }
     let message = Some(if speakers::required_models().contains(&model) {
         "Downloading the voice models".to_string()
     } else {
         format!("Downloading the {} speech model", model.name)
     });
     let mut last = -1.0;
-    models::download(model, &dir, |done, total| {
+    crate::models::ensure(app, model, |done, total| {
         let fraction = done as f64 / total.max(1) as f64;
         // Throttle: one event per percent.
         if fraction - last >= 0.01 {
@@ -407,7 +412,6 @@ fn ensure_downloaded(
             }
         }
     })
-    .map_err(|e| e.to_string())
 }
 
 fn emit(app: &AppHandle, id: &str, stage: Stage, fraction: Option<f64>, message: Option<String>) {

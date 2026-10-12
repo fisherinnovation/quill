@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, errorText, fileManager, fileSize, type Settings, type StorageInfo } from "../api";
+import { ModelsGroup } from "./Models";
+import { api, errorText, events, type Footprint, fileManager, fileSize, type Settings, type StorageInfo } from "../api";
 import { AccessCheck } from "./AccessCheck";
 import { Icon } from "./Icon";
 import { Group, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
@@ -17,6 +18,8 @@ const STT_MODELS: [string, string][] = [
 export function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped when models are deleted, so the disk footprint updates.
+  const [diskVersion, setDiskVersion] = useState(0);
   const saveState = useAutosave(settings, api.saveSettings);
 
   useEffect(() => {
@@ -109,7 +112,9 @@ export function SettingsView() {
         )}
       </Group>
 
-      <Storage />
+      <ModelsGroup settings={settings} onChanged={() => setDiskVersion((v) => v + 1)} />
+
+      <Storage version={diskVersion} />
 
       <section className="group">
         <h2 className="group-title">Audio access</h2>
@@ -129,10 +134,62 @@ export function SettingsView() {
 }
 
 /** Where meeting audio lives. Changes apply immediately. */
-function Storage() {
+const FOOTPRINT_LABELS: Record<Footprint["parts"][number]["key"], string> = {
+  recordings: "Meeting audio",
+  models: "Models",
+  library: "Notes, transcripts and settings",
+  logs: "Logs",
+  app: "Quill itself",
+};
+
+/** Everything Quill keeps on disk, as one number and a bar by part. */
+function DiskFootprint({ version }: { version: number }) {
+  const [footprint, setFootprint] = useState<Footprint | null>(null);
+  useEffect(() => {
+    void api.footprint().then(setFootprint).catch(() => setFootprint(null));
+  }, [version]);
+  // Downloads change it too.
+  useEffect(() => {
+    const unlisten = events.onModelDownload((p) => {
+      if (p.finished) void api.footprint().then(setFootprint);
+    });
+    return () => void unlisten.then((f) => f());
+  }, []);
+  if (!footprint) return null;
+  const parts = footprint.parts.filter((p) => p.bytes > 0);
+  return (
+    <div className="row footprint">
+      <div className="row-label">
+        <span>Quill uses {fileSize(footprint.total)}</span>
+        <div className="footprint-bar" role="img" aria-label={`Disk use: ${fileSize(footprint.total)}`}>
+          {parts.map((p) => (
+            <span
+              key={p.key}
+              className={`fp-${p.key}`}
+              style={{ flexGrow: p.bytes }}
+              title={`${FOOTPRINT_LABELS[p.key]}: ${fileSize(p.bytes)}`}
+            />
+          ))}
+        </div>
+        <div className="footprint-legend">
+          {parts.map((p) => (
+            <span key={p.key}>
+              <i className={`fp-${p.key}`} />
+              {FOOTPRINT_LABELS[p.key]} <b>{fileSize(p.bytes)}</b>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Storage({ version }: { version: number }) {
   const [info, setInfo] = useState<StorageInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Bumped after recordings move.
+  const [moves, setMoves] = useState(0);
 
   useEffect(() => {
     api
@@ -148,6 +205,7 @@ function Storage() {
       const moved = await action();
       if (moved) {
         setInfo(moved);
+        setMoves((n) => n + 1);
         setMessage("Recordings moved.");
       }
     } catch (e) {
@@ -159,6 +217,7 @@ function Storage() {
 
   return (
     <Group title="Storage">
+      <DiskFootprint version={version + moves} />
       <div className="row">
         <div className="access-icon">
           <Icon name="folder" size={17} />

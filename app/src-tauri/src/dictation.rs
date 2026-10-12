@@ -23,7 +23,7 @@ use quill_audio::cue::{self, Cue};
 use quill_audio::live::MicStream;
 use quill_core::dictation;
 use quill_core::library::{DictationEntry, DictationStat};
-use quill_core::settings::{DictationSettings, Style};
+use quill_core::settings::{DictationSettings, FN_HOTKEY, Style};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
@@ -43,6 +43,10 @@ const MAX_LISTEN: Duration = Duration::from_secs(5 * 60);
 const KEEP_WARM: Duration = Duration::from_secs(30);
 /// Clips shorter than this are accidental taps.
 const MIN_AUDIO: Duration = Duration::from_millis(400);
+/// fn waits this long before listening, so fn+Delete, fn+arrows and the
+/// like (a key within this time) don't start and cancel a dictation each
+/// time. The microphone's pre-roll covers the delay when it's warm.
+const FN_GRACE: Duration = Duration::from_millis(150);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +67,15 @@ enum Msg {
     Pressed,
     Released,
     Cancel,
+    /// The fn key (macOS), with its grace period: see [`FN_GRACE`]. Only
+    /// the macOS fn-key watcher sends these.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    FnDown,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    FnUp,
+    /// A key pressed while fn was held: a shortcut, not dictation.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    FnCombo,
     /// (Re)register the hotkey from settings; replies with the outcome.
     Register(mpsc::Sender<Result<(), String>>),
 }
@@ -80,6 +93,8 @@ struct Shared {
     error: Mutex<Option<String>>,
     /// The registered hotkey, to tell its events from Esc's.
     hotkey: Mutex<Option<Shortcut>>,
+    /// Set while the fn key is the trigger and being watched.
+    fn_watching: AtomicBool,
 }
 
 impl Dictation {
@@ -92,11 +107,13 @@ impl Dictation {
             pending: AtomicUsize::new(0),
             error: Mutex::new(None),
             hotkey: Mutex::new(None),
+            fn_watching: AtomicBool::new(false),
         });
         let thread_shared = Arc::clone(&shared);
+        let thread_tx = tx.clone();
         let spawned = std::thread::Builder::new()
             .name("quill-dictation".into())
-            .spawn(move || Controller::new(app, thread_shared).run(&rx));
+            .spawn(move || Controller::new(app, thread_shared, thread_tx).run(&rx));
         if let Err(e) = spawned {
             tracing::error!("could not start dictation: {e}");
         }
@@ -117,6 +134,22 @@ impl Dictation {
 
     pub fn state(&self) -> DictationState {
         self.shared.state()
+    }
+
+    /// If the fn key is the trigger but couldn't be watched (no
+    /// Accessibility access yet), tries again. Blocking.
+    pub fn retry_fn_key(&self, app: &AppHandle) {
+        let wants_fn = {
+            let state = app.state::<AppState>();
+            let settings = lock(&state.settings);
+            settings.dictation.enabled && settings.dictation.hotkey == FN_HOTKEY
+        };
+        if wants_fn
+            && !self.shared.fn_watching.load(Ordering::SeqCst)
+            && let Err(e) = self.register()
+        {
+            tracing::warn!("fn key still unavailable: {e}");
+        }
     }
 
     /// Called by the global-shortcut plugin, on the main thread: only
@@ -164,9 +197,16 @@ fn escape() -> Shortcut {
 struct Controller {
     app: AppHandle,
     shared: Arc<Shared>,
+    /// For the fn-key watcher (macOS) to send to.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    tx: mpsc::Sender<Msg>,
     mic: Option<MicStream>,
     last_used: Instant,
     listening: Option<Listening>,
+    /// When fn went down, while waiting out [`FN_GRACE`].
+    fn_pending: Option<Instant>,
+    #[cfg(target_os = "macos")]
+    fn_key: Option<quill_insert::fn_key::FnKey>,
 }
 
 struct Listening {
@@ -178,27 +218,32 @@ struct Listening {
 }
 
 impl Controller {
-    fn new(app: AppHandle, shared: Arc<Shared>) -> Self {
+    fn new(app: AppHandle, shared: Arc<Shared>, tx: mpsc::Sender<Msg>) -> Self {
         Self {
             app,
             shared,
+            tx,
             mic: None,
             last_used: Instant::now(),
             listening: None,
+            fn_pending: None,
+            #[cfg(target_os = "macos")]
+            fn_key: None,
         }
     }
 
     fn run(mut self, rx: &mpsc::Receiver<Msg>) {
         loop {
-            // While listening, wake often to feed the indicator's meter.
-            let tick = if self.listening.is_some() {
+            // While listening, wake often to feed the indicator's meter (and
+            // while fn's grace period runs).
+            let tick = if self.listening.is_some() || self.fn_pending.is_some() {
                 Duration::from_millis(50)
             } else {
                 Duration::from_millis(250)
             };
             match rx.recv_timeout(tick) {
                 Ok(Msg::Pressed) => match &self.listening {
-                    None => self.start(),
+                    None => self.start(Instant::now()),
                     Some(l) if l.toggled => self.stop(),
                     // Key repeat while held.
                     Some(_) => {}
@@ -215,8 +260,49 @@ impl Controller {
                     }
                 }
                 Ok(Msg::Cancel) => self.cancel(),
+                Ok(Msg::FnDown) => match &self.listening {
+                    // A tap started it: this press stops it.
+                    Some(l) if l.toggled => self.stop(),
+                    Some(_) => {}
+                    None => self.fn_pending = Some(Instant::now()),
+                },
+                Ok(Msg::FnUp) => {
+                    if let Some(since) = self.fn_pending.take() {
+                        // Released within the grace period: a tap, which
+                        // starts hands-free listening.
+                        self.start(since);
+                        if let Some(l) = &mut self.listening {
+                            l.toggled = true;
+                        }
+                    } else if let Some(l) = &mut self.listening
+                        && !l.toggled
+                    {
+                        if l.since.elapsed() >= HOLD {
+                            self.stop();
+                        } else {
+                            l.toggled = true;
+                        }
+                    }
+                }
+                Ok(Msg::FnCombo) => {
+                    // Within the grace period nothing started; after it,
+                    // drop the dictation this press began.
+                    if self.fn_pending.take().is_none()
+                        && self.listening.as_ref().is_some_and(|l| !l.toggled)
+                    {
+                        self.cancel();
+                    }
+                }
                 Ok(Msg::Register(reply)) => {
                     let _ = reply.send(self.register());
+                }
+                Err(RecvTimeoutError::Timeout) if self.fn_pending.is_some() => {
+                    if let Some(since) = self.fn_pending
+                        && since.elapsed() >= FN_GRACE
+                    {
+                        self.fn_pending = None;
+                        self.start(since);
+                    }
                 }
                 Err(RecvTimeoutError::Timeout) => match &self.listening {
                     Some(l) if l.since.elapsed() >= MAX_LISTEN => self.stop(),
@@ -237,6 +323,7 @@ impl Controller {
         let settings = lock(&self.app.state::<AppState>().settings)
             .dictation
             .clone();
+        self.set_fn_key(false);
         let shortcuts = self.app.global_shortcut();
         if let Some(old) = lock(&self.shared.hotkey).take() {
             let _ = shortcuts.unregister(old);
@@ -244,6 +331,9 @@ impl Controller {
         if !settings.enabled {
             self.mic = None;
             return Ok(());
+        }
+        if settings.hotkey == FN_HOTKEY {
+            return self.use_fn_key();
         }
         let hotkey: Shortcut = settings
             .hotkey
@@ -260,7 +350,21 @@ impl Controller {
         Ok(())
     }
 
-    fn start(&mut self) {
+    /// Starts listening; `since` is when the key went down.
+    fn start(&mut self, since: Instant) {
+        // Never start a 1.5 GB download silently from a key press: start it,
+        // and bring up the Dictation page, where its progress shows.
+        let settings = lock(&self.app.state::<AppState>().settings).clone();
+        let missing = crate::models::missing_for_dictation(&settings);
+        if !missing.is_empty() {
+            tracing::info!("dictation needs models that aren't downloaded yet");
+            crate::models::download_in_background(&self.app, missing);
+            crate::tray::show_window(&self.app);
+            let _ = self.app.emit(crate::NAVIGATE_EVENT, "dictation");
+            // The Dictation page shows the download's progress.
+            cue::play(Cue::Cancel);
+            return;
+        }
         if self.mic.as_ref().is_none_or(|m| !m.is_healthy()) {
             self.mic = None;
             match MicStream::open() {
@@ -278,7 +382,7 @@ impl Controller {
         cue::play(Cue::Start);
         *lock(&self.shared.error) = None;
         self.listening = Some(Listening {
-            since: Instant::now(),
+            since,
             toggled: false,
             app: quill_insert::frontmost_app(),
         });
@@ -289,6 +393,43 @@ impl Controller {
             tracing::debug!("couldn't bind Esc to cancel: {e}");
         }
         notify(&self.app, &self.shared);
+    }
+
+    /// Watches the fn key (starting the watcher the first time).
+    #[cfg(target_os = "macos")]
+    fn use_fn_key(&mut self) -> Result<(), String> {
+        if self.fn_key.is_none() {
+            let tx = self.tx.clone();
+            let key = quill_insert::fn_key::FnKey::watch(move |event| {
+                use quill_insert::fn_key::FnEvent;
+                let _ = tx.send(match event {
+                    FnEvent::Down => Msg::FnDown,
+                    FnEvent::Up => Msg::FnUp,
+                    FnEvent::Combo => Msg::FnCombo,
+                });
+            })
+            .map_err(|e| e.to_string())?;
+            self.fn_key = Some(key);
+        }
+        self.set_fn_key(true);
+        tracing::info!("dictation uses the fn key");
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn use_fn_key(&mut self) -> Result<(), String> {
+        Err("the fn key can only be the dictation shortcut on macOS".into())
+    }
+
+    fn set_fn_key(&mut self, on: bool) {
+        #[cfg(target_os = "macos")]
+        if let Some(key) = &self.fn_key {
+            key.set_active(on);
+        }
+        self.fn_pending = None;
+        self.shared
+            .fn_watching
+            .store(on && cfg!(target_os = "macos"), Ordering::SeqCst);
     }
 
     fn stop(&mut self) {
@@ -565,8 +706,17 @@ pub fn clear_dictations(state: tauri::State<'_, AppState>) -> CommandResult<()> 
 
 /// Whether Quill may simulate the paste keystroke (macOS Accessibility).
 #[tauri::command]
-pub async fn paste_permission() -> CommandResult<bool> {
-    blocking(|| Ok(quill_insert::can_simulate_paste(false))).await
+pub async fn paste_permission(app: AppHandle) -> CommandResult<bool> {
+    blocking(move || {
+        let allowed = quill_insert::can_simulate_paste(false);
+        // The fn key needs the same permission: once it's granted, start
+        // watching fn if that's the shortcut.
+        if allowed {
+            app.state::<Dictation>().retry_fn_key(&app);
+        }
+        Ok(allowed)
+    })
+    .await
 }
 
 /// Shows macOS's own "allow in System Settings" prompt for Accessibility
@@ -634,4 +784,35 @@ pub fn dictation_apps(state: tauri::State<'_, AppState>) -> CommandResult<Vec<Ap
 #[tauri::command]
 pub fn system_language() -> Option<String> {
     dictation::language(None)
+}
+
+/// What macOS does on its own when fn / 🌐 is pressed (Keyboard settings →
+/// "Press 🌐 key to"), which also happens when fn triggers dictation.
+/// `None` off macOS.
+#[tauri::command]
+pub async fn globe_key_action() -> CommandResult<Option<String>> {
+    #[cfg(target_os = "macos")]
+    {
+        blocking(|| {
+            let action = quill_insert::fn_key::globe_action();
+            Ok(serde_json::to_value(action)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned)))
+        })
+        .await
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(None)
+    }
+}
+
+/// Opens macOS Keyboard settings, where "Press 🌐 key to" is.
+#[tauri::command]
+pub fn open_keyboard_settings() -> CommandResult<()> {
+    tauri_plugin_opener::open_url(
+        "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
+        None::<&str>,
+    )
+    .map_err(|e| CommandError::Other(e.to_string()))
 }

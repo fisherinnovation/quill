@@ -30,6 +30,97 @@ pub async fn storage_info(app: AppHandle) -> CommandResult<StorageInfo> {
     blocking(move || Ok(info(&app.state::<AppState>()))).await
 }
 
+/// One part of Quill's disk footprint.
+#[derive(Debug, Clone, Serialize)]
+pub struct FootprintPart {
+    /// `recordings`, `models`, `library`, `logs` or `app`.
+    pub key: &'static str,
+    pub bytes: u64,
+}
+
+/// Everything Quill keeps on disk.
+#[derive(Debug, Clone, Serialize)]
+pub struct Footprint {
+    pub total: u64,
+    pub parts: Vec<FootprintPart>,
+}
+
+/// How much disk space Quill takes, by part. Walks the folders, so it runs
+/// off the main thread.
+#[tauri::command]
+pub async fn footprint(app: AppHandle) -> CommandResult<Footprint> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let data = &state.data_dir;
+        let recordings = state.library.recordings_dir();
+        let models = quill_core::paths::models_dir().unwrap_or_else(|| data.join("models"));
+        let logs = crate::logging::dir(data);
+        // The library: the database and settings, i.e. whatever else is in
+        // the data folder.
+        let library: u64 = std::fs::read_dir(data)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| ![&recordings, &models, &logs].contains(&&e.path()))
+                    .map(|e| match e.file_type() {
+                        Ok(t) if t.is_dir() => dir_size(&e.path()),
+                        Ok(_) => e.metadata().map_or(0, |m| m.len()),
+                        Err(_) => 0,
+                    })
+                    .sum()
+            })
+            .unwrap_or(0);
+        let parts = vec![
+            FootprintPart {
+                key: "recordings",
+                bytes: dir_size(&recordings),
+            },
+            FootprintPart {
+                key: "models",
+                bytes: dir_size(&models),
+            },
+            FootprintPart {
+                key: "library",
+                bytes: library,
+            },
+            FootprintPart {
+                key: "logs",
+                bytes: dir_size(&logs),
+            },
+            FootprintPart {
+                key: "app",
+                bytes: app_size(),
+            },
+        ];
+        Ok(Footprint {
+            total: parts.iter().map(|p| p.bytes).sum(),
+            parts,
+        })
+    })
+    .await
+}
+
+/// Size of the installed app: the `.app` bundle on macOS, the install
+/// folder on Windows (recognised by its uninstaller). Running from a build
+/// folder, just the executable.
+fn app_size() -> u64 {
+    let Ok(exe) = std::env::current_exe() else {
+        return 0;
+    };
+    if let Some(bundle) = exe
+        .ancestors()
+        .find(|p| p.extension().is_some_and(|e| e == "app"))
+    {
+        return dir_size(bundle);
+    }
+    if let Some(dir) = exe.parent()
+        && dir.join("uninstall.exe").is_file()
+    {
+        return dir_size(dir);
+    }
+    std::fs::metadata(&exe).map_or(0, |m| m.len())
+}
+
 /// Asks for a new recordings folder and moves every meeting's audio there.
 /// Returns `None` if the user cancelled.
 #[tauri::command]

@@ -146,7 +146,7 @@ The first build compiles whisper.cpp and takes several minutes; later builds are
 
 1. A welcome screen explains what Quill records, then runs an **access check**: a few seconds of recording plus a short chime, which also brings up the permission prompts. Allow **Microphone** and **System Audio Recording**.
 2. For dictation, open **Dictation** and click **Allow…** to grant **Accessibility**, which Quill needs to paste for you. Without it, dictated text is left on your clipboard.
-3. The speech models download automatically the first time they're needed: `turbo` (1.5 GB) and the Silero VAD model (1 MB), from Hugging Face, each checked against its SHA-256 hash.
+3. The welcome screen also offers to download the models (about 1.7 GB): Whisper `turbo` (1.5 GB), the Silero VAD model (1 MB), and the speaker models (46 MB). They come from Hugging Face, and each is checked against its SHA-256 hash. If you skip that, they download the first time they're needed; pressing the dictation shortcut before then opens the Dictation page with the download's progress. **Settings → Models** shows what's downloaded and how much space it takes. You can delete any model (one Quill uses downloads again when next needed), re-download one that seems damaged (a fresh copy, checked against its hash again), or delete them all. Models live outside the app, so updates don't download them again.
 4. For summaries, add an OpenRouter key in **Settings**, or choose a local Ollama model (see below).
 
 ## Using Quill
@@ -171,6 +171,8 @@ Put your cursor in any text field, then:
 
 - **Hold** <kbd>⌥ Option</kbd> + <kbd>Space</kbd> while you speak and let go to type, or
 - **Tap** it, speak, and tap again.
+
+On macOS you can use <kbd>fn</kbd> (🌐) on its own instead: choose **fn** under **Dictation → Shortcut**. fn with another key (fn+Delete, fn+arrows, fn+F-keys) keeps working as usual. If macOS's own **Press 🌐 key to** setting isn't **Do Nothing**, pressing fn also opens the emoji picker or switches the input source; the Dictation page links to that setting. Using fn needs the same Accessibility permission as pasting.
 
 Press <kbd>Esc</kbd> to cancel. A pill near the bottom of the screen shows the mic level while listening and "Typing…" while processing.
 
@@ -227,6 +229,8 @@ cargo run --release -p quill-cli -- --help
 The CLI and the app share one library, so meetings recorded or imported in either appear in both.
 
 ## Where your data lives
+
+**Settings → Storage** shows how much space Quill takes in total, split into meeting audio, models, notes and transcripts, logs, and the app itself.
 
 | | macOS | Windows |
 |---|---|---|

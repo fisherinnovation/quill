@@ -180,6 +180,42 @@ export interface Progress {
   message: string | null;
 }
 
+/** Quill's disk footprint, by part. */
+export interface Footprint {
+  total: number;
+  parts: { key: "recordings" | "models" | "library" | "logs" | "app"; bytes: number }[];
+}
+
+export interface ModelEntry {
+  name: string;
+  kind: "speech" | "vad" | "speakers";
+  description: string;
+  size_bytes: number;
+  downloaded: boolean;
+  /** Needed by the saved settings. */
+  in_use: boolean;
+  downloading: boolean;
+  /** One of the models "Tell speakers apart" uses. */
+  for_speakers: boolean;
+}
+
+export interface ModelsInfo {
+  dir: string;
+  models: ModelEntry[];
+  bytes_on_disk: number;
+  /** Still to download for the saved settings. */
+  missing_bytes: number;
+}
+
+/** A `model-download` event. */
+export interface DownloadProgress {
+  name: string;
+  done: number;
+  total: number;
+  finished: boolean;
+  error: string | null;
+}
+
 export const api = {
   listMeetings: () => invoke<Meeting[]>("list_meetings"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
@@ -206,6 +242,17 @@ export const api = {
   chooseRecordingsDir: () => invoke<StorageInfo | null>("choose_recordings_dir"),
   resetRecordingsDir: () => invoke<StorageInfo>("reset_recordings_dir"),
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
+  modelsInfo: () => invoke<ModelsInfo>("models_info"),
+  footprint: () => invoke<Footprint>("footprint"),
+  /** Downloads what the saved settings need, in the background. */
+  downloadNeededModels: () => invoke<void>("download_needed_models"),
+  downloadModel: (name: string) => invoke<void>("download_model", { name }),
+  /** Models the settings use download again when next needed. */
+  deleteModel: (name: string) => invoke<ModelsInfo>("delete_model", { name }),
+  /** Deletes the model and downloads a fresh, hash-checked copy in the background. */
+  redownloadModel: (name: string) => invoke<ModelsInfo>("redownload_model", { name }),
+  deleteAllModels: () => invoke<ModelsInfo>("delete_all_models"),
+  showModelsDir: () => invoke<void>("show_models_dir"),
   showLogs: () => invoke<void>("show_logs"),
   getInsights: () => invoke<Insights>("get_insights"),
   resetDictationStats: () => invoke<void>("reset_dictation_stats"),
@@ -227,6 +274,12 @@ export const api = {
   requestPastePermission: () => invoke<boolean>("request_paste_permission"),
   systemLanguage: () => invoke<string | null>("system_language"),
   dictationApps: () => invoke<AppStyleInfo[]>("dictation_apps"),
+  /** macOS's own action for fn / 🌐 ("Press 🌐 key to"); null off macOS. */
+  globeKeyAction: () =>
+    invoke<"nothing" | "change_input_source" | "show_emoji" | "start_dictation" | "default" | null>(
+      "globe_key_action",
+    ),
+  openKeyboardSettings: () => invoke<void>("open_keyboard_settings"),
 };
 
 export const isMac = navigator.userAgent.includes("Mac");
@@ -243,12 +296,20 @@ export const events = {
     listen<DictationState>("dictation-state", (e) => cb(e.payload)),
   onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
+  onModelDownload: (cb: (p: DownloadProgress) => void): Promise<UnlistenFn> =>
+    listen<DownloadProgress>("model-download", (e) => cb(e.payload)),
+  /** The backend asks to show a view, e.g. "dictation". */
+  onNavigate: (cb: (view: string) => void): Promise<UnlistenFn> =>
+    listen<string>("navigate", (e) => cb(e.payload)),
   /** Mic peak 0..1, sent only to the indicator window while listening. */
   onLevel: (cb: (level: number) => void): Promise<UnlistenFn> =>
     listen<number>("dictation-level", (e) => cb(e.payload)),
 };
 
 /** "Alt+Space" → "⌥ Space" on macOS; unchanged elsewhere. */
+/** `DictationSettings.hotkey` for the fn (🌐) key on its own (macOS). */
+export const FN_HOTKEY = "Fn";
+
 export function hotkeyLabel(hotkey: string): string {
   if (!isMac) return hotkey.replace(/\+/g, " + ");
   const symbols: Record<string, string> = {
@@ -263,6 +324,7 @@ export function hotkeyLabel(hotkey: string): string {
     meta: "⌘",
     commandorcontrol: "⌘",
     cmdorctrl: "⌘",
+    fn: "fn",
   };
   return hotkey
     .split("+")

@@ -3,8 +3,10 @@
 // main.tsx loads this only in dev builds and only outside Tauri.
 //
 // URL flags pick a state: ?onboarding, ?recording, ?listening, ?processing,
-// ?failed, ?nopaste, ?empty, ?light to force the light theme, and ?indicator
-// for the dictation pill (with ?listening or ?processing).
+// ?failed, ?nopaste, ?empty, ?light to force the light theme, ?indicator
+// for the dictation pill (with ?listening or ?processing), ?others for a
+// call not yet split into speakers, ?nomodels for a fresh install, and ?fn
+// for fn as the dictation key.
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
@@ -83,7 +85,7 @@ const settings = {
   onboarded: !flags.has("onboarding"),
   dictation: {
     enabled: true,
-    hotkey: "Alt+Space",
+    hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
     language: null,
     polish: true,
     polish_model: "google/gemini-3.5-flash-lite",
@@ -99,6 +101,51 @@ const dictations = [
   { id: 2, created_at: iso(40 * 60_000), text: "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", raw: "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 9100, latency_ms: 980, pasted: true, app: "Notion" },
   { id: 1, created_at: iso(3 * H), text: "Let's meet at 4 p.m. on Thursday in the big conference room.", raw: "Let's meet at 3, no wait, 4 p.m. on Thursday in the big conference room.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 6100, latency_ms: 940, pasted: false, app: "Mail" },
 ];
+
+const fresh = flags.has("nomodels");
+let models = [
+  ["turbo", "speech", "large-v3 with a 4-layer decoder; near large-v3 accuracy, much faster", 1_624_555_275, !fresh, true, false],
+  ["small", "speech", "244M params", 487_601_967, !fresh, false, false],
+  ["vad", "vad", "Silero VAD v6.2: skips silence so Whisper doesn't invent text", 885_098, !fresh, true, false],
+  ["segmentation", "speakers", "pyannote segmentation 3.0: where speaker turns are", 5_992_913, !fresh, true, true],
+  ["voice-titanet-small", "speakers", "NVIDIA NeMo TitaNet small (CC BY 4.0)", 40_257_283, !fresh, true, true],
+  ["voice-eres2net", "speakers", "3D-Speaker ERes2Net, VoxCeleb (Apache-2.0)", 26_485_263, !fresh, false, false],
+].map(([name, kind, description, size_bytes, downloaded, in_use, for_speakers]) => ({
+  name,
+  kind,
+  description,
+  size_bytes,
+  downloaded,
+  in_use,
+  for_speakers,
+  downloading: false,
+})) as { name: string; kind: string; description: string; size_bytes: number; downloaded: boolean; in_use: boolean; for_speakers: boolean; downloading: boolean }[];
+
+function modelsInfo() {
+  return {
+    dir: "/Users/you/Library/Application Support/com.fisherinnovation.Quill/models",
+    models,
+    bytes_on_disk: models.filter((m) => m.downloaded).reduce((n, m) => n + m.size_bytes, 0),
+    missing_bytes: models.filter((m) => m.in_use && !m.downloaded).reduce((n, m) => n + m.size_bytes, 0),
+  };
+}
+
+/** Pretends to download, sending model-download events over a few seconds. */
+async function fakeDownload(names: string[]) {
+  for (const name of names) {
+    const model = models.find((m) => m.name === name);
+    if (!model || model.downloaded) continue;
+    model.downloading = true;
+    for (let i = 1; i <= 20; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      const done = Math.round((model.size_bytes * i) / 20);
+      await emit("model-download", { name, done, total: model.size_bytes, finished: false, error: null });
+    }
+    model.downloading = false;
+    model.downloaded = true;
+    await emit("model-download", { name, done: model.size_bytes, total: model.size_bytes, finished: true, error: null });
+  }
+}
 
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_meetings: () => meetings,
@@ -132,6 +179,39 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   stop_recording: () => "m1",
   process_meeting: () => null,
   split_speakers: () => null,
+  models_info: () => modelsInfo(),
+  footprint: () => {
+    const parts = [
+      { key: "recordings", bytes: 3_412_000_000 },
+      { key: "models", bytes: modelsInfo().bytes_on_disk },
+      { key: "library", bytes: 2_400_000 },
+      { key: "logs", bytes: 380_000 },
+      { key: "app", bytes: 54_000_000 },
+    ];
+    return { total: parts.reduce((n, p) => n + p.bytes, 0), parts };
+  },
+  download_needed_models: () => {
+    void fakeDownload(models.filter((m) => m.in_use && !m.downloaded).map((m) => m.name));
+  },
+  download_model: ({ name }) => {
+    void fakeDownload([String(name)]);
+  },
+  delete_model: ({ name }) => {
+    models = models.map((m) => (m.name === name ? { ...m, downloaded: false } : m));
+    return modelsInfo();
+  },
+  redownload_model: ({ name }) => {
+    models = models.map((m) => (m.name === name ? { ...m, downloaded: false } : m));
+    void fakeDownload([String(name)]);
+    return modelsInfo();
+  },
+  delete_all_models: () => {
+    models = models.map((m) => ({ ...m, downloaded: false }));
+    return modelsInfo();
+  },
+  show_models_dir: () => null,
+  globe_key_action: () => "default",
+  open_keyboard_settings: () => null,
   rename_speaker: ({ from, to }) => {
     SEGMENTS = SEGMENTS.map((seg) => (seg.speaker === from ? { ...seg, speaker: String(to) } : seg));
   },

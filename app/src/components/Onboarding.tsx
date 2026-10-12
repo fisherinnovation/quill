@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, errorText, isMac, type AccessReport } from "../api";
 import { AccessCheck } from "./AccessCheck";
 import { Icon, Logo } from "./Icon";
+import { ModelDownload } from "./Models";
 
 /** First-run screen: what Quill records, and getting the permissions granted. */
 export function Onboarding({ onDone }: { onDone: () => void }) {
@@ -36,7 +37,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             </div>
             <div>
               <strong>Your microphone becomes “Me”</strong>
-              <p>And the call audio becomes “Others”, so the notes know who said what.</p>
+              <p>And the people on the call are told apart by voice, so the notes know who said what.</p>
             </div>
           </div>
           <div className="feature">
@@ -65,6 +66,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             : "Click Check access to confirm Quill can hear both."}
         </p>
         <AccessCheck onResult={setReport} />
+        <ModelDownload variant="onboarding" />
 
         {error && <p className="error-text small" style={{ marginTop: 10 }}>{error}</p>}
         <div className="onboarding-actions">

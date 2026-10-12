@@ -3,6 +3,7 @@ import {
   api,
   errorText,
   events,
+  FN_HOTKEY,
   hotkeyLabel,
   isMac,
   shortDate,
@@ -14,6 +15,7 @@ import {
   type Replacement,
 } from "../api";
 import { Icon } from "./Icon";
+import { ModelDownload } from "./Models";
 import { Banner, Group, Keys, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
 
 export function DictationView({
@@ -55,6 +57,7 @@ export function DictationView({
       </div>
 
       <Hero state={state} hotkey={settings.hotkey} enabled={settings.enabled} />
+      <ModelDownload variant="banner" />
       {state.error && (
         <Banner kind="error" icon="alert">
           {state.error}
@@ -66,9 +69,21 @@ export function DictationView({
         <Row label="Dictation" hint="Listen for the shortcut in every app.">
           <Switch label="Dictation" checked={settings.enabled} onChange={(enabled) => update({ enabled })} />
         </Row>
-        <Row label="Shortcut" hint="Hold it while you speak, or tap it to start and tap again to stop.">
-          <HotkeyInput value={settings.hotkey} onChange={(hotkey) => update({ hotkey })} />
+        <Row
+          label="Shortcut"
+          hint={
+            settings.hotkey === FN_HOTKEY
+              ? "Hold fn while you speak, or tap it to start and tap again to stop. fn with another key still works as usual."
+              : "Hold it while you speak, or tap it to start and tap again to stop."
+          }
+        >
+          {isMac ? (
+            <ShortcutChoice value={settings.hotkey} onChange={(hotkey) => update({ hotkey })} />
+          ) : (
+            <HotkeyInput value={settings.hotkey} onChange={(hotkey) => update({ hotkey })} />
+          )}
         </Row>
+        {isMac && settings.enabled && settings.hotkey === FN_HOTKEY && <GlobeKeyHint />}
         <Row label="Language">
           <select value={settings.language ?? ""} onChange={(e) => update({ language: e.target.value || null })}>
             <option value="">System language ({languageName(systemLanguage)})</option>
@@ -399,8 +414,85 @@ function AppStyles({
   );
 }
 
+/**
+ * macOS: the fn (🌐) key on its own, or a shortcut. fn can't be recorded
+ * like other keys (macOS reports it only as a modifier), so it's a choice.
+ */
+function ShortcutChoice({ value, onChange }: { value: string; onChange: (hotkey: string) => void }) {
+  const isFn = value === FN_HOTKEY;
+  // The shortcut to go back to when switching away from fn.
+  const [custom, setCustom] = useState(isFn ? "Alt+Space" : value);
+  useEffect(() => {
+    if (value !== FN_HOTKEY) setCustom(value);
+  }, [value]);
+  return (
+    <span className="shortcut-choice" role="group" aria-label="Dictation shortcut">
+      <button type="button" className={`hotkey fn-key${isFn ? " selected" : ""}`} aria-pressed={isFn} onClick={() => onChange(FN_HOTKEY)}>
+        <kbd>fn</kbd>
+      </button>
+      <span className="or">or</span>
+      <HotkeyInput
+        value={custom}
+        selected={!isFn}
+        onStart={() => isFn && onChange(custom)}
+        onChange={onChange}
+      />
+    </span>
+  );
+}
+
+/**
+ * When fn is the shortcut and macOS also acts on 🌐 (emoji picker, input
+ * source, Apple dictation), says so and links to the setting.
+ */
+function GlobeKeyHint() {
+  const [action, setAction] = useState<Awaited<ReturnType<typeof api.globeKeyAction>>>(null);
+  useEffect(() => {
+    const check = () => void api.globeKeyAction().then(setAction);
+    check();
+    // Re-check when coming back from System Settings.
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, []);
+  if (action === null || action === "nothing") return null;
+  const what = {
+    change_input_source: "switches the input source",
+    show_emoji: "opens the emoji picker",
+    start_dictation: "starts Apple's dictation",
+    default: "may open the emoji picker or switch the input source",
+  }[action];
+  return (
+    <Row
+      label={
+        <span className="row-gap">
+          <Icon name="alert" size={14} /> macOS also uses fn
+        </span>
+      }
+      hint={
+        <>
+          Pressing fn on its own also {what}. To use it only for Quill, set <strong>Press 🌐 key to</strong> to{" "}
+          <strong>Do Nothing</strong> in Keyboard settings.
+        </>
+      }
+    >
+      <button onClick={() => void api.openKeyboardSettings()}>Open Keyboard Settings</button>
+    </Row>
+  );
+}
+
 /** Click, then press the new shortcut. Esc cancels. */
-function HotkeyInput({ value, onChange }: { value: string; onChange: (hotkey: string) => void }) {
+function HotkeyInput({
+  value,
+  onChange,
+  selected,
+  onStart,
+}: {
+  value: string;
+  onChange: (hotkey: string) => void;
+  /** In a choice (ShortcutChoice): whether this is the one in use. */
+  selected?: boolean;
+  onStart?: () => void;
+}) {
   const [capturing, setCapturing] = useState(false);
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
@@ -424,9 +516,13 @@ function HotkeyInput({ value, onChange }: { value: string; onChange: (hotkey: st
   return (
     <button
       type="button"
-      className={`hotkey${capturing ? " capturing" : ""}`}
+      className={`hotkey${capturing ? " capturing" : ""}${selected ? " selected" : ""}`}
+      aria-pressed={selected}
       title={capturing ? undefined : `${hotkeyLabel(value)}: click to change`}
-      onClick={() => setCapturing(true)}
+      onClick={() => {
+        onStart?.();
+        setCapturing(true);
+      }}
       onBlur={() => setCapturing(false)}
       onKeyDown={onKeyDown}
     >
