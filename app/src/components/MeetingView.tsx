@@ -122,8 +122,8 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
             ) : (
               <>
                 {!recording && !busy && segments.length === 0 && (
-                  <button className="primary" onClick={() => process(true)}>
-                    <Icon name="text" size={14} /> Transcribe
+                  <button className={meeting.empty ? undefined : "primary"} onClick={() => process(true)}>
+                    <Icon name="text" size={14} /> {meeting.empty ? "Transcribe again" : "Transcribe"}
                   </button>
                 )}
                 {!recording && !busy && segments.length > 0 && (
@@ -197,6 +197,36 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
           </Banner>
         ))}
       {recording && <RecordingBanner state={recording} />}
+      {meeting.empty && !recording && !busy && (
+        <Banner
+          kind="info"
+          icon="info"
+          action={
+            <>
+              <button
+                onClick={async () => {
+                  await api.keepEmptyRecording(id);
+                  setDetail({ ...detail, meeting: { ...meeting, empty: false } });
+                  onChanged();
+                }}
+              >
+                Keep
+              </button>
+              <button
+                className="danger"
+                onClick={async () => {
+                  await api.deleteMeeting(id);
+                  onDeleted();
+                }}
+              >
+                Delete recording
+              </button>
+            </>
+          }
+        >
+          Nothing was said in this recording, so there's nothing to transcribe or summarize.
+        </Banner>
+      )}
       {progress && progress.stage !== "done" && (
         <ProgressBanner progress={progress} onRetry={() => process(segments.length === 0)} />
       )}
@@ -220,11 +250,21 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
         ) : (
           <Placeholder
             icon="sparkle"
-            title={recording ? "Notes come after the call" : busy ? "Working on it…" : "No summary yet"}
+            title={
+              recording
+                ? "Notes come after the call"
+                : busy
+                  ? "Working on it…"
+                  : meeting.empty
+                    ? "Nothing was said"
+                    : "No summary yet"
+            }
             text={
               recording
                 ? "When you stop recording, Quill transcribes the call on this Mac and writes the summary."
-                : segments.length > 0
+                : meeting.empty
+                  ? "Quill didn't hear any speech in this recording."
+                  : segments.length > 0
                   ? "Summarize the transcript to get decisions, action items and key points."
                   : "Transcribe this recording first."
             }
@@ -234,7 +274,9 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
       {tab === "transcript" && segments.length > 0 && !recording && (
         <SpeakerBar segments={segments} busy={busy} onRename={renameSpeaker} onSplit={splitSpeakers} />
       )}
-      {tab === "transcript" && <Transcript segments={segments} jumpTo={jumpTo} recording={!!recording} />}
+      {tab === "transcript" && (
+        <Transcript segments={segments} jumpTo={jumpTo} recording={!!recording} empty={meeting.empty} />
+      )}
     </article>
   );
 }
@@ -301,10 +343,13 @@ function Transcript({
   segments,
   jumpTo,
   recording,
+  empty,
 }: {
   segments: MeetingDetail["segments"];
   jumpTo?: number;
   recording: boolean;
+  /** Transcribed, and nothing was said. */
+  empty: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
   const paragraphs = useMemo(() => turns(segments), [segments]);
@@ -321,11 +366,13 @@ function Transcript({
     return (
       <Placeholder
         icon="text"
-        title={recording ? "Listening…" : "Not transcribed yet"}
+        title={recording ? "Listening…" : empty ? "Nothing was said" : "Not transcribed yet"}
         text={
           recording
             ? "The transcript appears here after you stop recording."
-            : "Transcription runs on this Mac; the audio never leaves it."
+            : empty
+              ? "Quill didn't hear any speech in this recording."
+              : "Transcription runs on this Mac; the audio never leaves it."
         }
       />
     );

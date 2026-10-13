@@ -44,9 +44,19 @@ export function Group({ title, children }: { title?: string; children: ReactNode
 }
 
 /** One setting: label and hint on the left, the control on the right. */
-export function Row({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children?: ReactNode }) {
+export function Row({
+  label,
+  hint,
+  children,
+  className,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="row">
+    <div className={className ? `row ${className}` : "row"}>
       <div className="row-label">
         <span>{label}</span>
         {hint && <p className="row-hint">{hint}</p>}

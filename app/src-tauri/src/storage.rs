@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 
 use quill_core::library::export_file_name;
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FileDialogBuilder};
 
 use crate::AppState;
@@ -28,6 +28,68 @@ pub struct StorageInfo {
 #[tauri::command]
 pub async fn storage_info(app: AppHandle) -> CommandResult<StorageInfo> {
     blocking(move || Ok(info(&app.state::<AppState>()))).await
+}
+
+/// Recordings with nothing said in them.
+#[derive(Debug, Clone, Serialize)]
+pub struct EmptyRecordings {
+    pub count: usize,
+    pub bytes: u64,
+}
+
+/// Empty meetings that aren't recording or being processed right now.
+fn empty_meeting_ids(state: &AppState) -> CommandResult<Vec<String>> {
+    let recording = lock(&state.recording)
+        .as_ref()
+        .map(|r| r.meeting_id.clone());
+    let processing = lock(&state.processing).clone();
+    Ok(state
+        .library
+        .list()?
+        .into_iter()
+        .filter(|m| m.empty && Some(&m.id) != recording.as_ref() && !processing.contains(&m.id))
+        .map(|m| m.id)
+        .collect())
+}
+
+#[tauri::command]
+pub async fn empty_recordings(app: AppHandle) -> CommandResult<EmptyRecordings> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let ids = empty_meeting_ids(&state)?;
+        Ok(EmptyRecordings {
+            count: ids.len(),
+            bytes: ids
+                .iter()
+                .map(|id| dir_size(&state.library.meeting_dir(id)))
+                .sum(),
+        })
+    })
+    .await
+}
+
+/// Deletes every recording with nothing said in it, audio included.
+/// Returns how many were deleted.
+#[tauri::command]
+pub async fn delete_empty_recordings(app: AppHandle) -> CommandResult<usize> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let ids = empty_meeting_ids(&state)?;
+        for id in &ids {
+            state.library.delete(id)?;
+        }
+        tracing::info!(count = ids.len(), "deleted empty recordings");
+        // The meeting list changed outside the meeting view.
+        let _ = app.emit(crate::LIBRARY_EVENT, ());
+        Ok(ids.len())
+    })
+    .await
+}
+
+/// Keeps a recording with nothing said in it: it stops being flagged.
+#[tauri::command]
+pub fn keep_empty_recording(state: tauri::State<'_, AppState>, id: String) -> CommandResult<()> {
+    Ok(state.library.keep_empty(&id)?)
 }
 
 /// One part of Quill's disk footprint.

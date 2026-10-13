@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
-import { ModelPicker } from "./ModelPicker";
 import { ModelsGroup } from "./Models";
-import { api, errorText, events, type Footprint, fileManager, fileSize, type Settings, type StorageInfo } from "../api";
+import {
+  api,
+  errorText,
+  events,
+  type Footprint,
+  fileManager,
+  fileSize,
+  isMac,
+  type KeySource,
+  keyStore,
+  type Settings,
+  type StorageInfo,
+} from "../api";
 import { AccessCheck } from "./AccessCheck";
 import { Icon } from "./Icon";
 import { Group, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
 
-const STT_MODELS: [string, string][] = [
-  ["turbo", "Turbo (recommended)"],
-  ["turbo-q5", "Turbo, compact"],
-  ["large-v3", "Large v3 (most accurate, slower)"],
-  ["medium", "Medium"],
-  ["small", "Small"],
-  ["base", "Base"],
-  ["tiny", "Tiny (fastest)"],
-];
 
 export function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -33,7 +35,11 @@ export function SettingsView() {
   if (!settings) return error ? <div className="page error-text">{error}</div> : null;
 
   const update = (patch: Partial<Settings>) => setSettings({ ...settings, ...patch });
-  const local = settings.summary_model.startsWith("ollama:");
+  // What sends text to OpenRouter right now (the rest runs on Ollama).
+  const viaOpenRouter = [
+    !settings.summary_model.startsWith("ollama:") && "meeting notes",
+    settings.dictation.polish && !settings.dictation.polish_model.startsWith("ollama:") && "dictation clean-up",
+  ].filter((x): x is string => typeof x === "string");
 
   return (
     <div className="page settings">
@@ -44,15 +50,6 @@ export function SettingsView() {
       </div>
 
       <Group title="Transcription">
-        <Row label="Speech model" hint="Runs on this Mac. Bigger models are slower and more accurate.">
-          <select value={settings.stt_model} onChange={(e) => update({ stt_model: e.target.value })}>
-            {STT_MODELS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Row>
         <Row label="Meeting language">
           <select value={settings.language ?? ""} onChange={(e) => update({ language: e.target.value || null })}>
             <option value="">Detect automatically</option>
@@ -86,34 +83,27 @@ export function SettingsView() {
             onChange={(auto_summarize) => update({ auto_summarize })}
           />
         </Row>
-        <Row
-          label="Model"
-          hint={
-            local
-              ? "Writes the notes on this computer with Ollama."
-              : "Via OpenRouter. Only the transcript is sent, never audio."
-          }
-        >
-          <ModelPicker
-            purpose="summary"
-            value={settings.summary_model}
-            onChange={(summary_model) => update({ summary_model })}
-          />
-        </Row>
-        {!local && (
-          <>
-            <ApiKey />
-            <Row
-              label="Zero data retention only"
-              hint="Stricter than the default (providers that don't store or train on data); fewer models qualify."
-            >
-              <Switch label="Zero data retention only" checked={settings.zdr} onChange={(zdr) => update({ zdr })} />
-            </Row>
-          </>
-        )}
       </Group>
 
-      <ModelsGroup settings={settings} onChanged={() => setDiskVersion((v) => v + 1)} />
+      <Group title="OpenRouter">
+        <Row
+          label="Used for"
+          hint={
+            viaOpenRouter.length > 0
+              ? `${viaOpenRouter.join(" and ").replace(/^./, (c) => c.toUpperCase())}, as set under Models below. Only text is sent, never audio, and only to providers that don't store or train on it.`
+              : "Nothing right now: meeting notes and dictation clean-up both run on this computer with Ollama."
+          }
+        />
+        <ApiKey />
+        <Row
+          label="Zero data retention only"
+          hint="Stricter than the default (providers that don't store or train on data); fewer models qualify."
+        >
+          <Switch label="Zero data retention only" checked={settings.zdr} onChange={(zdr) => update({ zdr })} />
+        </Row>
+      </Group>
+
+      <ModelsGroup settings={settings} update={update} onChanged={() => setDiskVersion((v) => v + 1)} />
 
       <Storage version={diskVersion} />
 
@@ -185,6 +175,63 @@ function DiskFootprint({ version }: { version: number }) {
   );
 }
 
+/** Recordings with nothing said in them, to delete in one go. */
+function EmptyRecordings({ onDeleted }: { onDeleted: () => void }) {
+  const [empty, setEmpty] = useState<{ count: number; bytes: number } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.emptyRecordings().then(setEmpty);
+  }, []);
+
+  if (message) {
+    return (
+      <div className="row">
+        <div className="row-label">
+          <p className="row-hint" style={{ marginTop: 0 }}>
+            {message}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  if (!empty || empty.count === 0) return null;
+  const what = empty.count === 1 ? "1 recording" : `${empty.count} recordings`;
+  return (
+    <Row
+      label={`${what} with nothing said`}
+      hint={
+        confirming
+          ? `Deletes ${empty.count === 1 ? "it" : "them"} and the audio (${fileSize(empty.bytes)}). This can't be undone.`
+          : `Quill heard no speech in ${empty.count === 1 ? "it" : "them"}. They take ${fileSize(empty.bytes)}.`
+      }
+    >
+      {confirming ? (
+        <span className="row-gap">
+          <button onClick={() => setConfirming(false)}>Cancel</button>
+          <button
+            className="danger"
+            onClick={async () => {
+              try {
+                const n = await api.deleteEmptyRecordings();
+                setMessage(`Deleted ${n === 1 ? "1 empty recording" : `${n} empty recordings`}.`);
+                onDeleted();
+              } catch (e) {
+                setMessage(errorText(e));
+              }
+            }}
+          >
+            Delete {what}
+          </button>
+        </span>
+      ) : (
+        <button onClick={() => setConfirming(true)}>Delete…</button>
+      )}
+    </Row>
+  );
+}
+
 function Storage({ version }: { version: number }) {
   const [info, setInfo] = useState<StorageInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -219,6 +266,7 @@ function Storage({ version }: { version: number }) {
   return (
     <Group title="Storage">
       <DiskFootprint version={version + moves} />
+      <EmptyRecordings onDeleted={() => setMoves((n) => n + 1)} />
       <div className="row">
         <div className="access-icon">
           <Icon name="folder" size={17} />
@@ -271,12 +319,12 @@ function Storage({ version }: { version: number }) {
 /**
  * OpenRouter key: kept in the OS keychain, never shown again.
  *
- * Opening Settings never touches the keychain: on macOS even checking
- * whether the key is there can ask for your password. Only replacing or
- * removing the key, after clicking Change key…, does.
+ * On macOS, opening Settings never touches the keychain: even checking
+ * whether the key is there can ask for your password, so its status may be
+ * unknown. Only replacing or removing the key does. Windows reports it.
  */
 function ApiKey() {
-  const [source, setSource] = useState<"environment" | "keychain" | "unknown" | "none" | null>(null);
+  const [source, setSource] = useState<KeySource | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -298,7 +346,7 @@ function ApiKey() {
       setDraft("");
       setSource("keychain");
       setEditing(false);
-      setMessage("Saved to your keychain.");
+      setMessage(`Saved to your ${keyStore}.`);
     } catch (e) {
       setMessage(errorText(e));
     } finally {
@@ -313,7 +361,7 @@ function ApiKey() {
       const removed = await api.deleteOpenrouterKey();
       setSource("none");
       setEditing(false);
-      setMessage(removed ? "Key removed from your keychain." : "There was no key in your keychain.");
+      setMessage(removed ? `Key removed from your ${keyStore}.` : `There was no key in your ${keyStore}.`);
     } catch (e) {
       setMessage(errorText(e));
     } finally {
@@ -325,18 +373,21 @@ function ApiKey() {
     source === "environment"
       ? "Provided by the QUILL_OPENROUTER_API_KEY environment variable."
       : source === "keychain"
-        ? "Stored in your keychain."
+        ? `Stored in your ${keyStore}.`
         : source === "none"
-          ? "Not set. Create one at openrouter.ai/keys."
-          : "Kept in your keychain once added. Quill reads it only to write notes or tidy dictation.";
+          ? "Meeting notes and dictation clean-up with OpenRouter models need one."
+          : `Kept in your ${keyStore} once added. Quill reads it only to write notes or tidy dictation.`;
 
   if (editing) {
     return (
       <div className="row">
         <div className="row-label">
-          <span>OpenRouter API key</span>
+          <span>API key</span>
           <p className="row-hint">
-            {message ?? "Paste a new key to replace the current one. macOS may ask for your password."}
+            {message ??
+              (source === "none"
+                ? `Paste your OpenRouter key. It's kept in your ${keyStore}.`
+                : `Paste a new key to replace the current one.${isMac ? " macOS may ask for your password." : ""}`)}
           </p>
         </div>
         <div className="row-control">
@@ -357,9 +408,11 @@ function ApiKey() {
           <button className="primary" disabled={busy || !draft.trim()} onClick={() => void save()}>
             Save
           </button>
-          <button className="ghost" disabled={busy} onClick={() => void remove()} title="Remove the key from your keychain">
-            Remove
-          </button>
+          {source !== "none" && (
+            <button className="ghost" disabled={busy} onClick={() => void remove()} title={`Remove the key from your ${keyStore}`}>
+              Remove
+            </button>
+          )}
           <button className="ghost" disabled={busy} onClick={() => setEditing(false)}>
             Cancel
           </button>
@@ -371,24 +424,31 @@ function ApiKey() {
     <div className="row">
       <div className="row-label">
         <span className="row-gap">
-          OpenRouter API key
+          API key
           {(source === "keychain" || source === "environment") && (
             <span className="pill green">
               <Icon name="lock" size={11} /> Set
             </span>
           )}
+          {source === "none" && <span className="pill amber">Not set</span>}
         </span>
         <p className="row-hint">{message ?? status}</p>
       </div>
       {source !== "environment" && (
         <div className="row-control">
+          {source === "none" && (
+            <button className="link" onClick={() => void api.openLink("openrouter_keys")}>
+              Get a key <Icon name="external" size={12} />
+            </button>
+          )}
           <button
+            className={source === "none" ? "primary" : undefined}
             onClick={() => {
               setMessage(null);
               setEditing(true);
             }}
           >
-            {source === "none" ? "Add key…" : "Change key…"}
+            {source === "none" ? "Add key…" : source === "unknown" ? "Add or change key…" : "Change key…"}
           </button>
         </div>
       )}

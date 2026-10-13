@@ -115,6 +115,8 @@ pub enum Link {
     ReportProblem,
     Security,
     License,
+    /// Where to create an OpenRouter API key.
+    OpenrouterKeys,
 }
 
 impl Link {
@@ -125,6 +127,7 @@ impl Link {
             Link::ReportProblem => format!("{REPOSITORY}/issues/new"),
             Link::Security => format!("{REPOSITORY}/blob/main/SECURITY.md"),
             Link::License => format!("{REPOSITORY}#license"),
+            Link::OpenrouterKeys => "https://openrouter.ai/keys".to_string(),
         }
     }
 }

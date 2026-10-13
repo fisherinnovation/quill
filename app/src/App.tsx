@@ -14,20 +14,20 @@ import { SettingsView } from "./components/SettingsView";
 import { RecordButton } from "./components/RecordButton";
 import { Onboarding } from "./components/Onboarding";
 import { DictationView } from "./components/DictationView";
+import { HomeView } from "./components/HomeView";
 import { InsightsView } from "./components/InsightsView";
-import { Icon, Logo } from "./components/Icon";
-import { Banner, Keys } from "./components/ui";
+import { Banner } from "./components/ui";
 
 type View =
   | { kind: "meeting"; id: string; at?: number }
   | { kind: "settings" }
   | { kind: "dictation" }
   | { kind: "insights" }
-  | { kind: "empty" };
+  | { kind: "home" };
 
 export function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [view, setView] = useState<View>({ kind: "empty" });
+  const [view, setView] = useState<View>({ kind: "home" });
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState<RecordingState>({
     recording: false,
@@ -35,7 +35,6 @@ export function App() {
     elapsed_ms: 0,
   });
   const [dictation, setDictation] = useState<DictationState>({ phase: "idle", error: null });
-  const [hotkey, setHotkey] = useState("Alt+Space");
   // Latest progress per meeting (absent = idle).
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // Bumped when a meeting's data changes on the Rust side, so views refetch.
@@ -59,7 +58,6 @@ export function App() {
       .getSettings()
       .then((s) => {
         setOnboarded(s.onboarded);
-        setHotkey(s.dictation.hotkey);
       })
       .catch(() => setOnboarded(true));
   }, [refresh]);
@@ -83,21 +81,23 @@ export function App() {
         }
       }),
       events.onDictation(setDictation),
+      // Meetings deleted elsewhere (e.g. Settings → Storage): leave a
+      // meeting that's gone for Home.
+      events.onLibraryChanged(async () => {
+        const list = await api.listMeetings();
+        setMeetings(list);
+        setView((v) => (v.kind === "meeting" && !list.some((m) => m.id === v.id) ? { kind: "home" } : v));
+      }),
       events.onNavigate((view) => {
-        if (view === "dictation" || view === "settings" || view === "insights") setView({ kind: view });
+        if (view === "home" || view === "dictation" || view === "settings" || view === "insights") {
+          setView({ kind: view });
+        }
       }),
     ];
     return () => {
       unlisten.forEach((u) => void u.then((f) => f()));
     };
   }, [refresh]);
-
-  // Open the newest meeting on first load.
-  useEffect(() => {
-    if (view.kind === "empty" && meetings.length > 0) {
-      setView({ kind: "meeting", id: meetings[0].id });
-    }
-  }, [meetings, view.kind]);
 
   if (onboarded === null) return null;
   if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />;
@@ -112,6 +112,7 @@ export function App() {
         dictation={dictation.phase}
         onSelect={(id, at) => setView({ kind: "meeting", id, at })}
         onSettings={() => setView({ kind: "settings" })}
+        onHome={() => setView({ kind: "home" })}
         onDictation={() => setView({ kind: "dictation" })}
         onInsights={() => setView({ kind: "insights" })}
         current={view.kind}
@@ -145,35 +146,27 @@ export function App() {
               progress={progress[view.id]}
               onChanged={refresh}
               onDeleted={async () => {
-                setView({ kind: "empty" });
+                setView({ kind: "home" });
                 await refresh();
               }}
             />
           )}
           {view.kind === "settings" && <SettingsView />}
           {view.kind === "insights" && <InsightsView />}
-          {view.kind === "dictation" && <DictationView state={dictation} onHotkeyChange={setHotkey} />}
-          {view.kind === "empty" && <Empty hotkey={hotkey} />}
+          {view.kind === "dictation" && <DictationView state={dictation} />}
+          {view.kind === "home" && (
+            <HomeView
+              meetings={meetings}
+              progress={progress}
+              recording={recording}
+              dictation={dictation.phase}
+              onSelect={(id) => setView({ kind: "meeting", id })}
+              onDictation={() => setView({ kind: "dictation" })}
+              onInsights={() => setView({ kind: "insights" })}
+            />
+          )}
         </div>
       </main>
-    </div>
-  );
-}
-
-function Empty({ hotkey }: { hotkey: string }) {
-  return (
-    <div className="empty">
-      <Logo size={64} />
-      <h2>Your meetings will appear here</h2>
-      <p>Press Record when a call starts. Quill captures your microphone and the call audio, then writes the notes.</p>
-      <div className="hints">
-        <div className="hint">
-          <span className="rec-dot" style={{ color: "var(--red)" }} /> Record from the sidebar or the menu-bar icon
-        </div>
-        <div className="hint">
-          <Icon name="mic" size={15} /> Dictate anywhere: hold <Keys hotkey={hotkey} /> and speak
-        </div>
-      </div>
     </div>
   );
 }

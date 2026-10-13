@@ -13,7 +13,7 @@ welcome.
   glance over anything you paste.
 - **Features and larger changes:** open an issue first to discuss the
   approach, so your time isn't spent on something that doesn't fit. The
-  design notes in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md) explain why
+  design notes in [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md) explain why
   things are the way they are.
 - **Security issues:** don't open a public issue. See [SECURITY.md](SECURITY.md).
 
@@ -108,8 +108,8 @@ light and dark themes.
   scope (`feat(dictation): …`).
 - In the description, say what changed and why, how you tested it (and on
   which OS), and anything a reviewer should look at closely.
-- Update the README or [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md) when
-  behaviour or decisions change.
+- Update the README when behaviour changes, and
+  [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md) when decisions do.
 
 ## Licensing of contributions
 

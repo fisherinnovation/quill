@@ -10,6 +10,8 @@ export interface Meeting {
   duration_ms: number;
   has_transcript: boolean;
   has_summary: boolean;
+  /** Transcribed, and nothing was said (unless the user chose to keep it). */
+  empty: boolean;
 }
 
 export interface Segment {
@@ -215,7 +217,7 @@ export interface AboutInfo {
 }
 
 /** Pages the app links to; the URLs live in Rust (about.rs). */
-export type AboutLink = "repository" | "releases" | "report_problem" | "security" | "license";
+export type AboutLink = "repository" | "releases" | "report_problem" | "security" | "license" | "openrouter_keys";
 
 /** Model choices for summaries or clean-up (see llm_models.rs). */
 export interface ModelChoices {
@@ -287,7 +289,8 @@ export const api = {
   renameSpeaker: (id: string, from: string, to: string) => invoke<void>("rename_speaker", { id, from, to }),
   /** "keychain" | "environment", or null if no key is configured. Never reads the key. */
   /** Never touches the keychain (which can prompt for the password on macOS). */
-  openrouterKeyStatus: () => invoke<"environment" | "keychain" | "unknown">("openrouter_key_status"),
+  /** "unknown" only on macOS, before the key has been read this session. */
+  openrouterKeyStatus: () => invoke<KeySource>("openrouter_key_status"),
   setOpenrouterKey: (key: string) => invoke<void>("set_openrouter_key", { key }),
   /** False if there was no key to remove. May show the keychain prompt. */
   deleteOpenrouterKey: () => invoke<boolean>("delete_openrouter_key"),
@@ -298,6 +301,12 @@ export const api = {
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
   modelsInfo: () => invoke<ModelsInfo>("models_info"),
   footprint: () => invoke<Footprint>("footprint"),
+  /** Recordings with nothing said in them (not recording or processing). */
+  emptyRecordings: () => invoke<{ count: number; bytes: number }>("empty_recordings"),
+  /** Deletes them all, audio included; returns how many. */
+  deleteEmptyRecordings: () => invoke<number>("delete_empty_recordings"),
+  /** Keeps one: it stops being flagged as empty. */
+  keepEmptyRecording: (id: string) => invoke<void>("keep_empty_recording", { id }),
   modelChoices: (purpose: "summary" | "cleanup") => invoke<ModelChoices>("model_choices", { purpose }),
   aboutInfo: () => invoke<AboutInfo>("about_info"),
   openLink: (link: AboutLink) => invoke<void>("open_link", { link }),
@@ -348,6 +357,11 @@ export const api = {
 export const isMac = navigator.userAgent.includes("Mac");
 /** The OS file manager's name, for "Show in …" buttons. */
 export const fileManager = isMac ? "Finder" : "Explorer";
+/** Where API keys are kept, as the OS calls it. */
+export const keyStore = isMac ? "keychain" : "Windows Credential Manager";
+
+/** Where the OpenRouter key comes from, as far as Quill knows. */
+export type KeySource = "environment" | "keychain" | "none" | "unknown";
 
 // Events emitted by the Rust side (see commands.rs / pipeline.rs).
 export const events = {
@@ -361,6 +375,8 @@ export const events = {
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
   onModelDownload: (cb: (p: DownloadProgress) => void): Promise<UnlistenFn> =>
     listen<DownloadProgress>("model-download", (e) => cb(e.payload)),
+  /** The meeting list changed outside the meeting view. */
+  onLibraryChanged: (cb: () => void): Promise<UnlistenFn> => listen<null>("library-changed", () => cb()),
   /** The backend asks to show a view, e.g. "dictation". */
   onNavigate: (cb: (view: string) => void): Promise<UnlistenFn> =>
     listen<string>("navigate", (e) => cb(e.payload)),

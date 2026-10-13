@@ -20,20 +20,11 @@ import { ModelPicker } from "./ModelPicker";
 import { ModelDownload } from "./Models";
 import { Banner, Group, Keys, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
 
-export function DictationView({
-  state,
-  onHotkeyChange,
-}: {
-  state: DictationState;
-  onHotkeyChange: (hotkey: string) => void;
-}) {
+export function DictationView({ state }: { state: DictationState }) {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [systemLanguage, setSystemLanguage] = useState<string | null>(null);
-  const saveState = useAutosave(settings, async (s) => {
-    await api.saveDictationSettings(s);
-    onHotkeyChange(s.hotkey);
-  });
+  const saveState = useAutosave(settings, api.saveDictationSettings);
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   // Bumped when a suggestion changes the vocabulary or replacements, so

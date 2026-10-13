@@ -19,6 +19,7 @@ interface Props {
   dictation: DictationPhase;
   onSelect: (id: string, atMs?: number) => void;
   onSettings: () => void;
+  onHome: () => void;
   onDictation: () => void;
   onInsights: () => void;
   /** Which main view is showing, to highlight its nav button. */
@@ -35,6 +36,7 @@ export function Sidebar({
   dictation,
   onSelect,
   onSettings,
+  onHome,
   onDictation,
   onInsights,
   current,
@@ -126,6 +128,9 @@ export function Sidebar({
       )}
 
       <nav className="sidebar-nav">
+        <button className={`nav-item${current === "home" ? " selected" : ""}`} onClick={onHome}>
+          <Icon name="home" size={16} /> Home
+        </button>
         <button className={`nav-item${current === "dictation" ? " selected" : ""}`} onClick={onDictation}>
           <Icon name="mic" size={16} /> Dictation
           {dictation === "listening" && (
@@ -150,7 +155,8 @@ export function Sidebar({
   );
 }
 
-function Status({ meeting, progress, recording }: { meeting: Meeting; progress?: Progress; recording: boolean }) {
+/** A meeting's state in a list: recording, working, failed, nothing said, not transcribed. */
+export function Status({ meeting, progress, recording }: { meeting: Meeting; progress?: Progress; recording: boolean }) {
   if (recording) {
     return (
       <span className="status recording dot-sep">
@@ -174,6 +180,7 @@ function Status({ meeting, progress, recording }: { meeting: Meeting; progress?:
     );
   }
   if (progress?.stage === "failed") return <span className="status failed dot-sep">Failed</span>;
+  if (meeting.empty) return <span className="status pending dot-sep">Nothing said</span>;
   if (!meeting.has_transcript) return <span className="status pending dot-sep">Not transcribed</span>;
   return null;
 }

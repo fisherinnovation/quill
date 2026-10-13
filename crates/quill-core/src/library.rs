@@ -116,7 +116,20 @@ CREATE TABLE suggestions (
     UNIQUE (kind, from_text, to_text)
 );
 ",
+    "
+-- Recordings with nothing in them: `transcribed` tells \"transcribed, and
+-- nothing was said\" from \"not transcribed yet\"; `keep_empty` is set
+-- when the user chooses to keep such a recording anyway.
+ALTER TABLE meetings ADD COLUMN transcribed INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE meetings ADD COLUMN keep_empty INTEGER NOT NULL DEFAULT 0;
+UPDATE meetings SET transcribed = 1
+WHERE EXISTS (SELECT 1 FROM segments s WHERE s.meeting_id = meetings.id);
+",
 ];
+
+/// The migration that added `meetings.transcribed`; meetings from before it
+/// are checked once for a transcript file (see `Library::init`).
+const TRANSCRIBED_MIGRATION: i64 = 6;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -139,6 +152,8 @@ pub struct Meeting {
     pub duration_ms: u64,
     pub has_transcript: bool,
     pub has_summary: bool,
+    /// Transcribed, and nothing was said (unless the user chose to keep it).
+    pub empty: bool,
 }
 
 /// One stored summary and what produced it.
@@ -298,10 +313,38 @@ impl Library {
                 conn.pragma_update(None, "user_version", version)?;
             }
         }
-        Ok(Self {
+        let library = Self {
             conn: Mutex::new(conn),
             recordings_dir: RwLock::new(recordings_dir),
-        })
+        };
+        if applied < TRANSCRIBED_MIGRATION {
+            library.mark_transcribed_from_files()?;
+        }
+        Ok(library)
+    }
+
+    /// Meetings transcribed before `transcribed` existed but with nothing
+    /// said have no segments, so the migration can't tell them from
+    /// untranscribed ones. The pipeline always writes `transcript.json`
+    /// after transcribing, so its presence settles it.
+    fn mark_transcribed_from_files(&self) -> Result<(), LibraryError> {
+        let ids: Vec<String> = {
+            let conn = self.conn();
+            let mut stmt = conn.prepare("SELECT id FROM meetings WHERE transcribed = 0")?;
+            let rows = stmt.query_map([], |r| r.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for id in ids {
+            if self
+                .meeting_dir(&id)
+                .join(crate::speakers::TRANSCRIPT_FILE)
+                .is_file()
+            {
+                self.conn()
+                    .execute("UPDATE meetings SET transcribed = 1 WHERE id = ?1", [&id])?;
+            }
+        }
+        Ok(())
     }
 
     fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -410,7 +453,14 @@ impl Library {
             duration_ms: 0,
             has_transcript: false,
             has_summary: false,
+            empty: false,
         })
+    }
+
+    /// Keeps a recording with nothing in it: it's no longer flagged as
+    /// empty.
+    pub fn keep_empty(&self, id: &str) -> Result<(), LibraryError> {
+        self.update(id, "UPDATE meetings SET keep_empty = ?2 WHERE id = ?1", 1)
     }
 
     pub fn set_duration(&self, id: &str, duration_ms: u64) -> Result<(), LibraryError> {
@@ -458,7 +508,7 @@ impl Library {
         }
         let end = segments.iter().map(|s| s.end_ms).max().unwrap_or(0);
         tx.execute(
-            "UPDATE meetings SET duration_ms = MAX(duration_ms, ?2) WHERE id = ?1",
+            "UPDATE meetings SET duration_ms = MAX(duration_ms, ?2), transcribed = 1 WHERE id = ?1",
             params![id, to_i64(end)],
         )?;
         tx.commit()?;
@@ -891,7 +941,9 @@ impl Library {
 const MEETING_SELECT: &str = "
     SELECT m.id, m.title, m.started_at, m.duration_ms,
            EXISTS(SELECT 1 FROM segments s WHERE s.meeting_id = m.id),
-           EXISTS(SELECT 1 FROM summaries u WHERE u.meeting_id = m.id)
+           EXISTS(SELECT 1 FROM summaries u WHERE u.meeting_id = m.id),
+           m.transcribed = 1 AND m.keep_empty = 0 AND NOT EXISTS(
+               SELECT 1 FROM segments s WHERE s.meeting_id = m.id AND TRIM(s.text) != '')
     FROM meetings m";
 
 fn meeting_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Meeting> {
@@ -902,6 +954,7 @@ fn meeting_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Meeting> {
         duration_ms: from_i64(r.get(3)?),
         has_transcript: r.get(4)?,
         has_summary: r.get(5)?,
+        empty: r.get(6)?,
     })
 }
 
@@ -1108,6 +1161,32 @@ mod tests {
         assert!(d.meeting.has_transcript && d.meeting.has_summary);
         assert_eq!(d.segments[1].text, "Hi there");
         assert_eq!(d.summaries[0].prompt_version, "summary-v1");
+    }
+
+    #[test]
+    fn recordings_with_nothing_said_are_flagged_until_kept() {
+        let (lib, _dir) = library();
+        let untranscribed = lib.create_meeting().unwrap();
+        let silent = lib.create_meeting().unwrap();
+        let spoken = lib.create_meeting().unwrap();
+        lib.save_transcript(&silent.id, &[]).unwrap();
+        lib.save_transcript(&spoken.id, &[seg(0, "Me", "Hello")])
+            .unwrap();
+        let empty = |id: &str| lib.get(id).unwrap().meeting.empty;
+        assert!(!empty(&untranscribed.id));
+        assert!(empty(&silent.id));
+        assert!(!empty(&spoken.id));
+        lib.keep_empty(&silent.id).unwrap();
+        assert!(!empty(&silent.id));
+
+        // A meeting transcribed before the flag existed: its transcript
+        // file says it was transcribed.
+        let old = lib.create_meeting().unwrap();
+        std::fs::write(lib.meeting_dir(&old.id).join("transcript.json"), "[]").unwrap();
+        assert!(!empty(&old.id));
+        lib.mark_transcribed_from_files().unwrap();
+        assert!(empty(&old.id));
+        assert!(!empty(&untranscribed.id));
     }
 
     #[test]
@@ -1339,6 +1418,7 @@ mod tests {
             duration_ms: 0,
             has_transcript: false,
             has_summary: false,
+            empty: false,
         };
         assert_eq!(
             export_file_name(&meeting("Product sync")),

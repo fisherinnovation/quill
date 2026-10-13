@@ -1,0 +1,208 @@
+# Design notes
+
+Why Quill works the way it does: decisions, measurements and platform
+quirks that the code alone doesn't explain. What Quill does is in the
+[README](../README.md); how to work on it is in
+[CONTRIBUTING.md](../CONTRIBUTING.md). Add a note here when you make a
+decision someone might otherwise undo.
+
+## Workspace
+
+- Logic lives in library crates; the app and `quill-cli` are thin layers
+  over them. The CLI came first, so every stage can be run and measured on
+  its own.
+- The conventions in CONTRIBUTING are enforced as lints in the root
+  `Cargo.toml`: `unsafe_code` is denied, and clippy's `unwrap_used`,
+  `expect_used` and `undocumented_unsafe_blocks` are warnings, which CI's
+  `-D warnings` turns into errors. `clippy.toml` allows unwrap/expect in
+  tests; `main` setup must opt in with a local `#[allow]`.
+- `.gitattributes` forces LF line endings so golden-file tests compare the
+  same on Windows.
+- The app is Tauri v2 with React + TypeScript (Vite). Rust does all the
+  work; the UI calls commands and listens for events.
+- License: MIT OR Apache-2.0, the Rust ecosystem's usual dual license.
+
+## Transcription
+
+- The default model is `turbo` (large-v3-turbo), about 24× real time on an
+  M3 Pro with Metal. `turbo-q5` is just as fast on Metal at a third of the
+  download size.
+- Beam search is the default: greedy decoding sent large-v3 into a
+  repetition loop.
+- The ggml Metal backend compiles its shaders the first time a model loads
+  after a build (~6 s). macOS caches the result; later loads take under 1 s.
+- **whisper.cpp's built-in VAD does nothing through whisper-rs.**
+  whisper.cpp only runs it in `whisper_full()`, and whisper-rs calls
+  `whisper_full_with_state()`. `quill-stt` therefore runs Silero itself
+  (`WhisperVadContext`), packs the speech regions together with 0.1 s gaps,
+  and maps segment times back onto the original audio. The ignored test
+  `vad_prevents_hallucinations_in_silence` guards this.
+- **VAD is on by default.** In 65 s of faint room noise around the JFK
+  clip, every model without VAD invented text ("I'm not sure what you're
+  doing." ×13, "Thank you.") and misplaced timestamps. With VAD the output
+  was clean. On continuous speech VAD costs about 20% speed and doesn't
+  change accuracy. Each track of a two-track meeting is roughly half
+  silence, so it matters there.
+- **Mapping segment times back** snaps a segment's start to the first
+  speech region it substantially overlaps. Whisper often starts a segment in
+  the previous region's trailing silence, which put replies before the
+  questions they answered.
+
+## Capture and echo
+
+- Tracks are saved at the device's native rate as 32-bit float WAV, plus a
+  `recording.json` with each track's device name, lead-in, dropped samples
+  and peak. A peak of exactly 0 is flagged as a likely missing permission.
+- **On macOS, opening a device blocks with no timeout** while a privacy
+  prompt waits for an answer, and fails with "Unknown property" if nobody
+  answers. So the app asks for permissions up front (onboarding), and
+  start/stop run off the main thread.
+- Recording runs on its own thread, controlled through channels (cpal
+  streams aren't guaranteed to be movable between threads).
+- The macOS system-audio tap delivers its first buffer only when something
+  starts playing, then continues through silence. Lead-in padding handles
+  the late start. The shared start time is taken just before the streams
+  start, so time spent on a permission prompt isn't recorded as silence.
+- **Echo cancellation** (`quill_audio::aec`, WebRTC AEC3 via the pure-Rust
+  `sonora` crate) cleans the mic track after recording, with the system
+  track as the reference. On the first real call (ChatGPT voice on
+  speakers, 2:22):
+
+  | | Echo leaked into "Me" words (`eval/bench/echo_leak.py`) | Notes |
+  |---|---:|---|
+  | No AEC | 7.8% | "Me" text all lowercase, no punctuation; a sentence lost |
+  | **AEC (the default)** | **0.0%** | Proper punctuation and capitals; sentence recovered; 13% faster overall |
+  | No AEC + punctuated prompt | 13.8% | Longer segments mixed in more echo |
+  | AEC + punctuated prompt | 0.0% | 30 s+ segments, coarse timestamps, a sentence dropped |
+
+  The missing punctuation came from the echo confusing Whisper, not from
+  Whisper's style, so no initial prompt is used. `transcribe --no-aec`
+  turns AEC off for comparison.
+- A text-level echo filter in `merge_tracks` stays as a second line of
+  defence: a mic segment is dropped when at least 60% of its words appear
+  in overlapping system segments (within ±1.5 s).
+- **Access check** (`quill_audio::check`). macOS reports a denied
+  permission as silence, not an error, so onboarding records 4 s from both
+  sources while playing a quiet chime. The system tap records every
+  process, Quill included, so hearing nothing (not even the chime) means
+  system-audio access was denied; a working mic always picks up some noise.
+- **Storage.** Recording writes about 2 GB per hour; once transcribed, the
+  tracks become 16 kHz mono 16-bit FLAC, about 70 MB per hour. That's the
+  exact audio the pipeline uses: word error rate on the benchmark meeting
+  is the same (2.6%) from FLAC as from WAV. Moving the recordings folder is
+  all or nothing and refused while recording or processing.
+- File and folder pickers open from Rust (`tauri-plugin-dialog`), so the
+  web view never passes in a path to write to.
+
+## Telling speakers apart
+
+- **Library:** the official `sherpa-onnx` crate, pinned exactly. Its build
+  script downloads prebuilt libraries without checking them, so CI and
+  release builds use `scripts/fetch-sherpa-onnx.sh`, which checks pinned
+  SHA-256 hashes. Static on macOS; DLLs on Windows, because the static
+  build uses `/MT` and whisper.cpp uses `/MD`.
+- **Models:** pyannote segmentation-3.0 (MIT, 6 MB) and NeMo TitaNet-small
+  (CC BY 4.0, 40 MB), through the same SHA-256-checked downloader as
+  Whisper. Other embedding models are in the catalog for comparison
+  (`quill-cli diarize --voice`).
+- **Clustering:** sherpa-onnx's own clustering (complete linkage, no
+  outlier handling) merged real people as soon as a speaker count was
+  given. Quill re-clusters embeddings of clean pieces of each turn by
+  centroid distance, and folds groups with under 4 s of speech into the
+  nearest speaker. On a 10-person call (real AMI voices through Opus):
+  - without a speaker count, 7 of 10 speakers found, 8.6% confusion; the
+    people who said about 5 s were merged into others;
+  - with the count, 10 of 10, 5.9% confusion.
+- **Accuracy:** about 18–22% DER on AMI, in line with pyannote's published
+  18.8%. Confusion is 4–6%; the rest is segmentation. Tune with
+  `eval/diarization` on real audio, not only synthetic voices.
+- **Speed:** about 35× real time on the M3 Pro CPU.
+
+## Summaries and prompts
+
+- Default model `anthropic/claude-haiku-5.5`: a one-hour meeting costs
+  well under a cent. `ollama:<model>` keeps everything local.
+- Prompts are compiled in with `include_str!`, and rendering is strict: a
+  placeholder without a value, or a value without a placeholder, is an
+  error. Golden-file tests cover the rendered prompts. Shipped versions are
+  never edited, so results stay comparable; every summary records its
+  prompt version and model.
+- Evaluation is the `quill-eval` library plus `quill-cli eval`. Rubric
+  lesson: a "hallucinations" criterion where 10 meant *none* got scored 0
+  by a local judge reading "0 hallucinations"; every criterion now points
+  the same way (10 = best, "faithfulness").
+- Judge caveats: a judge that is also a candidate, or from the same
+  family, may favour its own style, and a small judge misses subtle
+  omissions. Use a strong judge from a different family, spot-check
+  `review.md`, and evaluate on real meetings in
+  `eval/transcripts/private/`, not only the synthetic one.
+
+## Dictation
+
+- **Latency:** Whisper `short_clip` mode (greedy decoding, the encoder
+  sized to the clip, VAD trimming only the outer silence) takes 0.27 s
+  median on turbo, versus 0.6–0.7 s with meeting settings. Details in
+  `eval/dictation/README.md`.
+- **Clean-up only when needed:** `needs_polish` runs the model only for
+  fillers, corrections, lists or stutters; on clean speech the model
+  returned Whisper's text unchanged 7 times out of 9. Default
+  `google/gemini-3.5-flash-lite`, 0.66 s median.
+- **Clean-up safety:** `check_polish` rejects output that's much longer
+  (the model answered or embellished), much shorter (it summarized) or
+  starts with a preamble, and the raw transcript is typed instead.
+- **Language:** auto-detection on the shortened encoder window produced
+  nonsense, and doing it properly costs about 0.5 s, so dictation defaults
+  to the system language.
+- **Shortcut:** hold to talk (released after at least 350 ms) or tap to
+  toggle. Esc is bound globally only while listening. Registering a
+  shortcut blocks on the main thread, so it's only done from the dictation
+  controller's thread. The paste keystroke must run on the main thread on
+  macOS 26 (`on_main_thread`), or the app crashes.
+- **Warm mic:** the mic stays open for 30 s after each dictation, with a
+  300 ms pre-roll, so back-to-back dictations start instantly. macOS shows
+  the orange mic indicator meanwhile.
+- **Insertion:** copy to the clipboard (marked concealed, so clipboard
+  managers skip it), simulate ⌘V, then restore the previous text or image.
+  Without Accessibility the text is left on the clipboard.
+- **Per-app style:** Quill reads only the frontmost app's identity (bundle
+  id and name via NSWorkspace; the executable on Windows), never its
+  windows or contents. The Casual rule (drop a one-sentence message's final
+  period) is applied locally; the other styles go into the clean-up prompt
+  and never make clean-up run more often.
+- **Learning from corrections:** `quill_core::corrections::learn` aligns
+  the typed and corrected words (LCS) and suggests only safe kinds of fix:
+  a term spelled differently → vocabulary; several words typed as one term
+  → replacement. Homophones, grammar edits, insertions, deletions and
+  rewrites are ignored, because as rules they'd be wrong as often as
+  right. Nothing is learned until the user accepts it.
+- **About you** goes to the clean-up model (prompt `dictation-v3`). On the
+  10 eval clips it changed one word and never leaked into the output.
+- **Planned:** opt-in learning by watching the inserted text through
+  Accessibility for about a minute. First check which apps expose it.
+
+## Insights and logs
+
+- Dictation numbers come from a `dictation_stats` table (counts only, no
+  text), so they survive turning history off or clearing it. Time saved
+  is measured against typing at 40 wpm.
+- Logs are daily files kept for two weeks, panics included, and never
+  contain transcripts, notes, dictated text or keys.
+
+## macOS signing and the keychain
+
+- TCC and the keychain remember apps by designated requirement.
+  `app/scripts/bundle.sh` and `package-macos.sh` sign ad hoc with
+  `identifier "com.fisherinnovation.quill"` as the requirement, instead of
+  the default per-build hash, so permissions and keychain "Always Allow"
+  survive rebuilds and updates. That's weaker than a Developer ID
+  certificate (anything signed with that identifier matches), which
+  distribution will need.
+- Unsigned dev builds (`npm run app`) look like a new app on every
+  rebuild, so `app/scripts/dev.sh` reads the key once with Apple's signed
+  `security` tool and passes it in `QUILL_OPENROUTER_API_KEY`.
+- On macOS even reading a keychain item's attributes can prompt for the
+  password, so Settings never touches the keychain just to show the key's
+  status: it's "unknown" until the key is read or saved. Windows Credential
+  Manager never prompts, so there Settings checks for the key and says
+  plainly when it's missing. The key is read only when it's needed, once
+  per launch.

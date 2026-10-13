@@ -260,6 +260,7 @@ mod tests {
             duration_ms: minutes * 60_000,
             has_transcript: true,
             has_summary: true,
+            empty: false,
         }
     }
 

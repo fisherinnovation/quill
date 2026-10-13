@@ -3,6 +3,7 @@ import { api, errorText, isMac, type AccessReport } from "../api";
 import { AccessCheck } from "./AccessCheck";
 import { Icon, Logo } from "./Icon";
 import { ModelDownload } from "./Models";
+import { KeySetup } from "./OpenRouterKey";
 
 /** First-run screen: what Quill records, and getting the permissions granted. */
 export function Onboarding({ onDone }: { onDone: () => void }) {
@@ -67,6 +68,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         </p>
         <AccessCheck onResult={setReport} />
         <ModelDownload variant="onboarding" />
+        <h2>Meeting notes</h2>
+        <KeySetup />
 
         {error && <p className="error-text small" style={{ marginTop: 10 }}>{error}</p>}
         <div className="onboarding-actions">

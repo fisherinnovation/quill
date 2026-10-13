@@ -62,12 +62,13 @@ let SEGMENTS = [
 let meetings = flags.has("empty")
   ? []
   : [
-      { id: "m1", title: "Product sync", started_at: iso(2 * H), duration_ms: 31 * 60_000, has_transcript: true, has_summary: true },
-      { id: "m2", title: "1:1 with Priya", started_at: iso(5 * H), duration_ms: 24 * 60_000, has_transcript: true, has_summary: true },
-      { id: "m3", title: "Meeting Oct 10, 4:02 PM", started_at: iso(D + 3 * H), duration_ms: 12 * 60_000, has_transcript: false, has_summary: false },
-      { id: "m4", title: "Design review: settings", started_at: iso(D + 6 * H), duration_ms: 48 * 60_000, has_transcript: true, has_summary: true },
-      { id: "m5", title: "Customer call — Northwind", started_at: iso(4 * D), duration_ms: 37 * 60_000, has_transcript: true, has_summary: true },
-      { id: "m6", title: "Hiring sync", started_at: iso(12 * D), duration_ms: 55 * 60_000, has_transcript: true, has_summary: true },
+      { id: "m0", title: "Meeting Oct 12, 9:07 PM", started_at: iso(H / 2), duration_ms: 12_000, has_transcript: false, has_summary: false, empty: true },
+      { id: "m1", title: "Product sync", started_at: iso(2 * H), duration_ms: 31 * 60_000, has_transcript: true, has_summary: true , empty: false },
+      { id: "m2", title: "1:1 with Priya", started_at: iso(5 * H), duration_ms: 24 * 60_000, has_transcript: true, has_summary: true , empty: false },
+      { id: "m3", title: "Meeting Oct 10, 4:02 PM", started_at: iso(D + 3 * H), duration_ms: 12 * 60_000, has_transcript: false, has_summary: false , empty: false },
+      { id: "m4", title: "Design review: settings", started_at: iso(D + 6 * H), duration_ms: 48 * 60_000, has_transcript: true, has_summary: true , empty: false },
+      { id: "m5", title: "Customer call — Northwind", started_at: iso(4 * D), duration_ms: 37 * 60_000, has_transcript: true, has_summary: true , empty: false },
+      { id: "m6", title: "Hiring sync", started_at: iso(12 * D), duration_ms: 55 * 60_000, has_transcript: true, has_summary: true , empty: false },
     ];
 
 const recording = flags.has("recording") ? { recording: true, meeting_id: "m1", elapsed_ms: 754_000 } : null;
@@ -216,6 +217,18 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     return modelsInfo();
   },
   show_models_dir: () => null,
+  empty_recordings: () => {
+    const empty = meetings.filter((m) => m.empty);
+    return { count: empty.length, bytes: empty.length * 410_000 };
+  },
+  delete_empty_recordings: () => {
+    const n = meetings.filter((m) => m.empty).length;
+    meetings = meetings.filter((m) => !m.empty);
+    return n;
+  },
+  keep_empty_recording: ({ id }) => {
+    meetings = meetings.map((m) => (m.id === id ? { ...m, empty: false } : m));
+  },
   model_choices: ({ purpose }) => ({
     recommended:
       purpose === "summary"
@@ -268,7 +281,8 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   rename_speaker: ({ from, to }) => {
     SEGMENTS = SEGMENTS.map((seg) => (seg.speaker === from ? { ...seg, speaker: String(to) } : seg));
   },
-  openrouter_key_status: () => "unknown",
+  openrouter_key_status: () => (flags.has("nokey") ? "none" : "unknown"),
+  set_openrouter_key: () => null,
   delete_openrouter_key: () => true,
   storage_info: () => ({ path: "/Users/you/Library/Application Support/com.fisherinnovation.Quill/recordings", is_default: true, available: true, bytes: 3_412_000_000 }),
   check_audio_access: async () => {

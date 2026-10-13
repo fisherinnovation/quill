@@ -95,7 +95,7 @@ Apple Silicon is strongly recommended on macOS: Whisper runs several times faste
 
 ## Installing
 
-Installers are attached to each [release](https://github.com/fisherinnovation/quill/releases):
+Installers will be attached to each [release](https://github.com/fisherinnovation/quill/releases). None has been published yet, so for now [build from source](#building-from-source).
 
 - **macOS:** `Quill_<version>_aarch64.dmg` (Apple Silicon). Open it and drag Quill to Applications.
 - **Windows:** `Quill_<version>_x64-setup.exe` (installs for your user account; recommended), or the `.msi`.
@@ -141,10 +141,12 @@ The first build compiles whisper.cpp and takes several minutes; later builds are
 
 1. A welcome screen explains what Quill records, then runs an **access check**: a few seconds of recording plus a short chime, which also brings up the permission prompts. Allow **Microphone** and **System Audio Recording**.
 2. For dictation, open **Dictation** and click **Allow…** to grant **Accessibility**, which Quill needs to paste for you. Without it, dictated text is left on your clipboard.
-3. The welcome screen also offers to download the models (about 1.7 GB): Whisper `turbo` (1.5 GB), the Silero VAD model (1 MB), and the speaker models (46 MB). They come from Hugging Face, and each is checked against its SHA-256 hash. If you skip that, they download the first time they're needed; pressing the dictation shortcut before then opens the Dictation page with the download's progress. **Settings → Models** shows what's downloaded and how much space it takes. You can delete any model (one Quill uses downloads again when next needed), re-download one that seems damaged (a fresh copy, checked against its hash again), or delete them all. Models live outside the app, so updates don't download them again.
-4. For summaries, add an OpenRouter key in **Settings**, or choose a local Ollama model (see below).
+3. The welcome screen also offers to download the models (about 1.7 GB): Whisper `turbo` (1.5 GB), the Silero VAD model (1 MB), and the speaker models (46 MB). They come from Hugging Face, and each is checked against its SHA-256 hash. If you skip that, they download the first time they're needed; pressing the dictation shortcut before then opens the Dictation page with the download's progress. **Settings → Models** lists each job that needs a model (speech recognition, silence detection, telling speakers apart, meeting notes and dictation clean-up), which model does it, and whether it's downloaded. Pick another Whisper size and it downloads straight away. Each local model can be re-downloaded (a fresh copy, checked against its hash again) or deleted; a deleted one downloads again when next needed. Downloads that no job uses are gathered at the end to delete in one go. Models live outside the app, so updates don't download them again.
+4. Meeting notes and dictation clean-up use OpenRouter models by default, which need an API key. The welcome screen has a place to paste one, with a link to create it, or add it later in **Settings → OpenRouter**. To keep everything local, choose an Ollama model instead (see below).
 
 ## Using Quill
+
+Quill opens on **Home**: buttons to record a meeting or set up dictation, your week at a glance (meetings, time in meetings, words dictated) and your latest meetings. It's also where you land after deleting a meeting.
 
 ### Recording a meeting
 
@@ -157,6 +159,8 @@ Click **Record meeting** in the sidebar, or use the menu-bar (tray) icon, when t
 5. Compacts the audio to FLAC.
 
 Progress shows in the meeting view and the sidebar. In the **Transcript** tab, click a speaker to name them. With 10 people on a call, Quill reliably separates everyone who talks for more than a minute or so, but people who say only a sentence or two may be merged into someone else; choosing the number of people under **People on the call** helps most. Telling speakers apart adds about 2 minutes per hour of audio, and the voice models (46 MB) download the first time. From a meeting you can re-summarize, copy the notes as Markdown, export them to a `.md` file, search its transcript, or delete it along with its audio.
+
+If a recording turns out to have nothing said in it, it's marked **Nothing said** in the sidebar, and opening it offers **Delete recording** or **Keep**. **Settings → Storage** lists how many such recordings there are and deletes them all at once, after you confirm. Quill never deletes them on its own.
 
 Closing the window keeps Quill running in the menu bar, so a recording isn't cut off. Quit from the menu-bar icon.
 
@@ -202,7 +206,7 @@ Quill talks to models through [OpenRouter](https://openrouter.ai) (one API key, 
 | Meeting notes | `anthropic/claude-haiku-5.5` | Accurate and cheap: a one-hour meeting costs well under a cent. |
 | Dictation clean-up | `google/gemini-3.5-flash-lite` | The fastest consistent model in our comparison (0.66 s median); see [`eval/dictation/README.md`](eval/dictation/README.md). |
 
-Choose them in **Settings → Summaries** and **Dictation → Clean-up**. Each picker offers:
+Choose them in **Settings → Models** (clean-up also on the **Dictation** page). Each picker offers:
 
 - a few recommended models, with what each is good at and, for notes, the rough cost of an hour-long meeting from OpenRouter's current prices;
 - the models installed in Ollama, to stay fully local;
@@ -210,9 +214,9 @@ Choose them in **Settings → Summaries** and **Dictation → Clean-up**. Each p
 
 From the CLI, `-m` takes any OpenRouter id or `ollama:<model>`.
 
-**OpenRouter key:** in **Settings → Summaries**, click **Add key…** (or **Change key…**) and paste it, or from a terminal run `quill-cli keys set openrouter`. It's stored in your OS keychain. Opening Settings never reads the keychain: on macOS that alone can ask for your password. Quill reads the key only when it writes notes or tidies dictation, once per launch. For development, the `QUILL_OPENROUTER_API_KEY` environment variable overrides the keychain.
+**OpenRouter key:** in **Settings → OpenRouter**, click **Add key…** (or **Change key…**) and paste it, or from a terminal run `quill-cli keys set openrouter`. **Get a key** opens openrouter.ai/keys. The key is stored in the macOS Keychain or Windows Credential Manager. On Windows, Settings shows whether a key is stored. On macOS, opening Settings never reads the keychain, because that alone can ask for your password, so it can't tell until the key is used. Quill reads the key only when it writes notes or tidies dictation, once per launch. For development, the `QUILL_OPENROUTER_API_KEY` environment variable overrides the keychain.
 
-**Data handling:** requests always ask OpenRouter to route only to providers that don't collect your data. *Zero data retention only* (Settings) is stricter and supported by fewer models.
+**Data handling:** requests always ask OpenRouter to route only to providers that don't collect your data. *Zero data retention only* (Settings → OpenRouter) is stricter and supported by fewer models.
 
 ## Command-line tool
 
@@ -250,7 +254,7 @@ Inside it:
 
 - `quill.sqlite`: meetings, transcripts, summaries, dictation history and insight counts.
 - `recordings/<meeting id>/`: audio (`mic`/`system`, `.wav` while recording and `.flac` afterwards), `transcript.json` (the two-track transcript), `speakers.json` (voice fingerprints of the people on the call, used to re-split speakers; deleted with the meeting), `summary.md`, `recording.json`. The recordings folder can be moved in **Settings → Storage**.
-- `models/`: downloaded Whisper and VAD models.
+- `models/`: downloaded Whisper, VAD and speaker models.
 - `settings.toml`: settings (safe to edit while Quill isn't running).
 - `logs/`: daily log files, kept for two weeks.
 
@@ -292,12 +296,12 @@ The Rust workspace is split so that the app and the CLI are thin layers over lib
 | [`quill-llm`](crates/quill-llm) | LLM providers behind an `LlmProvider` trait (OpenRouter, Ollama), keychain access, versioned prompt templates. |
 | [`quill-diarize`](crates/quill-diarize) | Telling speakers apart: sherpa-onnx segmentation and voice embeddings, Quill's own clustering, DER scoring. |
 | [`quill-core`](crates/quill-core) | Meeting pipeline, track merging, speaker labelling, summaries, the dictation pipeline, the SQLite library, settings, insights. |
-| [`quill-insert`](crates/quill-insert) | Typing text into the focused app (clipboard + simulated paste) and identifying that app. |
+| [`quill-insert`](crates/quill-insert) | Typing text into the focused app (clipboard + simulated paste), identifying that app, and watching the fn key on macOS. |
 | [`quill-eval`](crates/quill-eval) | The evaluation harness for summary models. |
 | [`quill-cli`](crates/quill-cli) | The `quill-cli` command-line tool. |
 | [`app/`](app) | The desktop app: [Tauri v2](https://tauri.app) in Rust ([`app/src-tauri`](app/src-tauri)) with a React + TypeScript interface ([`app/src`](app/src)). |
 
-Prompts live as versioned Markdown in [`prompts/`](prompts) and are compiled into the binary. Every summary records which prompt version and model produced it. Design decisions and the reasoning behind them are recorded in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md).
+Prompts live as versioned Markdown in [`prompts/`](prompts) and are compiled into the binary. Every summary records which prompt version and model produced it. Design decisions and the reasoning behind them are recorded in [`docs/DESIGN_NOTES.md`](docs/DESIGN_NOTES.md).
 
 ## Performance
 
@@ -326,7 +330,7 @@ CI runs exactly these on macOS and Windows for every push and pull request.
 **Releases:** bump `version` in `app/src-tauri/tauri.conf.json` (and `app/package.json`), commit, and push a matching tag (`git tag v0.2.0 && git push origin v0.2.0`). The [release workflow](.github/workflows/release.yml) builds the macOS `.dmg` and the Windows installers and attaches them to a draft GitHub Release to review and publish. Running the workflow by hand (Actions → Release → Run workflow) builds the same installers as downloadable artifacts, without a release. Locally, `cd app && npx tauri build --bundles app && sh scripts/package-macos.sh` makes the `.dmg` in `dist-release/`.
 
 - **Tests that need models** are ignored by default. Run them with `QUILL_TEST_MODEL=<path to ggml model> QUILL_TEST_VAD_MODEL=<path to VAD model> cargo test -p quill-stt -- --ignored`.
-- **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`.
+- **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`, `?about` (the About window), `?others` (call audio as one "Others" speaker), `?nomodels` (nothing downloaded), `?noollama` (Ollama not running), `?nokey` (no OpenRouter key), `?fn` (fn as the dictation shortcut).
 - **Evaluating summary models:** see [`eval/README.md`](eval/README.md). Put your own meeting transcripts in `eval/transcripts/private/`, which is gitignored.
 - **Changing a prompt:** copy it to the next version directory (for example `prompts/summary-v3/`) rather than editing a shipped one, so results stay comparable.
 
@@ -334,18 +338,16 @@ The codebase enforces a few rules through lints: no `unsafe` outside small, docu
 
 ## Roadmap
 
-Development is organized in milestones; status is tracked in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md#8-status).
-
 - ✅ Local transcription, two-track capture, echo cancellation, summaries, evaluation harness
 - ✅ Desktop app: meeting library, search, export, onboarding, storage management
 - 🟡 Dictation (feature-complete on macOS, in real-world testing)
-- ⬜ Distribution: signed and notarized builds, auto-update, data retention settings, Windows testing
+- 🟡 Distribution: CI builds the macOS and Windows installers; signed and notarized builds, auto-update, data retention settings and Windows testing are next
 - 🟡 Telling speakers apart: in the app; remembering voices across meetings is next
-- 💡 Ideas: live captions during meetings, asking questions across past meetings, auto-detecting when a meeting starts
+- 💡 Ideas: live captions during meetings, asking questions across past meetings, auto-detecting when a meeting starts, your own typed notes merged into the summary, speaker names from the call app (opt-in)
 
 ## Known limitations
 
-- **No signed builds yet.** You'll build Quill yourself, and macOS permissions reset on rebuilds unless you use a signing certificate (see [Building from source](#building-from-source)).
+- **No published or signed builds yet.** For now you build Quill yourself. Release installers aren't signed or notarized, so their first launch needs an extra approval (see [Installing](#installing)), and there's no auto-update.
 - **Windows is untested in real use**, and transcription runs on the CPU there.
 - **People who barely speak** on a large call may be merged into someone else, and two similar voices are sometimes treated as one. Fix either in the transcript. Voices aren't remembered between meetings yet.
 - **Several people in one room on one microphone** are all "You".

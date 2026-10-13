@@ -224,7 +224,13 @@ async fn run(app: &AppHandle, id: &str, steps: Steps) -> Result<(), String> {
     }
     emit(app, id, Stage::Summarizing, None, None);
     let (provider, model) =
-        llm_provider(app, &settings.summary_model, settings.zdr).map_err(|e| e.to_string())?;
+        llm_provider(app, &settings.summary_model, settings.zdr).map_err(|e| match e {
+            // The library's message suggests the CLI; point to Settings.
+            quill_llm::LlmError::MissingKey(_) => "No OpenRouter key yet. Add one in Settings → \
+                 OpenRouter, or choose a local Ollama model in Settings → Models."
+                .to_string(),
+            e => e.to_string(),
+        })?;
     let date = meeting_date(&detail.meeting.started_at);
     let summary = summary::summarize(
         provider.as_ref(),

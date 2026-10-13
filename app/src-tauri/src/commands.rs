@@ -159,19 +159,35 @@ pub fn rename_speaker(
     Ok(())
 }
 
-/// Where the OpenRouter key is, as far as Quill knows *without touching the
-/// keychain* (on macOS even looking an item up can show the password
-/// prompt): "environment" (QUILL_OPENROUTER_API_KEY), "keychain" (already
-/// read or saved this session), or "unknown".
+/// Where the OpenRouter key is: "environment" (QUILL_OPENROUTER_API_KEY),
+/// "keychain" (the OS secure store), "none", or "unknown".
+///
+/// On macOS even looking a keychain item up can show the password prompt,
+/// so there it's only "keychain" once the key has been read or saved this
+/// session, and "unknown" before. Windows Credential Manager never prompts,
+/// so there it's always checked.
 #[tauri::command]
-pub fn openrouter_key_status(state: State<'_, AppState>) -> &'static str {
+pub async fn openrouter_key_status(app: AppHandle) -> CommandResult<&'static str> {
     if std::env::var(quill_llm::keys::OPENROUTER_ENV).is_ok_and(|k| !k.is_empty()) {
-        "environment"
-    } else if lock(&state.openrouter_key).is_some() {
-        "keychain"
-    } else {
-        "unknown"
+        return Ok("environment");
     }
+    if lock(&app.state::<AppState>().openrouter_key).is_some() {
+        return Ok("keychain");
+    }
+    if cfg!(target_os = "macos") {
+        return Ok("unknown");
+    }
+    blocking(|| {
+        Ok(match quill_llm::keys::openrouter_key_source() {
+            Ok(Some(_)) => "keychain",
+            Ok(None) => "none",
+            Err(e) => {
+                tracing::warn!("couldn't check for the OpenRouter key: {e}");
+                "unknown"
+            }
+        })
+    })
+    .await
 }
 
 /// Saves the key to the keychain from the app, which makes the app the

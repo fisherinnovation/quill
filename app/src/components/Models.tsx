@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   api,
   type DownloadProgress,
@@ -11,6 +11,7 @@ import {
   type Settings,
 } from "../api";
 import { Icon } from "./Icon";
+import { ModelPicker } from "./ModelPicker";
 import { Banner, Group, Row } from "./ui";
 
 /**
@@ -50,35 +51,54 @@ export function useModels() {
   return { info, setInfo, refresh, fraction, error, setError };
 }
 
-const KIND_LABEL: Record<ModelEntry["kind"], string> = {
-  speech: "Speech",
-  vad: "Silence detection",
-  speakers: "Speakers",
+/** Whisper sizes, as offered for speech recognition. */
+const SPEECH_LABELS: Record<string, string> = {
+  turbo: "Turbo (recommended)",
+  "turbo-q5": "Turbo, compact",
+  "large-v3": "Large v3 (most accurate, slower)",
+  medium: "Medium",
+  small: "Small",
+  base: "Base",
+  tiny: "Tiny (fastest)",
 };
+const SPEECH_ORDER = ["turbo", "turbo-q5", "large-v3", "medium", "small", "base", "tiny"];
 
-/** What the (possibly unsaved) settings need, computed here so the list reacts at once. */
-function inUse(m: ModelEntry, settings: Settings): boolean {
-  if (m.kind === "speech") return m.name === settings.stt_model;
-  if (m.kind === "vad") return settings.vad;
-  return settings.identify_speakers && m.for_speakers;
-}
-
-type Pending = { name: string; action: "delete" | "redownload" } | { all: true } | null;
+type Pending = { role: string; action: "delete" | "redownload" } | { unused: true } | { all: true } | null;
 
 /**
- * Settings → Models: what's downloaded and needed, with sizes and live
- * progress. Delete or re-download any model, or delete them all.
+ * Settings → Models, organised by job: each thing Quill does that needs a
+ * model has a row, showing which model does it and whether it's on this
+ * computer. Choosing a model that isn't downloaded downloads it; deleting
+ * one leaves the row, marked Not downloaded. Downloads no job uses are
+ * gathered at the end to clear out.
  */
-export function ModelsGroup({ settings, onChanged }: { settings: Settings; onChanged?: () => void }) {
+export function ModelsGroup({
+  settings,
+  update,
+  onChanged,
+}: {
+  settings: Settings;
+  update: (patch: Partial<Settings>) => void;
+  onChanged?: () => void;
+}) {
   const { info, setInfo, fraction, error, setError } = useModels();
-  // An action waiting for confirmation (deleting a model in use, a
-  // re-download, deleting everything).
   const [pending, setPending] = useState<Pending>(null);
   if (!info) return null;
 
-  const shown = info.models.filter((m) => m.downloaded || inUse(m, settings) || fraction(m) !== null);
-  const missing = shown.filter((m) => inUse(m, settings) && !m.downloaded && fraction(m) === null);
-  const anyDownloaded = info.models.some((m) => m.downloaded);
+  const byName = (name: string) => info.models.find((m) => m.name === name);
+  const speechModels = SPEECH_ORDER.map(byName).filter((m): m is ModelEntry => !!m);
+  const speech = byName(settings.stt_model);
+  const vad = info.models.filter((m) => m.kind === "vad");
+  const speakers = info.models.filter((m) => m.for_speakers);
+  // Downloaded, but no job uses them (other Whisper sizes, voice models
+  // from comparisons).
+  const unused = info.models.filter(
+    (m) =>
+      m.downloaded &&
+      fraction(m) === null &&
+      ((m.kind === "speech" && m.name !== settings.stt_model) || (m.kind === "speakers" && !m.for_speakers)),
+  );
+  const unusedBytes = unused.reduce((n, m) => n + m.size_bytes, 0);
 
   async function run(action: () => Promise<ModelsInfo>) {
     setPending(null);
@@ -90,6 +110,13 @@ export function ModelsGroup({ settings, onChanged }: { settings: Settings; onCha
       setError(errorText(e));
     }
   }
+
+  /** Runs `action` on each model in turn, keeping the last result. */
+  const each = (models: ModelEntry[], action: (name: string) => Promise<ModelsInfo>) => async () => {
+    let last = info;
+    for (const m of models) last = await action(m.name);
+    return last;
+  };
 
   const confirm = (text: string, label: string, onYes: () => void) => (
     <span className="model-confirm">
@@ -103,6 +130,106 @@ export function ModelsGroup({ settings, onChanged }: { settings: Settings; onCha
     </span>
   );
 
+  /**
+   * A job done on this computer: its model files, status and actions.
+   * Called as a function, not rendered as a component, so its select
+   * isn't remounted (and closed) on every progress update.
+   */
+  function localJob({
+    id,
+    label,
+    hint,
+    files,
+    enabled,
+    offText,
+    picker,
+  }: {
+    id: string;
+    label: string;
+    hint: string;
+    files: ModelEntry[];
+    enabled: boolean;
+    offText: string;
+    picker?: ReactNode;
+  }) {
+    const size = fileSize(files.reduce((n, m) => n + m.size_bytes, 0));
+    const fractions = files.map(fraction);
+    const downloading = fractions.some((f) => f !== null);
+    const done = files.reduce((n, m, i) => n + (m.downloaded ? 1 : (fractions[i] ?? 0)) * m.size_bytes, 0);
+    const total = files.reduce((n, m) => n + m.size_bytes, 0);
+    const ready = files.length > 0 && files.every((m) => m.downloaded);
+    const asking = pending && "role" in pending && pending.role === id ? pending.action : null;
+    const state = !enabled ? "off" : downloading ? "downloading" : ready ? "ready" : "missing";
+
+    let status: ReactNode;
+    if (asking === "delete") {
+      status = confirm(
+        `Deletes ${size}. Quill downloads it again the next time it's needed.`,
+        "Delete",
+        () => void run(each(files, api.deleteModel)),
+      );
+    } else if (asking === "redownload") {
+      status = confirm(
+        `Replaces it with a fresh copy (${size}), checked against its published hash.`,
+        "Re-download",
+        () => void run(each(files, api.redownloadModel)),
+      );
+    } else if (state === "downloading") {
+      const pct = Math.round((done / Math.max(total, 1)) * 100);
+      status = (
+        <span className="model-progress">
+          Downloading… {pct}% of {size}
+          <span className="progress">
+            <span style={{ width: `${pct}%` }} />
+          </span>
+        </span>
+      );
+    } else if (state === "ready") {
+      status = (
+        <span className="job-status">
+          <span className="model-status in-use">Downloaded</span> {size}
+          <button className="link-button" onClick={() => setPending({ role: id, action: "redownload" })}>
+            Re-download
+          </button>
+          <button className="link-button" onClick={() => setPending({ role: id, action: "delete" })}>
+            Delete
+          </button>
+        </span>
+      );
+    } else if (state === "missing") {
+      status = (
+        <span className="job-status">
+          <span className="model-status missing">Not downloaded</span> {size}
+          <button
+            className="link-button"
+            onClick={() => void Promise.all(files.filter((m) => !m.downloaded).map((m) => api.downloadModel(m.name)))}
+          >
+            Download now
+          </button>
+        </span>
+      );
+    } else {
+      status = (
+        <span className="job-status">
+          <span className="model-status unused">Off</span> {offText}
+        </span>
+      );
+    }
+
+    return (
+      <div className={`row stack model-job ${state}`}>
+        <div className="row-label">
+          <span>{label}</span>
+          <p className="row-hint">{hint}</p>
+        </div>
+        <div className="model-job-body">
+          {picker}
+          <div className="model-job-status">{status}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Group title="Models">
       {error && (
@@ -110,74 +237,110 @@ export function ModelsGroup({ settings, onChanged }: { settings: Settings; onCha
           <span className="error-text small">{error}</span>
         </div>
       )}
-      {shown.map((m) => {
-        const f = fraction(m);
-        const needed = inUse(m, settings);
-        const asking = pending && "name" in pending && pending.name === m.name ? pending.action : null;
-        const size = fileSize(m.size_bytes);
-        return (
-          <Row
-            key={m.name}
-            label={
-              <>
-                {m.name} <span className="faint">· {KIND_LABEL[m.kind]}</span>
-                {needed && m.downloaded && <span className="model-tag">In use</span>}
-              </>
-            }
-            hint={
-              asking === "delete" ? (
-                confirm(
-                  `Quill uses this model, so it will download it again (${size}) the next time it's needed.`,
-                  "Delete",
-                  () => void run(() => api.deleteModel(m.name)),
-                )
-              ) : asking === "redownload" ? (
-                confirm(
-                  `Deletes this copy and downloads ${size} again, checked against its published hash.`,
-                  "Re-download",
-                  () => void run(() => api.redownloadModel(m.name)),
-                )
-              ) : f !== null ? (
-                <span className="model-progress">
-                  Downloading… {Math.round(f * 100)}% of {size}
-                  <span className="progress">
-                    <span style={{ width: `${f * 100}%` }} />
-                  </span>
-                </span>
-              ) : (
-                `${m.description} · ${size}`
-              )
-            }
+
+      {localJob({
+        id: "speech",
+        label: "Speech recognition",
+        hint: "Turns meetings and dictation into text, on this computer. Bigger models are slower and more accurate.",
+        files: speech ? [speech] : [],
+        enabled: true,
+        offText: "",
+        picker: (
+          <select
+            value={settings.stt_model}
+            onChange={(e) => {
+              const next = byName(e.target.value);
+              update({ stt_model: e.target.value });
+              // Fetch it now rather than at the next meeting or dictation.
+              if (next && !next.downloaded && fraction(next) === null) void api.downloadModel(next.name);
+            }}
           >
-            {asking || f !== null ? null : !m.downloaded ? (
-              <button onClick={() => void api.downloadModel(m.name)}>
-                <Icon name="download" size={14} /> Download
-              </button>
-            ) : (
-              <span className="row-gap">
-                <button
-                  className="icon-btn ghost"
-                  title="Re-download: replace this copy with a fresh one"
-                  aria-label={`Re-download ${m.name}`}
-                  onClick={() => setPending({ name: m.name, action: "redownload" })}
-                >
-                  <Icon name="refresh" size={14} />
-                </button>
-                <button
-                  className="icon-btn ghost"
-                  title="Delete"
-                  aria-label={`Delete ${m.name}`}
-                  onClick={() =>
-                    needed ? setPending({ name: m.name, action: "delete" }) : void run(() => api.deleteModel(m.name))
-                  }
-                >
-                  <Icon name="trash" size={14} />
-                </button>
-              </span>
-            )}
-          </Row>
-        );
+            {speechModels.map((m) => (
+              <option key={m.name} value={m.name}>
+                {SPEECH_LABELS[m.name] ?? m.name} · {fileSize(m.size_bytes)}
+                {m.downloaded ? " · downloaded" : ""}
+              </option>
+            ))}
+          </select>
+        ),
       })}
+      {localJob({
+        id: "vad",
+        label: "Silence detection",
+        hint: "Silero VAD: skips quiet stretches so the speech model doesn't invent text.",
+        files: vad,
+        enabled: settings.vad,
+        offText: "Turn on Skip silence above to use it.",
+      })}
+      {localJob({
+        id: "speakers",
+        label: "Telling speakers apart",
+        hint: "pyannote segmentation and NVIDIA TitaNet voice fingerprints, on this computer.",
+        files: speakers,
+        enabled: settings.identify_speakers,
+        offText: "Turn on Tell speakers apart above to use it.",
+      })}
+
+      <div className="row stack model-job">
+        <div className="row-label">
+          <span>Meeting notes</span>
+          <p className="row-hint">
+            {settings.summary_model.startsWith("ollama:")
+              ? "Writes the notes on this computer with Ollama."
+              : "Via OpenRouter. Only the transcript is sent, never audio."}
+          </p>
+        </div>
+        <div className="model-job-body">
+          <ModelPicker
+            purpose="summary"
+            value={settings.summary_model}
+            onChange={(summary_model) => update({ summary_model })}
+          />
+        </div>
+      </div>
+      <div className="row stack model-job">
+        <div className="row-label">
+          <span>Dictation clean-up</span>
+          <p className="row-hint">
+            {settings.dictation.polish
+              ? "Tidies dictated text when it needs it. Only the text is sent, never audio."
+              : "Clean-up is off. Turn it on on the Dictation page."}
+          </p>
+        </div>
+        <div className="model-job-body">
+          <ModelPicker
+            purpose="cleanup"
+            value={settings.dictation.polish_model}
+            onChange={(polish_model) => {
+              const dictation = { ...settings.dictation, polish_model };
+              update({ dictation });
+              void api.saveDictationSettings(dictation).catch((e) => setError(errorText(e)));
+            }}
+          />
+        </div>
+      </div>
+
+      {unused.length > 0 && (
+        <Row
+          label="Other downloaded models"
+          hint={
+            pending && "unused" in pending
+              ? confirm(
+                  `Deletes ${unused.map((m) => m.name).join(", ")} (${fileSize(unusedBytes)}).`,
+                  "Delete",
+                  () => void run(each(unused, api.deleteModel)),
+                )
+              : `Nothing uses ${unused.length === 1 ? "this" : "these"}: ${unused
+                  .map((m) => `${m.name} (${fileSize(m.size_bytes)})`)
+                  .join(", ")}.`
+          }
+        >
+          {!(pending && "unused" in pending) && (
+            <button onClick={() => setPending({ unused: true })}>Delete {fileSize(unusedBytes)}</button>
+          )}
+        </Row>
+      )}
+
       <Row
         label={`${fileSize(info.bytes_on_disk)} on disk`}
         hint={
@@ -185,17 +348,15 @@ export function ModelsGroup({ settings, onChanged }: { settings: Settings; onCha
             ? confirm(
                 "Deletes every downloaded model. Those Quill uses download again the next time they're needed.",
                 "Delete all",
-                () => void run(() => api.deleteAllModels()),
+                () => void run(api.deleteAllModels),
               )
-            : missing.length > 0
-              ? "Models download automatically the first time they're needed, or download them now."
-              : "Models are shared with quill-cli and kept when Quill updates."
+            : "Models are shared with quill-cli and kept when Quill updates."
         }
       >
         {!(pending && "all" in pending) && (
           <span className="row-gap">
             <button onClick={() => void api.showModelsDir()}>Show in {fileManager}</button>
-            {anyDownloaded && (
+            {info.bytes_on_disk > 0 && (
               <button className="ghost" onClick={() => setPending({ all: true })}>
                 Delete all…
               </button>

@@ -31,6 +31,10 @@ use quill_core::settings::Settings;
 use tauri::Manager;
 
 /// Shared state, available to every command via `tauri::State<AppState>`.
+/// Tells the UI the meeting list changed (e.g. meetings deleted from
+/// Settings), so it reloads it.
+pub const LIBRARY_EVENT: &str = "library-changed";
+
 /// Asks the UI to show a view (`"dictation"`, `"settings"`).
 pub const NAVIGATE_EVENT: &str = "navigate";
 
@@ -162,6 +166,9 @@ fn main() {
             commands::delete_openrouter_key,
             storage::storage_info,
             storage::footprint,
+            storage::empty_recordings,
+            storage::delete_empty_recordings,
+            storage::keep_empty_recording,
             storage::choose_recordings_dir,
             storage::reset_recordings_dir,
             storage::show_recordings_dir,

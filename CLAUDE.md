@@ -3,8 +3,8 @@
 Guidance for coding agents working on Quill: a local-first meeting-notes and
 dictation desktop app (Rust workspace + Tauri v2 + React). Read this first,
 then [CONTRIBUTING.md](CONTRIBUTING.md) for code conventions and
-[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) for status, decisions and
-measured results.
+[docs/DESIGN_NOTES.md](docs/DESIGN_NOTES.md) for decisions and measured
+results.
 
 ## Rules
 
@@ -50,8 +50,8 @@ measured results.
   the next version, point `crates/quill-llm/src/prompts.rs` at it, and add
   its golden file (`UPDATE_GOLDEN=1 cargo test -p quill-llm`).
 - **Docs:** when behaviour, data on disk, permissions or network use change,
-  update `README.md`, `SECURITY.md` and `docs/PROJECT_PLAN.md` in the same
-  commit.
+  update `README.md` and `SECURITY.md` in the same commit. Record decisions
+  and measurements in `docs/DESIGN_NOTES.md`.
 
 ## Layout
 
@@ -104,7 +104,8 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   http://localhost:1420. `app/src/dev/mock.ts` stands in for every Tauri
   command. When you add a command or event, add it to the mock too.
 - **URL flags:** `?onboarding ?recording ?listening ?processing ?failed
-  ?nopaste ?empty ?light ?indicator ?others ?nomodels ?fn`.
+  ?nopaste ?empty ?light ?indicator ?about ?others ?nomodels ?noollama
+  ?nokey ?fn`.
 - **Themes:** check light (`?light`) and dark.
 - **Clicking in the preview:** the first click after a page load is often
   lost. Use `find` refs, or click twice.
