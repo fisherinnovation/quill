@@ -1,6 +1,6 @@
 [package]
 name = "quill-audio"
-description = "Audio capture (mic + system), resampling, VAD and WAV writing"
+description = "Audio capture (microphone and system audio), resampling, echo cancellation, WAV/FLAC and sounds"
 version.workspace = true
 license.workspace = true
 repository.workspace = true

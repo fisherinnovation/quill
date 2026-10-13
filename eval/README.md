@@ -1,6 +1,6 @@
 # eval/
 
-- `transcripts/` holds sample transcripts for the M4 evaluation harness
+- `transcripts/` holds sample transcripts for the summary evaluation harness
   (`quill-cli eval`). Put real meetings in `transcripts/private/`, which is
   gitignored; `eval` reads both.
   - `product-sync.json`: a synthetic 4-minute, 4-person product meeting
@@ -9,4 +9,6 @@
 - `results/` holds harness outputs: `eval.sqlite` (every run), and per run a
   folder with `leaderboard.md`, `review.md` (summaries side by side with
   scores) and `results.csv`. Everything in it is gitignored.
-- `benchmarks.md` (M1) records Whisper real-time factors per model and machine.
+- `benchmarks.md` records Whisper real-time factors per model and machine.
+- `dictation/` and `diarization/` hold the dictation latency checks and the
+  speaker diarization evaluation, each with its own README.

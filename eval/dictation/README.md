@@ -1,6 +1,6 @@
 # eval/dictation/
 
-Latency and behaviour checks for dictation (M6).
+Latency and behaviour checks for dictation.
 
 ```sh
 sh eval/dictation/make_clips.sh            # TTS clips from utterances.txt → clips/ (gitignored)

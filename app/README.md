@@ -48,4 +48,5 @@ npx tauri build --bundles app && sh scripts/package-macos.sh
 To try the UI in a browser with sample data, run `npm run dev` and open
 http://localhost:1420 (flags: `?onboarding`, `?recording`, `?listening`,
 `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`,
-`?others`, `?nomodels`, `?fn`; see `src/dev/mock.ts`).
+`?about`, `?others`, `?nomodels`, `?noollama`, `?nokey`, `?fn`; see
+`src/dev/mock.ts`).

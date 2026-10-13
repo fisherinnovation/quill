@@ -21,8 +21,8 @@ rather not be named.
 
 ## Supported versions
 
-Quill is pre-1.0 and has no released builds yet. Security fixes go into the
-`main` branch.
+Security fixes go into the `main` branch and the next release. Only the
+latest release is supported.
 
 ## How Quill handles data
 
@@ -81,7 +81,7 @@ so clipboard managers don't record it, and your previous clipboard is put back.
   path to write to.
 - The dictation indicator window can't take keyboard focus.
 
-**Known gaps** (planned before a public release):
+**Known gaps:**
 
 - Builds aren't yet code-signed or notarized.
 - Data at rest isn't encrypted by Quill itself.

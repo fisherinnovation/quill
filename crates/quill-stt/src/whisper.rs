@@ -87,7 +87,7 @@ impl Transcriber for WhisperTranscriber {
     ) -> Result<Vec<Segment>, SttError> {
         // A state holds the scratch buffers for one transcription. Creating one
         // per call keeps `&self` shareable across threads; if this shows up in
-        // dictation latency (M6) we can pool states instead.
+        // dictation latency we can pool states instead.
         let mut state = self.ctx.create_state()?;
 
         // `FullParams<'a, 'b>` borrows the language and prompt strings rather

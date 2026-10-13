@@ -1,7 +1,7 @@
 //! `quill-cli`: command-line front end for Quill's library crates.
 //!
-//! Each milestone adds a subcommand here (M1 `transcribe`, M3 `summarize`) so
-//! features can be exercised long before the Tauri app exists.
+//! Every stage of the pipeline has a subcommand here, so each can be run,
+//! scripted and measured on its own, without the desktop app.
 
 mod bench;
 mod compact;

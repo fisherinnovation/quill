@@ -9,7 +9,7 @@ use directories::ProjectDirs;
 /// - Windows: `%APPDATA%\fisherinnovation\Quill\data`
 ///
 /// Keep the qualifier/organization/application in sync with the Tauri bundle
-/// identifier in M5 so the CLI and the app share models and data.
+/// identifier, so the CLI and the app share models and data.
 ///
 /// Returns `None` only if the OS reports no home directory.
 pub fn data_dir() -> Option<PathBuf> {

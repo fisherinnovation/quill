@@ -61,7 +61,7 @@ CREATE TABLE summaries (
 );
 ",
     "
--- Dictation history (M6): what was typed, for copying again or recovering
+-- Dictation history: what was typed, for copying again or recovering
 -- text that didn't land where it should have.
 CREATE TABLE dictations (
     id           INTEGER PRIMARY KEY,
@@ -94,7 +94,7 @@ SELECT created_at,
 FROM dictations;
 ",
     "
--- The app dictated into (M6): id (bundle id / executable) and display name.
+-- The app dictated into: id (bundle id / executable) and display name.
 ALTER TABLE dictation_stats ADD COLUMN app_id TEXT;
 ALTER TABLE dictation_stats ADD COLUMN app TEXT;
 ALTER TABLE dictations ADD COLUMN app TEXT;

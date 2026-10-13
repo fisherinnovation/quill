@@ -8,7 +8,7 @@
 //! To change a prompt, copy the directory to the next version
 //! (`summary-v3/`), edit it, add it to [`SUMMARY_VERSIONS`] and point
 //! [`SUMMARY`] at it, so summaries made
-//! with the old version stay attributable and comparable (M4 evals).
+//! with the old version stay attributable and comparable in evals.
 
 /// One version of the summary prompts.
 #[derive(Debug, Clone, Copy)]
@@ -77,7 +77,7 @@ pub fn find_summary(version: &str) -> Option<&'static SummaryPrompts> {
     SUMMARY_VERSIONS.iter().find(|p| p.version == version)
 }
 
-/// Prompts for the LLM judge that scores summaries in evals (M4).
+/// Prompts for the LLM judge that scores summaries in evals.
 #[derive(Debug, Clone, Copy)]
 pub struct JudgePrompts {
     pub version: &'static str,
@@ -92,7 +92,7 @@ pub const JUDGE: JudgePrompts = JudgePrompts {
     user: prompt!("judge-v1/user.md"),
 };
 
-/// Prompts that clean up dictated text before it's typed (M6).
+/// Prompts that clean up dictated text before it's typed.
 #[derive(Debug, Clone, Copy)]
 pub struct DictationPrompts {
     pub version: &'static str,

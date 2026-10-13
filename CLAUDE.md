@@ -9,7 +9,8 @@ results.
 ## Rules
 
 - **Commits:**
-  - Commit and push directly to `main`; no branches or pull requests.
+  - Contributors open pull requests (see CONTRIBUTING.md); maintainers may
+    commit and push directly to `main`.
   - After pushing, watch CI (`gh run list --workflow CI`) until both macOS
     and Windows pass, and fix any failure straight away.
   - Use Conventional Commits (`feat(scope): …`, `fix: …`, `docs: …`), with

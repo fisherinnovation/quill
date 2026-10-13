@@ -50,7 +50,7 @@ pub struct Args {
 enum Format {
     /// `[mm:ss.mmm --> mm:ss.mmm]  text`, one segment per line
     Text,
-    /// JSON array of segments (input for `summarize` in M3)
+    /// JSON array of segments (input for `summarize`)
     Json,
 }
 

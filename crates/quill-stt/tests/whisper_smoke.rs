@@ -9,6 +9,10 @@
 //! QUILL_TEST_MODEL="$M/ggml-tiny.bin" QUILL_TEST_VAD_MODEL="$M/ggml-silero-v6.2.0.bin" \
 //!     cargo test -p quill-stt -- --ignored
 //! ```
+//!
+//! `fixtures/jfk.wav` is the 11 s "ask not what your country can do for you"
+//! passage from John F. Kennedy's 1961 inaugural address (a US government
+//! work, in the public domain), the same sample whisper.cpp uses.
 
 use std::path::{Path, PathBuf};
 

@@ -1,6 +1,6 @@
 # Whisper benchmarks
 
-Speed and accuracy of each Whisper model on our hardware, to choose defaults
+Speed and accuracy of each Whisper model, to choose defaults
 for meeting transcription (accuracy first) and dictation (latency first).
 
 ## How to reproduce
@@ -20,8 +20,7 @@ shaders.
 
 **Caveat:** the clip is synthetic (macOS `say` voices, four speakers, no
 crosstalk or background noise), so WER here is far lower than on real calls
-and doesn't separate the models well. Treat it as a sanity check; rerun on
-real meeting recordings once M2 can capture them.
+and doesn't separate the models well. Treat it as a sanity check.
 
 ## MacBook Pro M3 Pro, 36 GB, macOS 26.6 — 2026-10-11
 
@@ -47,10 +46,10 @@ Metal, 7 minutes with large-v3, and under a minute with base.
   a repetition loop 90 s in ("I think that's a good thing." × 110 segments)
   and lost 60% of the meeting (WER 106%). Beam search (width 5) fixed it
   (WER 3.7%) at a ~10% speed cost for the other models, so beam search is the
-  default. VAD (M2) should further reduce this risk; dictation (M6) may still
-  use greedy for short clips.
+  default. Silence detection (VAD) further reduces the risk. Dictation uses
+  greedy decoding on its short clips, for speed.
 - **turbo is the meeting default.** It's within noise of the best WER and ~3×
-  faster than large-v3. Revisit on real recordings.
+  faster than large-v3.
 - **turbo-q5 is as fast as turbo on Metal, with ⅓ the download.** Quantization
   saves disk and memory, not time, on this GPU. That makes it a good default
   for download size and memory (dictation keeps the model resident).
@@ -83,6 +82,7 @@ and 142.6× (tiny).
 
 ## Windows
 
-Not yet measured. Copy `meeting.wav` over from a Mac (the generator needs
-`say`), then run the same commands on the Windows machine (CPU, and with
-`--features cuda` or `vulkan` if it has a suitable GPU) and add a section.
+No measurements yet; contributions welcome. Copy `meeting.wav` over from a
+Mac (the generator needs `say`), then run the same commands on Windows (CPU,
+and with `--features cuda` or `vulkan` if you have a suitable GPU) and add a
+section.

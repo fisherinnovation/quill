@@ -13,12 +13,6 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 
 </div>
 
-> [!NOTE]
-> Quill is in early development (v0.1). There are no prebuilt releases yet:
-> you build it from source. It's in daily use on macOS; the Windows build
-> compiles and passes tests in CI but hasn't had real-world testing. Expect
-> rough edges, and please [report them](https://github.com/fisherinnovation/quill/issues).
-
 ## Contents
 
 - [Features](#features)
@@ -87,15 +81,15 @@ For dictation, Quill reads the *name* of the frontmost app (for per-app style an
 |---|---|---|
 | Minimum OS | macOS 14.6 (system-audio capture uses Core Audio process taps) | Windows 10 / 11 |
 | Transcription | Metal GPU on Apple Silicon | CPU; CUDA or Vulkan available in the CLI with a build flag |
-| Meeting notes | ✅ Used daily | 🧪 Builds and passes CI; not yet tested in real use |
-| Dictation | ✅ Used daily | 🧪 Builds and passes CI; not yet tested in real use |
+| Meeting notes | ✅ | ✅ |
+| Dictation | ✅ (<kbd>fn</kbd> key or a shortcut) | ✅ (a shortcut) |
 | Installers | `.dmg`, Apple Silicon, not yet notarized | `.exe` / `.msi`, not yet signed |
 
 Apple Silicon is strongly recommended on macOS: Whisper runs several times faster on its GPU. Linux isn't supported.
 
 ## Installing
 
-Installers will be attached to each [release](https://github.com/fisherinnovation/quill/releases). None has been published yet, so for now [build from source](#building-from-source).
+Installers are attached to each [release](https://github.com/fisherinnovation/quill/releases), or you can [build from source](#building-from-source):
 
 - **macOS:** `Quill_<version>_aarch64.dmg` (Apple Silicon). Open it and drag Quill to Applications.
 - **Windows:** `Quill_<version>_x64-setup.exe` (installs for your user account; recommended), or the `.msi`.
@@ -339,17 +333,18 @@ The codebase enforces a few rules through lints: no `unsafe` outside small, docu
 
 ## Roadmap
 
-- ✅ Local transcription, two-track capture, echo cancellation, summaries, evaluation harness
-- ✅ Desktop app: meeting library, search, export, onboarding, storage management
-- 🟡 Dictation (feature-complete on macOS, in real-world testing)
-- 🟡 Distribution: CI builds the macOS and Windows installers; signed and notarized builds, auto-update, data retention settings and Windows testing are next
-- 🟡 Telling speakers apart: in the app; remembering voices across meetings is next
-- 💡 Ideas: live captions during meetings, asking questions across past meetings, auto-detecting when a meeting starts, your own typed notes merged into the summary, speaker names from the call app (opt-in)
+Planned:
+
+- Signed and notarized builds, and automatic updates
+- Data retention settings, such as deleting audio after a set time while keeping transcripts
+- Remembering voices across meetings, so regular colleagues are named automatically
+
+Ideas being considered: live captions during meetings, asking questions across past meetings, detecting when a meeting starts, merging your own typed notes into the summary, and taking speaker names from the call app (opt-in).
 
 ## Known limitations
 
-- **No published or signed builds yet.** For now you build Quill yourself. Release installers aren't signed or notarized, so their first launch needs an extra approval (see [Installing](#installing)), and there's no auto-update.
-- **Windows is untested in real use**, and transcription runs on the CPU there.
+- **Builds aren't code-signed or notarized yet,** so the first launch needs one extra approval (see [Installing](#installing)), and there's no automatic update.
+- **Windows** has had less real-world use than macOS, and transcription runs on the CPU there.
 - **People who barely speak** on a large call may be merged into someone else, and two similar voices are sometimes treated as one. Fix either in the transcript. Voices aren't remembered between meetings yet.
 - **Several people in one room on one microphone** are all "You".
 - **Language:** Whisper supports about 100 languages, but the summary prompts and the dictation tests are English-first.

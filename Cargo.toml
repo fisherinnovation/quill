@@ -58,9 +58,9 @@ tempfile = "3"
 # Async runtime for LLM calls. The CLI stays synchronous and starts a runtime
 # only for commands that need one.
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+arboard = "3.6"
 # `async fn` in a trait used as `dyn LlmProvider` needs boxing; this macro
 # writes that boilerplate (see quill-llm for details).
-arboard = "3.6"
 async-trait = "0.1"
 enigo = "0.6"
 flacenc = "0.5"
@@ -74,11 +74,11 @@ wiremock = "0.6"
 # Dates and time zones (e.g. the local date in a summary title).
 jiff = "0.2"
 # SQLite, compiled in ("bundled") so there's no system library to install on
-# Windows; includes FTS5 for transcript search in M5.
+# Windows; includes FTS5 for transcript search.
 rusqlite = { version = "0.40", features = ["bundled"] }
 csv = "1"
 toml = "1"
-# Desktop app shell (stable v2 line; 3.0 is still alpha).
+# Desktop app shell (the stable v2 line).
 tauri = { version = "2.12", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-build = { version = "2.7", features = [] }
 tauri-plugin-dialog = "2.8"
@@ -97,14 +97,14 @@ quill-stt = { path = "crates/quill-stt" }
 # Lints shared by every crate (each opts in with `[lints] workspace = true`).
 # CI runs clippy with `-D warnings`, so every "warn" below fails the build.
 [workspace.lints.rust]
-# Section 6: no `unsafe` outside FFI wrappers. "deny" (not "forbid") lets a
+# No `unsafe` outside FFI wrappers. "deny" (not "forbid") lets a
 # future FFI module opt out locally with `#[allow(unsafe_code)]`.
 unsafe_code = "deny"
 
 [workspace.lints.clippy]
-# Section 6: no unwrap()/expect() outside tests and `main` setup. Tests are
+# No unwrap()/expect() outside tests and `main` setup. Tests are
 # exempted in clippy.toml; `main` setup must opt in with a local #[allow].
 unwrap_used = "warn"
 expect_used = "warn"
-# Section 6: every `unsafe` block needs a `// SAFETY:` comment.
+# Every `unsafe` block needs a `// SAFETY:` comment.
 undocumented_unsafe_blocks = "warn"

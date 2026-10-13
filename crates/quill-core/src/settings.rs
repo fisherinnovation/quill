@@ -7,11 +7,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Summary model until the M4 eval picks one: cheap, fast, 1M-token context.
+/// Summary model: accurate, cheap, fast, with a 1M-token context.
 pub const DEFAULT_SUMMARY_MODEL: &str = "anthropic/claude-haiku-5.5";
 
-/// Dictation polish model: the fastest consistent one in the M6 comparison
-/// (median 0.66 s; see eval/dictation/README.md).
+/// Dictation polish model: the fastest consistent one in the comparison in
+/// eval/dictation/README.md (median 0.66 s).
 pub const DEFAULT_POLISH_MODEL: &str = "google/gemini-3.5-flash-lite";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,7 +45,7 @@ pub struct Settings {
 /// (macOS only).
 pub const FN_HOTKEY: &str = "Fn";
 
-/// Global-hotkey dictation (M6).
+/// Global-hotkey dictation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DictationSettings {

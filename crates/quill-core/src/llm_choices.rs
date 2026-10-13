@@ -2,9 +2,8 @@
 //!
 //! Clean-up recommendations come from the measured comparison in
 //! `eval/dictation/README.md` (latency and correctness on the eval clips),
-//! leaving out models that failed there. Summary models haven't been through
-//! a cloud evaluation yet (M4), so their notes describe them rather than
-//! rank them; revisit once that eval runs.
+//! leaving out models that failed there. Summary models are described rather
+//! than ranked; `quill-cli eval` compares them on your own transcripts.
 
 /// A recommended model, by OpenRouter id (or `ollama:<model>`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
