@@ -5,6 +5,10 @@ name: Release
 #   them to a draft GitHub Release to review and publish;
 # - running the workflow by hand builds them as downloadable artifacts only.
 #
+# Each release also carries latest.json and the signed files the in-app
+# updater installs (app/src-tauri/src/updates.rs). Installed copies of Quill
+# see a release only once it's published, never while it's a draft.
+#
 # Builds are unsigned (macOS: ad hoc) until signing secrets are configured;
 # see the README's Installing section for what that means for users.
 on:
@@ -96,6 +100,31 @@ jobs:
           mkdir -p ../dist-release
           cp ../target/release/bundle/nsis/*.exe ../target/release/bundle/msi/*.msi ../dist-release/
 
+      # Signs the files the in-app updater downloads with the updater key
+      # (minisign, checked against the public key in tauri.conf.json), and
+      # binds each signature to this version.
+      - name: Sign the update files
+        working-directory: app
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            if [ "$GITHUB_REF_TYPE" = tag ]; then
+              echo "::error::the TAURI_SIGNING_PRIVATE_KEY secret is missing; releases need it for updates"
+              exit 1
+            fi
+            echo "::warning::no updater key; update files are unsigned"
+            exit 0
+          fi
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          for file in ../dist-release/*.app.tar.gz ../dist-release/*.exe ../dist-release/*.msi; do
+            [ -e "$file" ] || continue
+            npx tauri signer sign --app-version "$version" "$file" > /dev/null
+            echo "Signed $(basename "$file")"
+          done
+
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: quill-${{ runner.os }}
@@ -114,6 +143,33 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      # What the updater reads: each platform's file and signature. Keys
+      # are {os}-{arch}-{installer}, falling back to {os}-{arch}, so
+      # Windows copies installed from the .msi update with the .msi.
+      - name: Write latest.json for the updater
+        shell: bash
+        run: |
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          entry() {
+            local file
+            file=$(cd dist && ls $1)
+            jq -n --arg url "$base/$file" --rawfile sig "dist/$file.sig" '{url: $url, signature: ($sig | rtrimstr("\n"))}'
+          }
+          mac=$(entry '*.app.tar.gz')
+          nsis=$(entry '*-setup.exe')
+          msi=$(entry '*.msi')
+          jq -n \
+            --arg version "${GITHUB_REF_NAME#v}" \
+            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
+            --argjson mac "$mac" --argjson nsis "$nsis" --argjson msi "$msi" \
+            '{version: $version, notes: $notes, pub_date: $pub_date, platforms: {
+              "darwin-aarch64": $mac, "darwin-aarch64-app": $mac,
+              "windows-x86_64": $nsis, "windows-x86_64-nsis": $nsis, "windows-x86_64-msi": $msi
+            }}' > dist/latest.json
+          cat dist/latest.json
+          rm dist/*.sig
 
       - name: Create a draft release with the installers
         env:

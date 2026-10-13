@@ -20,6 +20,7 @@ mod pipeline;
 mod recorder;
 mod storage;
 mod tray;
+mod updates;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -83,6 +84,7 @@ fn main() {
     builder
         .on_menu_event(|app, event| about::on_menu_event(app, event.id().as_ref()))
         .manage(llm_models::CatalogCache::default())
+        .manage(updates::Updates::default())
         .manage(AppState {
             data_dir,
             library,
@@ -97,6 +99,8 @@ fn main() {
         })
         // Native open/save dialogs, used from Rust only (see storage.rs).
         .plugin(tauri_plugin_dialog::init())
+        // Signed updates from GitHub Releases, driven from Rust (updates.rs).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // The dictation hotkey. The handler runs on the main thread and only
         // forwards to the dictation controller.
         .plugin(
@@ -126,6 +130,7 @@ fn main() {
                 pipeline::preload(&handle);
                 pipeline::compact_existing(&handle);
             });
+            updates::spawn_checks(app.handle().clone());
             Ok(())
         })
         // Closing the window keeps Quill running in the menu bar, so a
@@ -194,6 +199,9 @@ fn main() {
             dictation::set_suggestion_status,
             dictation::globe_key_action,
             dictation::open_keyboard_settings,
+            updates::update_info,
+            updates::check_for_updates,
+            updates::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Quill");

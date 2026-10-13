@@ -1,5 +1,7 @@
 #!/bin/sh
-# Signs the release Quill.app and packs it into a .dmg in dist-release/.
+# Signs the release Quill.app and packs it into dist-release/: a .dmg for
+# new installs, and a .app.tar.gz for the in-app updater (the release
+# workflow signs that with the updater key).
 # Run from app/ after `npx tauri build --bundles app` (the release workflow
 # does this).
 #
@@ -16,6 +18,7 @@ app="../target/release/bundle/macos/Quill.app"
 version=$(node -p "require('./src-tauri/tauri.conf.json').version")
 out="../dist-release"
 dmg="$out/Quill_${version}_aarch64.dmg"
+update="$out/Quill_${version}_aarch64.app.tar.gz"
 
 if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
     codesign --force --deep --options runtime --timestamp \
@@ -36,3 +39,11 @@ mkdir -p "$out"
 rm -f "$dmg"
 hdiutil create -quiet -volname "Quill $version" -srcfolder "$stage" -format UDZO "$dmg"
 echo "Wrote $dmg ($(du -h "$dmg" | cut -f1))"
+
+# The updater's copy, packed after signing: an archive of the build Tauri
+# signed itself would lack the designated requirement above, and macOS
+# would forget Quill's permissions on every update. COPYFILE_DISABLE keeps
+# macOS's ._ metadata files out of the archive.
+rm -f "$update"
+COPYFILE_DISABLE=1 tar -czf "$update" -C "$(dirname "$app")" Quill.app
+echo "Wrote $update ($(du -h "$update" | cut -f1))"

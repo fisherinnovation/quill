@@ -58,6 +58,8 @@ export interface Settings {
   /** Changed only via chooseRecordingsDir/resetRecordingsDir. */
   recordings_dir: string | null;
   onboarded: boolean;
+  /** Look for a new version once a day (installing is always the user's call). */
+  check_for_updates: boolean;
   dictation: DictationSettings;
 }
 
@@ -216,6 +218,22 @@ export interface AboutInfo {
   data_dir: string;
 }
 
+/** Where updating stands (see updates.rs). */
+export type UpdateStatus =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "up_to_date" }
+  | { state: "available"; version: string }
+  | { state: "downloading"; version: string; done: number; total: number | null }
+  | { state: "installing"; version: string };
+
+export interface UpdateInfo {
+  current_version: string;
+  status: UpdateStatus;
+  /** The last finished check, in Unix milliseconds. */
+  checked_at: number | null;
+}
+
 /** Pages the app links to; the URLs live in Rust (about.rs). */
 export type AboutLink = "repository" | "releases" | "report_problem" | "security" | "license" | "openrouter_keys";
 
@@ -352,6 +370,11 @@ export const api = {
       "globe_key_action",
     ),
   openKeyboardSettings: () => invoke<void>("open_keyboard_settings"),
+  updateInfo: () => invoke<UpdateInfo>("update_info"),
+  /** Checks GitHub now, even if daily checks are off. */
+  checkForUpdates: () => invoke<UpdateInfo>("check_for_updates"),
+  /** Downloads, installs and restarts Quill. Rejects while recording, dictating, etc. */
+  installUpdate: () => invoke<void>("install_update"),
 };
 
 export const isMac = navigator.userAgent.includes("Mac");
@@ -380,6 +403,8 @@ export const events = {
   /** The backend asks to show a view, e.g. "dictation". */
   onNavigate: (cb: (view: string) => void): Promise<UnlistenFn> =>
     listen<string>("navigate", (e) => cb(e.payload)),
+  onUpdate: (cb: (info: UpdateInfo) => void): Promise<UnlistenFn> =>
+    listen<UpdateInfo>("update-status", (e) => cb(e.payload)),
   /** Mic peak 0..1, sent only to the indicator window while listening. */
   onLevel: (cb: (level: number) => void): Promise<UnlistenFn> =>
     listen<number>("dictation-level", (e) => cb(e.payload)),

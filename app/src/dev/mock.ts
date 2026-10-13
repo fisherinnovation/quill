@@ -6,9 +6,11 @@
 // ?failed, ?nopaste, ?empty, ?light to force the light theme, ?indicator
 // for the dictation pill (with ?listening or ?processing), ?others for a
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
-// fn as the dictation key, and ?about for the About window.
+// fn as the dictation key, ?about for the About window, and ?update for a
+// new version waiting to be installed.
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import type { UpdateInfo } from "../api";
 
 const flags = new URLSearchParams(location.search);
 const now = Date.now();
@@ -84,6 +86,7 @@ const settings = {
   identify_speakers: true,
   recordings_dir: null,
   onboarded: !flags.has("onboarding"),
+  check_for_updates: true,
   dictation: {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
@@ -97,6 +100,27 @@ const settings = {
     app_styles: [],
   },
 };
+
+let update: UpdateInfo = {
+  current_version: "0.1.0",
+  status: flags.has("update") ? { state: "available", version: "0.2.0" } : { state: "up_to_date" },
+  checked_at: now - 2 * H,
+};
+
+/** Plays an update download, then "restarts" (reloads without ?update). */
+async function installUpdate() {
+  const total = 48_000_000;
+  for (let done = 0; done <= total; done += 6_000_000) {
+    update = { ...update, status: { state: "downloading", version: "0.2.0", done, total } };
+    await emit("update-status", update);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  update = { ...update, status: { state: "installing", version: "0.2.0" } };
+  await emit("update-status", update);
+  await new Promise((r) => setTimeout(r, 1000));
+  flags.delete("update");
+  location.search = flags.toString();
+}
 
 const dictations = [
   { id: 3, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true, app: "Slack" },
@@ -262,6 +286,16 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     data_dir: "/Users/you/Library/Application Support/com.fisherinnovation.Quill",
   }),
   open_link: () => null,
+  update_info: () => update,
+  check_for_updates: async () => {
+    await new Promise((r) => setTimeout(r, 800));
+    update = { ...update, checked_at: Date.now() };
+    return update;
+  },
+  install_update: () => {
+    void installUpdate();
+    return null;
+  },
   list_suggestions: () => suggestions,
   set_suggestion_status: ({ id, status }) => {
     suggestions = suggestions.map((s) => (s.id === id ? { ...s, status: String(status) } : s));

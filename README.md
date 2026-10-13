@@ -71,7 +71,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | **Dictated text** | Sent to the clean-up model only when clean-up runs (fillers, corrections, lists). Clean-up can be turned off or pointed at a local Ollama model. |
 | **API keys** | Stored in the macOS Keychain or Windows Credential Manager, never in config files or logs. |
 | **Logs** | Local files with events, timings and errors. Never transcripts, notes, dictated text or keys. |
-| **Telemetry** | None. Quill makes no network requests other than the model calls above and downloading the speech models. |
+| **Telemetry** | None. Quill makes no network requests other than the model calls above, downloading the speech models, and a daily check on GitHub for a new version (which can be turned off). |
 
 For dictation, Quill reads the *name* of the frontmost app (for per-app style and insights), never its windows or contents.
 
@@ -100,6 +100,10 @@ The builds aren't signed by a registered developer yet, so the first launch need
 - **Windows:** SmartScreen shows "Windows protected your PC". Click **More info**, then **Run anyway**.
 
 Speech models download the first time they're needed (see [First run](#first-run)). The installers are built by [GitHub Actions](.github/workflows/release.yml) from the tagged source.
+
+### Updates
+
+Quill looks for a new version once a day. When there is one, Home, **Settings → Updates** and the About window offer **Restart to update**; nothing downloads or installs until you click it, and it waits if you're recording, dictating or a meeting is being written up. Updates are checked against Quill's signing key before they install, and your recordings, settings, models and permissions stay as they are. Turn the daily check off in **Settings → Updates** (where **Check now** still works). Version 0.1.0 predates the updater, so install the next version from the releases page once; later versions update themselves.
 
 ## Building from source
 
@@ -335,7 +339,7 @@ The codebase enforces a few rules through lints: no `unsafe` outside small, docu
 
 Planned:
 
-- Signed and notarized builds, and automatic updates
+- Signed and notarized builds
 - Data retention settings, such as deleting audio after a set time while keeping transcripts
 - Remembering voices across meetings, so regular colleagues are named automatically
 
@@ -343,7 +347,7 @@ Ideas being considered: live captions during meetings, asking questions across p
 
 ## Known limitations
 
-- **Builds aren't code-signed or notarized yet,** so the first launch needs one extra approval (see [Installing](#installing)), and there's no automatic update.
+- **Builds aren't code-signed or notarized yet,** so the first launch needs one extra approval (see [Installing](#installing)). Updates after that install without it.
 - **Windows** has had less real-world use than macOS, and transcription runs on the CPU there.
 - **People who barely speak** on a large call may be merged into someone else, and two similar voices are sometimes treated as one. Fix either in the transcript. Voices aren't remembered between meetings yet.
 - **Several people in one room on one microphone** are all "You".

@@ -23,7 +23,7 @@ pub fn show(app: &AppHandle) {
     }
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
         .title("About Quill")
-        .inner_size(460.0, 680.0)
+        .inner_size(460.0, 700.0)
         .resizable(false)
         .minimizable(false)
         .maximizable(false)

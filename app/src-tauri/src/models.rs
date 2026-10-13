@@ -31,6 +31,13 @@ pub struct Downloads {
     active: Mutex<HashSet<&'static str>>,
 }
 
+impl Downloads {
+    /// A model is downloading or waiting its turn.
+    pub fn any(&self) -> bool {
+        !lock(&self.active).is_empty()
+    }
+}
+
 /// One `model-download` event.
 #[derive(Debug, Clone, Serialize)]
 pub struct DownloadProgress {

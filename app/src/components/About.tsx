@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { type AboutInfo, type AboutLink, api, errorText } from "../api";
 import { Icon, Logo } from "./Icon";
+import { AboutUpdate } from "./Updates";
 
 /** "2026-10-12" → "Oct 12, 2026" in the user's locale. */
 function longDate(day: string): string {
@@ -71,6 +72,7 @@ export function About() {
             {info.debug && <span className="about-tag">debug build</span>}
           </p>
         )}
+        <AboutUpdate />
       </header>
 
       {error && <p className="error-text small">{error}</p>}

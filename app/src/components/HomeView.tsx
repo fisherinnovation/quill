@@ -15,6 +15,7 @@ import { ModelDownload } from "./Models";
 import { useElapsed } from "./RecordButton";
 import { Status } from "./Sidebar";
 import { Banner, Keys } from "./ui";
+import { UpdateBanner } from "./Updates";
 
 /** How many recent meetings Home lists. */
 const RECENT = 6;
@@ -100,6 +101,7 @@ export function HomeView({
       </header>
 
       <ModelDownload variant="banner" />
+      <UpdateBanner />
       {error && (
         <Banner kind="error" icon="alert">
           {error}

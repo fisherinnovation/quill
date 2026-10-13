@@ -45,5 +45,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA3MTkxNjhGRUM4NDk4RDcKUldUWG1JVHNqeFlaQnlzclFEZ0ZGMHZHOUMvdllzdmtJY1pjbG9kZWRpVlZBTTh4M0pORlltemkK",
+      "endpoints": [
+        "https://github.com/fisherinnovation/quill/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

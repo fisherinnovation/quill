@@ -38,6 +38,12 @@ where reality differs.
 - OpenRouter's public model list (no key, nothing about you), and the local
   Ollama server's list of installed models, to fill the model pickers in
   Settings.
+- GitHub, once a day, to see whether a newer Quill has been released
+  (`latest.json` on the latest release; nothing about you or your meetings
+  is sent). Turn it off in **Settings → Updates**. An update downloads only
+  when you click **Restart to update**, and installs only if it's signed by
+  Quill's update key (the public half is built into the app) for the version
+  it claims to be. Debug builds never check on their own.
 
 There's no telemetry, analytics or crash reporting.
 

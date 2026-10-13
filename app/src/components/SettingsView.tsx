@@ -16,6 +16,7 @@ import {
 import { AccessCheck } from "./AccessCheck";
 import { Icon } from "./Icon";
 import { Group, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
+import { UpdateRows } from "./Updates";
 
 
 export function SettingsView() {
@@ -111,6 +112,10 @@ export function SettingsView() {
         <h2 className="group-title">Audio access</h2>
         <AccessCheck framed />
       </section>
+
+      <Group title="Updates">
+        <UpdateRows settings={settings} update={update} />
+      </Group>
 
       <Group title="Troubleshooting">
         <Row

@@ -65,7 +65,7 @@ results.
 | `crates/quill-core` | Meeting pipeline (`meeting`, `speakers`), summaries, dictation pipeline, SQLite library and migrations, settings, insights |
 | `crates/quill-insert` | Pasting into the focused app, the frontmost app, and the macOS fn-key watcher (`fn_key`) |
 | `crates/quill-eval`, `crates/quill-cli` | Summary-model evaluation; the CLI over everything |
-| `app/src-tauri` | Tauri shell: commands, pipeline orchestration, dictation controller, models, storage, tray, indicator window |
+| `app/src-tauri` | Tauri shell: commands, pipeline orchestration, dictation controller, models, storage, tray, indicator window, updates |
 | `app/src` | React UI. `api.ts` holds every command and event type. `dev/mock.ts` is the browser mock |
 | `prompts/` | Versioned prompt templates, compiled in with `include_str!` |
 | `eval/` | Benchmarks and evals: `bench/`, `dictation/`, `diarization/`, summary transcripts |
@@ -110,7 +110,7 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   command. When you add a command or event, add it to the mock too.
 - **URL flags:** `?onboarding ?recording ?listening ?processing ?failed
   ?nopaste ?empty ?light ?indicator ?about ?others ?nomodels ?noollama
-  ?nokey ?fn`.
+  ?nokey ?fn ?update`.
 - **Themes:** check light (`?light`) and dark.
 - **Clicking in the preview:** the first click after a page load is often
   lost. Use `find` refs, or click twice.
@@ -139,6 +139,11 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   - It's static on macOS. On Windows it's DLLs: the static build is `/MT`
     and clashes with whisper.cpp's `/MD`. The installer ships the DLLs
     (`tauri.windows-release.conf.json`).
+- **Updates:** the macOS update archive must be packed after
+  `package-macos.sh` re-signs the app (it does this itself). Never enable
+  `createUpdaterArtifacts`, or updates lose the app's permissions. The
+  updater's private key is a GitHub Actions secret; see
+  [docs/DESIGN_NOTES.md](docs/DESIGN_NOTES.md#updates).
 - **Minimum macOS** is 14.6 (`bundle.macOS.minimumSystemVersion`).
   whisper.cpp won't build for Tauri's default of 10.13. After changing it,
   delete `target/release/build/whisper-rs-sys-*`.

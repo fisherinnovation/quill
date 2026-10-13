@@ -215,6 +215,40 @@ decision someone might otherwise undo.
   plainly when it's missing. The key is read only when it's needed, once
   per launch.
 
+## Updates
+
+- Tauri's updater plugin, driven from Rust (`app/src-tauri/src/updates.rs`)
+  so the web view gets no updater permissions. It reads `latest.json` from
+  `releases/latest/download/`, which GitHub serves only for published
+  releases: a draft is invisible to installed copies until it's published.
+- Check daily (a 1-hour tick compared with the wall clock, since a long
+  `sleep` stops counting while the computer sleeps); install only when the
+  user clicks, and never while recording, processing, dictating, moving
+  recordings or downloading a model, since installing restarts the app.
+  Nothing is downloaded until the click: keeping a ~50 MB update in memory
+  in a menu-bar app all day wasn't worth the instant restart.
+- Update files are signed with a minisign key separate from OS code
+  signing, so updates work with ad hoc and unsigned builds. The private key
+  and its password are the `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` Actions secrets; losing them means
+  installed copies can never update again, so the maintainer keeps a
+  backup. `requireSignedVersion` is on: each signature carries the version
+  (`tauri signer sign --app-version`), so a tampered `latest.json` can't
+  pair a new version number with an older, validly signed release.
+- macOS: the update is a `.app.tar.gz` that `package-macos.sh` packs *after*
+  re-signing with the stable designated requirement. Tauri's own
+  `createUpdaterArtifacts` would archive the app before that, and every
+  update would then lose the microphone and Accessibility permissions.
+  The updater downloads with its own HTTP client, so the new app should get
+  no quarantine flag and Gatekeeper shouldn't ask again (to confirm with the
+  first real update).
+- Windows: both installers are update files. `latest.json` lists
+  `windows-x86_64-nsis` and `windows-x86_64-msi` (the plugin looks for
+  `{os}-{arch}-{installer}` first), so an MSI install updates with the MSI;
+  plain `windows-x86_64` falls back to NSIS. NSIS installs per user, so
+  updating needs no UAC prompt. The installer runs in passive mode (a
+  progress bar) and reopens Quill.
+
 ## Website
 
 - `site/` is plain HTML, CSS and JavaScript with system fonts: no web

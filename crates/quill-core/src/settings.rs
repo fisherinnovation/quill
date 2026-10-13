@@ -37,6 +37,9 @@ pub struct Settings {
     pub recordings_dir: Option<PathBuf>,
     /// The app's first-run screen has been completed.
     pub onboarded: bool,
+    /// Look for a new version of Quill on GitHub once a day. Updates are
+    /// only installed when the user asks.
+    pub check_for_updates: bool,
     // Tables must come after plain values in TOML, so keep this last.
     pub dictation: DictationSettings,
 }
@@ -132,6 +135,7 @@ impl Default for Settings {
             identify_speakers: true,
             recordings_dir: None,
             onboarded: false,
+            check_for_updates: true,
             dictation: DictationSettings::default(),
         }
     }
