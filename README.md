@@ -333,6 +333,7 @@ CI runs exactly these on macOS and Windows for every push and pull request.
 - **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`, `?about` (the About window), `?others` (call audio as one "Others" speaker), `?nomodels` (nothing downloaded), `?noollama` (Ollama not running), `?nokey` (no OpenRouter key), `?fn` (fn as the dictation shortcut).
 - **Evaluating summary models:** see [`eval/README.md`](eval/README.md). Put your own meeting transcripts in `eval/transcripts/private/`, which is gitignored.
 - **Changing a prompt:** copy it to the next version directory (for example `prompts/summary-v3/`) rather than editing a shipped one, so results stay comparable.
+- **The website** lives in [`site/`](site): static HTML, CSS and a little JavaScript, with no third-party requests. `node site/build.mjs` builds it into `site/_site`, filling in the version, the latest release's downloads and the source links. CI builds it on every run and publishes it to GitHub Pages from `main`.
 
 The codebase enforces a few rules through lints: no `unsafe` outside small, documented platform wrappers; no `unwrap`/`expect` outside tests; typed errors in libraries. [CONTRIBUTING.md](CONTRIBUTING.md) has the details.
 

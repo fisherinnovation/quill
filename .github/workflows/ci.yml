@@ -71,3 +71,51 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --locked
+
+  # The website (site/): built on every run. Pushes to main publish it to
+  # GitHub Pages once the repository variable SITE_DEPLOY is "true" (set it
+  # after enabling Pages, with GitHub Actions as the source).
+  site:
+    name: website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Download buttons need a published release; source links need the
+      # repository to be public. The site follows both on its own.
+      - name: Release and visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "QUILL_SITE_PUBLIC=$(gh api "repos/$GITHUB_REPOSITORY" --jq '.private | not')" >> "$GITHUB_ENV"
+          if gh release view --repo "$GITHUB_REPOSITORY" --json tagName,assets > "$RUNNER_TEMP/release.json"; then
+            echo "QUILL_SITE_RELEASE=$RUNNER_TEMP/release.json" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build
+        env:
+          QUILL_SITE_URL: https://fisherinnovation.github.io/quill/
+        run: node site/build.mjs
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/_site
+
+  deploy-site:
+    name: publish website
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.SITE_DEPLOY == 'true'
+    needs: site
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

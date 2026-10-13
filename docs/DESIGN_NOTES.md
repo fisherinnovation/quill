@@ -206,3 +206,17 @@ decision someone might otherwise undo.
   Manager never prompts, so there Settings checks for the key and says
   plainly when it's missing. The key is read only when it's needed, once
   per launch.
+
+## Website
+
+- `site/` is plain HTML, CSS and JavaScript with system fonts: no web
+  fonts, analytics or other third-party requests, to match what the app
+  promises about privacy.
+- `build.mjs` fills the template at build time. Download buttons appear
+  only when there's a published release *and* the repository is public
+  (a private repository's release files only download for its members);
+  source links appear once it's public. So the site catches up on its own
+  when either changes, at the next CI run on `main`.
+- CI builds the site on every run, but only deploys when the repository
+  variable `SITE_DEPLOY` is `true`, so CI stays green before Pages is
+  enabled.

@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quill: meeting notes and dictation, on your computer</title>
+    <meta
+      name="description"
+      content="Record any call and get a transcript and structured notes, or hold a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded. For macOS and Windows."
+    />
+    <meta property="og:title" content="Quill: meeting notes without the meeting bot" />
+    <meta
+      property="og:description"
+      content="Local-first meeting notes and dictation for macOS and Windows. Audio never leaves your computer."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{SITE_URL}}" />
+    <meta name="author" content="Fisher Innovation" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v={{BUILD}}" />
+    <script src="main.js?v={{BUILD}}" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav" id="nav">
+      <div class="nav-inner">
+        <a class="brand" href="#top" aria-label="Quill home">
+          <img src="icon.svg" alt="" width="28" height="28" />
+          <span>Quill</span>
+        </a>
+        <nav class="nav-links" aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#compare">Compare</a>
+          <a href="#download">Download</a>
+          <!--if public--><a href="{{REPO_URL}}">Source</a><!--end public-->
+        </nav>
+        <a class="btn btn-dark btn-sm" href="#download">Get Quill</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Hero -->
+      <section class="hero card" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow reveal">Private, fast, no bots</p>
+          <h1 class="reveal">
+            <span class="accent">Meeting notes</span><br />
+            without the<br />
+            meeting bot
+          </h1>
+          <p class="lead reveal">
+            Record any call and get a transcript and structured notes, or hold a key and speak to type anywhere.
+            Audio is transcribed on your computer and never uploaded.
+          </p>
+          <div class="hero-actions reveal">
+            <a class="btn btn-dark" href="#download">Get Quill</a>
+            <a class="btn btn-ghost" href="#features">See what it does</a>
+          </div>
+        </div>
+
+        <div class="hero-demo reveal" aria-label="Example meeting in Quill">
+          <div class="demo-window">
+            <div class="demo-head">
+              <div>
+                <strong>Product sync</strong>
+                <span class="muted">Tue · 31 min · 3 people</span>
+              </div>
+              <div class="tabs" role="tablist" aria-label="Meeting view">
+                <button role="tab" aria-selected="true" aria-controls="demo-notes" id="tab-notes">Notes</button>
+                <button role="tab" aria-selected="false" aria-controls="demo-transcript" id="tab-transcript">
+                  Transcript
+                </button>
+              </div>
+            </div>
+
+            <div class="demo-body" id="demo-notes" role="tabpanel" aria-labelledby="tab-notes">
+              <p class="demo-label">TL;DR</p>
+              <ul class="demo-list">
+                <li>Onboarding launch moves to the 24th, after the analytics fix.</li>
+                <li>Priya owns the event audit; Sam drafts the release note.</li>
+              </ul>
+              <p class="demo-label">Action items</p>
+              <ul class="demo-actions">
+                <li><span class="who sky">Priya</span> Audit the sign-up events <span class="muted">· Fri</span></li>
+                <li><span class="who rose">Sam</span> Draft the launch note</li>
+                <li><span class="who me">You</span> Book the review with design</li>
+              </ul>
+            </div>
+
+            <div class="demo-body" id="demo-transcript" role="tabpanel" aria-labelledby="tab-transcript" hidden>
+              <div class="line"><span class="who me">You</span><p>Main things today: the onboarding launch and the analytics problem.</p></div>
+              <div class="line"><span class="who sky">Priya</span><p>Sign-ups dropped on Tuesday, but I think it's the event, not the funnel.</p></div>
+              <div class="line"><span class="who rose">Sam</span><p>Then let's hold the launch until that's fixed. The 24th works.</p></div>
+              <div class="line"><span class="who me">You</span><p>Agreed. Priya, can you audit the events by Friday?</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wave" aria-hidden="true" data-bars="34"></div>
+      </section>
+
+      <!-- Numbers -->
+      <section class="stats" aria-label="Quill in numbers">
+        <div class="card stat reveal">
+          <span class="tile peach"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z" /></svg></span>
+          <strong>0.3&nbsp;s</strong>
+          <p>From releasing the dictation key to typed text</p>
+        </div>
+        <div class="card stat reveal">
+          <span class="tile lilac"><svg viewBox="0 0 24 24"><path d="M4 12h3l2-6 4 12 2-6h5" /></svg></span>
+          <strong>24×</strong>
+          <p>Faster than real time: an hour of meeting in about 2½ minutes</p>
+        </div>
+        <div class="card stat wide reveal">
+          <span class="tile mint"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></span>
+          <strong>0 bytes</strong>
+          <p>Of audio uploaded. Speech recognition runs on your computer</p>
+        </div>
+        <p class="footnote">Timings measured on a MacBook Pro with an M3 Pro chip.</p>
+      </section>
+
+      <!-- Features -->
+      <section class="section" id="features">
+        <div class="section-head reveal">
+          <p class="eyebrow">Meeting notes and dictation in one app</p>
+          <h2>Everything said, written down</h2>
+        </div>
+
+        <div class="bento">
+          <article class="card feature span-2 reveal">
+            <div class="feature-copy">
+              <h3>Knows who said what</h3>
+              <p>
+                Your microphone and the call are recorded as separate tracks, so your words are always yours. The
+                other voices are told apart on your computer, and you can name them in a click.
+              </p>
+            </div>
+            <div class="speakers" aria-hidden="true">
+              <div class="speaker"><span class="who me">You</span><i style="--w: 72%"></i></div>
+              <div class="speaker"><span class="who sky">Speaker 1</span><i style="--w: 48%"></i></div>
+              <div class="speaker"><span class="who rose">Speaker 2</span><i style="--w: 31%"></i></div>
+              <div class="speaker"><span class="who lime">Speaker 3</span><i style="--w: 17%"></i></div>
+              <p class="muted small">Share of the talking</p>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Notes worth reading</h3>
+              <p>A TL;DR, decisions, action items with owners, and the discussion by topic. Export to Markdown.</p>
+            </div>
+            <div class="note-stack" aria-hidden="true">
+              <span>TL;DR</span><span>Decisions</span><span>Action items</span><span>Open questions</span>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Dictate into any app</h3>
+              <p>Hold a key, speak, let go. Fillers and false starts are tidied only when there's something to fix.</p>
+            </div>
+            <div class="dictate" aria-hidden="true">
+              <div class="keys"><kbd>⌥ Option</kbd><span>+</span><kbd>Space</kbd></div>
+              <div class="pill-indicator"><span class="dot"></span><span class="levels" data-bars="14"></span></div>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>The right tone for each app</h3>
+              <p>Casual in chat, formal in email, exact in your editor and terminal. Change any app's style.</p>
+            </div>
+            <ul class="styles" aria-label="Example styles">
+              <li><span>Slack</span><em class="chip sky">Casual</em></li>
+              <li><span>Mail</span><em class="chip lilac">Formal</em></li>
+              <li><span>VS Code</span><em class="chip mint">Technical</em></li>
+            </ul>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Search every meeting</h3>
+              <p>Full-text search across every transcript, kept in a local library on your computer.</p>
+            </div>
+            <div class="search" aria-hidden="true">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></svg>
+                launch date
+              </div>
+              <p><b>Product sync</b> · “…hold the <mark>launch</mark> until that's fixed…”</p>
+              <p><b>Design review</b> · “…the <mark>launch date</mark> slipped a week…”</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Call apps -->
+      <section class="section apps">
+        <div class="section-head reveal">
+          <p class="eyebrow">Nothing joins the call</p>
+          <h2>Works with every call app</h2>
+        </div>
+        <ul class="app-chips reveal" aria-label="Call apps Quill works with">
+          <li>Zoom</li>
+          <li>Google Meet</li>
+          <li class="big">Microsoft Teams</li>
+          <li>Slack huddles</li>
+          <li>Webex</li>
+          <li>Any browser tab</li>
+        </ul>
+        <p class="center muted reveal">
+          Quill records your microphone and your computer's audio, so if you can hear it, Quill can write it down.
+        </p>
+      </section>
+
+      <!-- Privacy -->
+      <section class="section" id="privacy">
+        <div class="section-head reveal">
+          <p class="eyebrow">Local first</p>
+          <h2>Private by design</h2>
+        </div>
+        <div class="bento privacy">
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Audio stays on your computer</h3>
+              <p>
+                Whisper transcribes on your own hardware, on the GPU on Apple Silicon. Recordings are kept as compact
+                FLAC files in a folder you choose.
+              </p>
+            </div>
+            <div class="local" aria-hidden="true">
+              <span class="tile mint big"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" /><path d="M6 11a6 6 0 0 0 12 0M12 17v3" /></svg></span>
+              <span class="arrow">→</span>
+              <span class="tile lilac big"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 20h8" /></svg></span>
+              <span class="no-cloud">
+                <svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18Z" /><path d="m4 4 16 16" /></svg>
+              </span>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>You choose where text goes</h3>
+              <p>
+                Notes are written by a model you pick: through OpenRouter, only to providers that don't store or train
+                on your data, or with Ollama on your own machine, so nothing leaves it at all.
+              </p>
+            </div>
+            <div class="choice" role="group" aria-label="Example model choice">
+              <button class="choice-opt" aria-pressed="true" data-choice="cloud">
+                <b>OpenRouter</b><span>No-training providers · zero retention option</span>
+              </button>
+              <button class="choice-opt" aria-pressed="false" data-choice="local">
+                <b>Ollama</b><span>Runs on this computer · fully offline</span>
+              </button>
+            </div>
+          </article>
+
+          <article class="card feature small reveal">
+            <h3>Keys in your OS keychain</h3>
+            <p>API keys live in the macOS Keychain or Windows Credential Manager, never in files or logs.</p>
+          </article>
+          <article class="card feature small reveal">
+            <h3>No telemetry</h3>
+            <p>No analytics, no tracking. Logs stay on your computer and never contain what you said.</p>
+          </article>
+          <article class="card feature small reveal">
+            <!--if public-->
+            <h3>Open source</h3>
+            <p>Read every line on <a href="{{REPO_URL}}">GitHub</a>. MIT or Apache-2.0, your choice.</p>
+            <!--else public-->
+            <h3>Open source, soon</h3>
+            <p>The code will be published under MIT or Apache-2.0, your choice, so you can check every claim here.</p>
+            <!--end public-->
+          </article>
+        </div>
+      </section>
+
+      <!-- Compare -->
+      <section class="section" id="compare">
+        <div class="section-head reveal">
+          <p class="eyebrow">Compare</p>
+          <h2>Pay for what you use, not a seat</h2>
+          <p class="lead center-lead">
+            Quill is free. Notes are written by a model you choose, and you pay that provider directly: about a cent per
+            hour of meeting, or nothing with a local model.
+          </p>
+        </div>
+
+        <div class="card cost reveal" aria-labelledby="cost-title">
+          <div class="cost-head">
+            <h3 id="cost-title">A year of notes and dictation, for one person</h3>
+            <p class="muted small">US dollars. Paid plans billed annually.</p>
+          </div>
+          <ul class="cost-bars">
+            <li class="mine">
+              <span class="cost-name">Quill</span>
+              <span class="cost-bar"><i style="--v: 0.03"></i></span>
+              <span class="cost-val">≈ $5<small>model use, or $0 local</small></span>
+            </li>
+            <li>
+              <span class="cost-name">Otter.ai Pro</span>
+              <span class="cost-bar"><i style="--v: 0.595"></i></span>
+              <span class="cost-val">$100<small>no dictation</small></span>
+            </li>
+            <li>
+              <span class="cost-name">Wispr Flow Pro</span>
+              <span class="cost-bar"><i style="--v: 0.857"></i></span>
+              <span class="cost-val">$144</span>
+            </li>
+            <li>
+              <span class="cost-name">Granola Business</span>
+              <span class="cost-bar"><i style="--v: 1"></i></span>
+              <span class="cost-val">$168<small>no dictation</small></span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card compare reveal">
+          <div class="compare-scroll" tabindex="0" role="region" aria-label="Feature comparison">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col"><span class="sr">Feature</span></th>
+                  <th scope="col" class="us">Quill</th>
+                  <th scope="col">Wispr Flow</th>
+                  <th scope="col">Granola</th>
+                  <th scope="col">Otter.ai</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Meeting notes</th>
+                  <td class="us"><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                </tr>
+                <tr>
+                  <th scope="row">Dictation into any app</th>
+                  <td class="us"><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="n">No</b></td>
+                  <td><b class="n">No</b></td>
+                </tr>
+                <tr>
+                  <th scope="row">Records without a bot in the call</th>
+                  <td class="us"><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="n">Usually a bot</b></td>
+                </tr>
+                <tr>
+                  <th scope="row">Where speech is turned into text</th>
+                  <td class="us"><b class="y">Your computer</b></td>
+                  <td>Their cloud</td>
+                  <td>Cloud providers</td>
+                  <td>Their cloud</td>
+                </tr>
+                <tr>
+                  <th scope="row">Your data trains models</th>
+                  <td class="us"><b class="y">Never</b></td>
+                  <td>A setting you choose</td>
+                  <td>Anonymized, unless you opt out</td>
+                  <td>De-identified, per its policy</td>
+                </tr>
+                <tr>
+                  <th scope="row">Works fully offline</th>
+                  <td class="us"><b class="y">With Ollama</b></td>
+                  <td><b class="n">No</b></td>
+                  <td><b class="n">No</b></td>
+                  <td><b class="n">No</b></td>
+                </tr>
+                <tr>
+                  <th scope="row">Price for one person</th>
+                  <td class="us"><b class="y">Free</b><small>plus model use</small></td>
+                  <td>$15/mo<small>$12/mo yearly</small></td>
+                  <td>$14/mo<small>free plan keeps 30 days</small></td>
+                  <td>$16.99/mo<small>$8.33/mo yearly</small></td>
+                </tr>
+                <tr>
+                  <th scope="row">Mobile apps</th>
+                  <td class="us"><b class="n">Not yet</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                </tr>
+                <tr>
+                  <th scope="row">Shared team workspace</th>
+                  <td class="us"><b class="n">No</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                  <td><b class="y">Yes</b></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="compare-notes muted small">
+            List prices and policies from each company's own pages, checked October 2026; free plans with limits are
+            also available. Quill's estimate is OpenRouter's price for the default models with 10 hours of meetings a
+            week. Sources:
+            <a href="https://wisprflow.ai/pricing">Wispr Flow pricing</a>,
+            <a href="https://wisprflow.ai/enterprise-privacy">privacy</a>;
+            <a href="https://www.granola.ai/pricing">Granola pricing</a>,
+            <a href="https://granola.ai/security">security</a>;
+            <a href="https://otter.ai/pricing">Otter.ai pricing</a>,
+            <a href="https://otter.ai/privacy-policy">privacy policy</a>. Wispr Flow, Granola and Otter.ai are
+            trademarks of their owners.
+          </p>
+        </div>
+      </section>
+
+      <!-- Download -->
+      <section class="cta card reveal" id="download">
+        <h2><span class="accent">Start</span> writing<br />less down</h2>
+        <!--if release-->
+        <p class="lead">Quill {{RELEASE_TAG}} is free. Speech models download the first time you open it.</p>
+        <div class="downloads">
+          <a class="btn btn-dark dl" data-os="mac" href="{{MAC_URL}}">
+            <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" /></svg>
+            Download for macOS
+          </a>
+          <a class="btn btn-dark dl" data-os="windows" href="{{WINDOWS_URL}}">
+            <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" /></svg>
+            Download for Windows
+          </a>
+        </div>
+        <p class="muted small">
+          macOS 14.6 or later on Apple Silicon · Windows 10 or 11. Early builds aren't signed yet, so the first launch
+          asks for one extra approval.<!--if public--> <a href="{{REPO_URL}}/releases">All releases</a><!--end public-->
+        </p>
+        <!--else release-->
+        <p class="lead">
+          Quill is in early development and in daily use on macOS. Installers for macOS and Windows will be here with
+          the first release.
+        </p>
+        <div class="downloads">
+          <span class="btn btn-disabled" data-os="mac">macOS · coming soon</span>
+          <span class="btn btn-disabled" data-os="windows">Windows · coming soon</span>
+        </div>
+        <!--if public-->
+        <p class="muted small">Can't wait? <a href="{{REPO_URL}}#building-from-source">Build it from source</a>.</p>
+        <!--end public-->
+        <!--end release-->
+        <div class="wave" aria-hidden="true" data-bars="22"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-brand">
+        <a class="brand" href="#top"><img src="icon.svg" alt="" width="28" height="28" /><span>Quill</span></a>
+        <p class="muted">Meeting notes and dictation, on your computer.</p>
+        <p class="made-by">
+          A <a href="https://fisherinnovation.com/labs">Fisher Innovation Labs</a> project
+        </p>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <p class="footer-title">Product</p>
+          <a href="#features">Features</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#compare">Compare</a>
+          <a href="#download">Download</a>
+        </div>
+        <div>
+          <p class="footer-title">Project</p>
+          <!--if public-->
+          <a href="{{REPO_URL}}">Source code</a>
+          <a href="{{REPO_URL}}/releases">Releases</a>
+          <a href="{{REPO_URL}}/issues">Report a problem</a>
+          <a href="{{REPO_URL}}/blob/main/SECURITY.md">Security</a>
+          <!--else public-->
+          <span class="muted">Source code coming soon</span>
+          <!--end public-->
+        </div>
+        <div>
+          <p class="footer-title">Fisher Innovation</p>
+          <a href="https://fisherinnovation.com">Website</a>
+          <a href="https://fisherinnovation.com/labs">Labs</a>
+        </div>
+      </div>
+      <p class="footer-legal muted small">
+        © 2026 <a href="https://fisherinnovation.com">Fisher Innovation</a> and the Quill contributors · Quill
+        {{VERSION}} · MIT or Apache-2.0
+      </p>
+    </footer>
+  </body>
+</html>

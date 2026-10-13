@@ -32,3 +32,4 @@ Thumbs.db
 # Release builds (.github/workflows/release.yml)
 /dist-release/
 /app/src-tauri/windows-libs/
+/site/_site/

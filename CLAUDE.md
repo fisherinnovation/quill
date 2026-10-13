@@ -68,6 +68,7 @@ results.
 | `app/src` | React UI. `api.ts` holds every command and event type. `dev/mock.ts` is the browser mock |
 | `prompts/` | Versioned prompt templates, compiled in with `include_str!` |
 | `eval/` | Benchmarks and evals: `bench/`, `dictation/`, `diarization/`, summary transcripts |
+| `site/` | The public website: static HTML/CSS/JS, built by `build.mjs`, published to GitHub Pages by CI |
 
 Logic lives in the library crates. The app and the CLI stay thin.
 
@@ -90,6 +91,9 @@ quill-cli transcribe <recording dir> [--diarize [--speakers N]]
 quill-cli diarize <wav> --reference <rttm> --sweep
 quill-cli dictate <clips…>
 quill-cli models list
+
+# Website: build into site/_site, then preview
+node site/build.mjs && python3 -m http.server 4173 -d site/_site
 ```
 
 To install a release build for the user, replace `~/Applications/Quill.app`:
