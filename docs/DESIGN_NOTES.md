@@ -31,6 +31,14 @@ decision someone might otherwise undo.
   repetition loop.
 - The ggml Metal backend compiles its shaders the first time a model loads
   after a build (~6 s). macOS caches the result; later loads take under 1 s.
+- **Release builds use `GGML_NATIVE=OFF`.** ggml otherwise builds for the
+  build machine's CPU. The Windows runners have AVX-512, so the v0.1.0
+  installer died with an illegal instruction (`0xc000001d`) on the first
+  dictation on an i9-14900KF, which has none. Off, ggml targets AVX2, FMA
+  and F16C on x64, and the M1 baseline on Apple Silicon, where Metal does
+  the heavy lifting anyway. whisper-rs-sys passes `GGML_*` variables to
+  CMake but doesn't rebuild when they change, so changing one also needs a
+  new release cache key.
 - **whisper.cpp's built-in VAD does nothing through whisper-rs.**
   whisper.cpp only runs it in `whisper_full()`, and whisper-rs calls
   `whisper_full_with_state()`. `quill-stt` therefore runs Silero itself

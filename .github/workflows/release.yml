@@ -17,6 +17,12 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # whisper.cpp otherwise builds for the runner's own CPU (GGML_NATIVE), and
+  # the Windows runners have AVX-512, which most desktop CPUs lack: the app
+  # then dies with an illegal instruction on the first dictation. Off, ggml
+  # targets a portable baseline (AVX2/FMA/F16C on x64). whisper-rs-sys passes
+  # GGML_* variables through to CMake.
+  GGML_NATIVE: "OFF"
 
 jobs:
   build:
@@ -35,10 +41,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # Separate from CI's cache: release builds use another profile.
+      # Separate from CI's cache: release builds use another profile. Change
+      # the key whenever a GGML_* setting changes: whisper-rs-sys doesn't
+      # rebuild when they do, so a cached whisper.cpp would be reused.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release
+          key: release-portable-cpu
 
       - uses: actions/setup-node@v7
         with:

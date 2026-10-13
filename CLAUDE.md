@@ -128,6 +128,11 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
 - **Windows CI:** code used only on macOS (`cfg(target_os = "macos")`)
   leaves items Windows sees as dead code, which fails `-D warnings`. Add
   `#[cfg_attr(not(target_os = "macos"), allow(dead_code))]`.
+- **Release CPU baseline:** release builds set `GGML_NATIVE=OFF`. Built for
+  the runner's CPU, whisper.cpp used AVX-512 and the Windows app crashed on
+  most desktop CPUs. A crash with no `panic:` in the log and exception
+  `0xc000001d` in Windows' Application event log is this. whisper-rs-sys
+  doesn't rebuild when `GGML_*` changes: change the release cache key too.
 - **sherpa-onnx:**
   - Its build script downloads prebuilt libraries. CI and release builds
     use the hash-checked copy via `SHERPA_ONNX_LIB_DIR`.
