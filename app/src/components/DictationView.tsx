@@ -13,8 +13,10 @@ import {
   type Style,
   type DictationState,
   type Replacement,
+  type Suggestion,
 } from "../api";
 import { Icon } from "./Icon";
+import { ModelPicker } from "./ModelPicker";
 import { ModelDownload } from "./Models";
 import { Banner, Group, Keys, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
 
@@ -33,16 +35,45 @@ export function DictationView({
     onHotkeyChange(s.hotkey);
   });
 
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  // Bumped when a suggestion changes the vocabulary or replacements, so
+  // their text boxes show it.
+  const [wordsRevision, setWordsRevision] = useState(0);
+
   useEffect(() => {
     api
       .getSettings()
       .then((s) => setSettings(s.dictation))
       .catch((e) => setError(errorText(e)));
     void api.systemLanguage().then(setSystemLanguage);
+    void api.listSuggestions().then(setSuggestions);
   }, []);
 
   if (!settings) return error ? <div className="page error-text">{error}</div> : null;
   const update = (patch: Partial<DictationSettings>) => setSettings({ ...settings, ...patch });
+
+  /** Adds an accepted suggestion's rule to the settings, or takes it out. */
+  function applyRule(s: Suggestion, add: boolean) {
+    if (!settings) return;
+    if (s.kind === "vocabulary") {
+      const rest = settings.vocabulary.filter((v) => v !== s.to);
+      update({ vocabulary: add ? [...rest, s.to] : rest });
+    } else {
+      const rest = settings.replacements.filter((r) => !(r.from.toLowerCase() === s.from.toLowerCase() && r.to === s.to));
+      update({ replacements: add ? [...rest, { from: s.from, to: s.to }] : rest });
+    }
+    setWordsRevision((n) => n + 1);
+  }
+
+  async function decide(s: Suggestion, accept: boolean) {
+    setSuggestions(await api.setSuggestionStatus(s.id, accept ? "accepted" : "dismissed"));
+    if (accept) applyRule(s, true);
+  }
+
+  async function undo(s: Suggestion) {
+    setSuggestions(await api.setSuggestionStatus(s.id, "dismissed"));
+    applyRule(s, false);
+  }
   const languageName = (code: string | null) => LANGUAGES.find(([c]) => c === code)?.[1] ?? code ?? "unknown";
 
   return (
@@ -113,16 +144,36 @@ export function DictationView({
                 : "Via OpenRouter. Only the text is sent, never audio, to providers that don't keep it."
             }
           >
-            <input
+            <ModelPicker
+              purpose="cleanup"
               value={settings.polish_model}
-              spellCheck={false}
-              onChange={(e) => update({ polish_model: e.target.value.trim() })}
+              onChange={(polish_model) => update({ polish_model })}
             />
           </Row>
+        )}
+        {settings.polish && (
+          <div className="row stack">
+            <div className="row-label">
+              <span>About you</span>
+              <p className="row-hint">
+                Helps the clean-up get names, jargon and spelling right. It's never added to your text, and it's sent
+                only with text being tidied.
+              </p>
+            </div>
+            <ListInput
+              rows={3}
+              placeholder={"I'm a product designer at Northwind. I work with Priya and Dan.\nUse British spelling. “PR” means pull request."}
+              value={settings.about}
+              onChange={(about) => update({ about })}
+              spellCheck
+            />
+          </div>
         )}
       </Group>
 
       <AppStyles settings={settings} onChange={(app_styles) => update({ app_styles })} />
+
+      <Suggestions suggestions={suggestions} settings={settings} onDecide={decide} onUndo={undo} />
 
       <Group title="Words">
         <div className="row stack">
@@ -131,6 +182,7 @@ export function DictationView({
             <p className="row-hint">Names and terms to spell exactly, one per line.</p>
           </div>
           <ListInput
+            key={`vocabulary-${wordsRevision}`}
             rows={3}
             placeholder={"Quill\nOpenRouter"}
             value={settings.vocabulary.join("\n")}
@@ -143,6 +195,7 @@ export function DictationView({
             <p className="row-hint">One per line: what you say → what to type.</p>
           </div>
           <ListInput
+            key={`replacements-${wordsRevision}`}
             rows={3}
             placeholder="open router → OpenRouter"
             value={settings.replacements.map((r) => `${r.from} → ${r.to}`).join("\n")}
@@ -161,7 +214,7 @@ export function DictationView({
         </Row>
       </Group>
 
-      {settings.keep_history && <History />}
+      {settings.keep_history && <History onSuggestions={setSuggestions} />}
     </div>
   );
 }
@@ -248,10 +301,114 @@ function PastePermission() {
   );
 }
 
-function History() {
+/**
+ * Rules suggested by corrections, to add or dismiss, and the ones already
+ * learned, to undo. Nothing is learned without the user's OK.
+ */
+function Suggestions({
+  suggestions,
+  settings,
+  onDecide,
+  onUndo,
+}: {
+  suggestions: Suggestion[];
+  settings: DictationSettings;
+  onDecide: (s: Suggestion, accept: boolean) => void;
+  onUndo: (s: Suggestion) => void;
+}) {
+  const pending = suggestions.filter((s) => s.status === "pending");
+  // Accepted rules still in the settings (the user may have deleted them by hand).
+  const learned = suggestions.filter(
+    (s) =>
+      s.status === "accepted" &&
+      (s.kind === "vocabulary"
+        ? settings.vocabulary.includes(s.to)
+        : settings.replacements.some((r) => r.from.toLowerCase() === s.from.toLowerCase() && r.to === s.to)),
+  );
+  return (
+    <Group title="Learn from your fixes">
+      {pending.map((s) => (
+        <Row
+          key={s.id}
+          label={
+            s.kind === "vocabulary" ? (
+              <>
+                Always spell <strong>{s.to}</strong> this way
+              </>
+            ) : (
+              <>
+                Type <strong>{s.to}</strong> when you say “{s.from}”
+              </>
+            )
+          }
+          hint={`${s.kind === "vocabulary" ? "Adds it to your vocabulary" : "Adds a replacement"}. From your fix${s.app ? ` in ${s.app}` : ""}${s.seen > 1 ? `, seen ${s.seen} times` : ""}.`}
+        >
+          <span className="row-gap">
+            <button className="ghost" onClick={() => onDecide(s, false)}>
+              Dismiss
+            </button>
+            <button className="primary" onClick={() => onDecide(s, true)}>
+              Add
+            </button>
+          </span>
+        </Row>
+      ))}
+      {learned.length > 0 && (
+        <div className="row stack">
+          <div className="row-label">
+            <span>Learned</span>
+            <p className="row-hint">From your fixes. Remove one to stop using it.</p>
+          </div>
+          <div className="learned-list">
+            {learned.map((s) => (
+              <span key={s.id} className="learned-chip">
+                {s.kind === "vocabulary" ? s.to : `${s.from} → ${s.to}`}
+                <button className="ghost icon-btn" aria-label={`Remove ${s.to}`} title="Remove" onClick={() => onUndo(s)}>
+                  <Icon name="x" size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {pending.length === 0 && learned.length === 0 && (
+        <Row
+          label="Nothing to learn yet"
+          hint={
+            settings.keep_history
+              ? "When Quill gets a name or term wrong, click Correct on it under Recent below. Quill suggests what to learn from your fix."
+              : "Turn on history below, then click Correct on a dictation Quill got wrong. Quill suggests what to learn from your fix."
+          }
+        />
+      )}
+    </Group>
+  );
+}
+
+function History({ onSuggestions }: { onSuggestions: (all: Suggestion[]) => void }) {
   const [entries, setEntries] = useState<DictationEntry[]>([]);
   const [copied, setCopied] = useState<number | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  // The entry being corrected, and its draft.
+  const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
+  const [learned, setLearned] = useState<{ id: number; count: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveCorrection() {
+    if (!editing) return;
+    try {
+      const before = new Set((await api.listSuggestions()).map((s) => s.id));
+      const { entry, suggestions } = await api.correctDictation(editing.id, editing.text);
+      setEntries((all) => all.map((e) => (e.id === entry.id ? entry : e)));
+      onSuggestions(suggestions);
+      const fresh = suggestions.filter((s) => s.status === "pending" && !before.has(s.id)).length;
+      setLearned({ id: entry.id, count: fresh });
+      setEditing(null);
+      setError(null);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
 
   useEffect(() => {
     void api.listDictations().then(setEntries);
@@ -260,7 +417,7 @@ function History() {
   }, []);
 
   async function copy(entry: DictationEntry) {
-    await navigator.clipboard.writeText(entry.text);
+    await navigator.clipboard.writeText(entry.corrected ?? entry.text);
     setCopied(entry.id);
     setTimeout(() => setCopied(null), 1500);
   }
@@ -306,7 +463,45 @@ function History() {
           <ul className="history-list">
             {entries.map((entry) => (
               <li key={entry.id} className="history-item">
-                <p className="history-text">{entry.text}</p>
+                {editing?.id === entry.id ? (
+                  <div className="correct-editor">
+                    <textarea
+                      autoFocus
+                      rows={Math.min(8, Math.max(2, Math.ceil(editing.text.length / 70)))}
+                      value={editing.text}
+                      onChange={(e) => setEditing({ id: entry.id, text: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void saveCorrection();
+                        if (e.key === "Escape") setEditing(null);
+                      }}
+                    />
+                    <div className="row-gap">
+                      <span className="faint small">
+                        Fix what Quill got wrong. It suggests words to learn from your changes.
+                      </span>
+                      <span className="spacer" />
+                      <button onClick={() => setEditing(null)}>Cancel</button>
+                      <button
+                        className="primary"
+                        disabled={!editing.text.trim() || editing.text.trim() === (entry.corrected ?? entry.text)}
+                        onClick={() => void saveCorrection()}
+                      >
+                        Save
+                      </button>
+                    </div>
+                    {error && <p className="error-text small">{error}</p>}
+                  </div>
+                ) : (
+                  <p className="history-text">{entry.corrected ?? entry.text}</p>
+                )}
+                {learned?.id === entry.id && (
+                  <p className="correct-result small">
+                    <Icon name="check" size={12} />{" "}
+                    {learned.count > 0
+                      ? `Saved. ${learned.count === 1 ? "1 suggestion" : `${learned.count} suggestions`} above, under “Learn from your fixes”.`
+                      : "Saved. Nothing to learn from this one (only misspelled names and terms, or words typed apart, are learned)."}
+                  </p>
+                )}
                 <div className="history-meta">
                   <span>{shortDate(entry.created_at)}</span>
                   {entry.app && <span className="dot-sep">{entry.app}</span>}
@@ -317,8 +512,20 @@ function History() {
                     </span>
                   )}
                   {!entry.pasted && <span className="pill amber">Left on clipboard</span>}
+                  {entry.corrected && <span className="dot-sep">corrected</span>}
                   <span className="spacer" />
                   <span className="history-actions row-gap" style={{ gap: 4 }}>
+                    {editing?.id !== entry.id && (
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          setLearned(null);
+                          setEditing({ id: entry.id, text: entry.corrected ?? entry.text });
+                        }}
+                      >
+                        <Icon name="text" size={13} /> Correct
+                      </button>
+                    )}
                     <button className="ghost" onClick={() => void copy(entry)}>
                       <Icon name={copied === entry.id ? "check" : "copy"} size={13} />
                       {copied === entry.id ? "Copied" : "Copy"}
@@ -336,6 +543,12 @@ function History() {
                     </button>
                   </span>
                 </div>
+                {entry.corrected && (
+                  <details>
+                    <summary>As typed</summary>
+                    {entry.text}
+                  </details>
+                )}
                 {entry.raw && (
                   <details>
                     <summary>As spoken</summary>
@@ -565,17 +778,19 @@ function ListInput({
   onChange,
   rows,
   placeholder,
+  spellCheck = false,
 }: {
   value: string;
   onChange: (text: string) => void;
   rows: number;
   placeholder: string;
+  spellCheck?: boolean;
 }) {
   const [text, setText] = useState(value);
   return (
     <textarea
       rows={rows}
-      spellCheck={false}
+      spellCheck={spellCheck}
       placeholder={placeholder}
       value={text}
       onChange={(e) => {

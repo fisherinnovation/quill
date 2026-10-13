@@ -35,6 +35,9 @@ where reality differs.
   or an Ollama server (`localhost:11434` by default, or `OLLAMA_HOST`);
 - Hugging Face, to download speech models. Each download is checked against
   a pinned SHA-256 hash before use.
+- OpenRouter's public model list (no key, nothing about you), and the local
+  Ollama server's list of installed models, to fill the model pickers in
+  Settings.
 
 There's no telemetry, analytics or crash reporting.
 
@@ -52,7 +55,7 @@ environment variable.
 **Data at rest.** Meetings, transcripts, notes, dictation history and audio
 are stored **unencrypted** in Quill's data folder (see the README), protected
 by your operating-system account. Use full-disk encryption (FileVault or
-BitLocker) if that matters for you. Telling speakers apart stores voice
+BitLocker) if that matters for you. Corrections you make to dictations are kept in the history (and deleted with it). The rules they suggest are stored as word pairs only. The "About you" text is sent to the clean-up model with dictations being tidied. Telling speakers apart stores voice
 fingerprints (embeddings) of the people on a call in that meeting's folder
 (`speakers.json`); they're deleted with the meeting and never sent anywhere. Logs contain events, timings and errors,
 never transcripts, notes, dictated text or keys.

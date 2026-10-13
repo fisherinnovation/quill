@@ -31,9 +31,8 @@ speakers apart) from the project's GitHub release. To use a copy checked
 against pinned hashes instead, as CI does:
 `export SHERPA_ONNX_LIB_DIR="$(scripts/fetch-sherpa-onnx.sh)"`.
 
-On macOS, read the tip about the **Quill Development** signing certificate in
-the README. Without it, the microphone, system-audio and Accessibility
-permissions reset on every rebuild.
+On macOS, test dictation with `npm run app:bundle`, which installs a signed
+`Quill.app` (see the tip in the README). Permissions survive rebuilds.
 
 ## Making changes
 

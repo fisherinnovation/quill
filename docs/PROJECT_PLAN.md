@@ -350,6 +350,16 @@ Each milestone ends with something runnable. Don't start the next until the acce
 - **AMI accuracy:** about 18–22% DER, in line with pyannote's published 18.8%. Confusion is 4–6%; the rest is segmentation.
 - **Speed:** about 35× real time on the M3 Pro CPU.
 
+**Notes (learning from corrections, step 1):**
+- **Correct:** history entries have **Correct**. `quill_core::corrections::learn` aligns the typed and corrected words (LCS) and suggests rules only for safe kinds of fix:
+  - a term spelled differently (capitalised, inner capitals, digits or symbols, ignoring a capital that only starts a sentence) → vocabulary;
+  - several words typed as one term ("open router" → "OpenRouter") → replacement.
+
+  Homophones, grammar edits, insertions, deletions and rewrites (more than 4 words) are ignored.
+- **Suggestions:** stored in the `suggestions` table (migration 5) with a count, and accepted or dismissed by the user. Accepted rules go into the dictation settings.
+- **About you:** a new setting, passed to the clean-up model by prompt `dictation-v3`. On the 10 eval clips with an About text, output changed in one word ("standup" → "stand up") and never included any of the About text.
+- **Step 2 (planned):** opt-in, off by default. Watch the inserted text through Accessibility for about a minute and turn the user's edits into the same suggestions. First check which apps expose their text.
+
 **Notes (M6):**
 - Latency: Whisper `short_clip` mode (greedy decoding, the encoder sized to the clip, VAD trimming only the outer silence) takes 0.27 s median on turbo, versus 0.6–0.7 s with meeting settings. The polish step (default `google/gemini-3.5-flash-lite`, 0.66 s median) runs only when `needs_polish` finds fillers, corrections, lists or stutters; on clean speech the model returned Whisper's text unchanged 7 times out of 9. Details are in `eval/dictation/README.md`.
 - Language: auto-detection on the shortened encoder window produced nonsense, and doing it properly costs about 0.5 s, so dictation defaults to the system language.

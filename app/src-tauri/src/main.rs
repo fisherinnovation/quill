@@ -8,9 +8,11 @@
 // app. (No effect on macOS.)
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod about;
 mod commands;
 mod dictation;
 mod indicator;
+mod llm_models;
 mod logging;
 mod models;
 mod onboarding;
@@ -69,7 +71,14 @@ fn main() {
     let library = Library::open(&data_dir, &settings.recordings_dir(&data_dir))
         .expect("could not open the meeting library");
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // macOS gets Quill's own app menu (About window, Settings ⌘,, Help).
+    // Windows has no menu bar; About is in the tray menu there.
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(about::menu);
+    builder
+        .on_menu_event(|app, event| about::on_menu_event(app, event.id().as_ref()))
+        .manage(llm_models::CatalogCache::default())
         .manage(AppState {
             data_dir,
             library,
@@ -125,6 +134,8 @@ fn main() {
         })
         // `generate_handler!` registers the functions the UI may `invoke()`.
         .invoke_handler(tauri::generate_handler![
+            about::about_info,
+            about::open_link,
             commands::list_meetings,
             commands::get_meeting,
             commands::search_transcripts,
@@ -146,6 +157,7 @@ fn main() {
             models::show_models_dir,
             commands::rename_speaker,
             commands::openrouter_key_status,
+            llm_models::model_choices,
             commands::set_openrouter_key,
             commands::delete_openrouter_key,
             storage::storage_info,
@@ -170,6 +182,9 @@ fn main() {
             dictation::request_paste_permission,
             dictation::system_language,
             dictation::dictation_apps,
+            dictation::correct_dictation,
+            dictation::list_suggestions,
+            dictation::set_suggestion_status,
             dictation::globe_key_action,
             dictation::open_keyboard_settings,
         ])

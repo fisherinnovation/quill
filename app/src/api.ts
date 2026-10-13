@@ -72,6 +72,8 @@ export interface DictationSettings {
   language: string | null;
   polish: boolean;
   polish_model: string;
+  /** What the user tells the clean-up model about themselves. */
+  about: string;
   vocabulary: string[];
   replacements: Replacement[];
   keep_history: boolean;
@@ -143,6 +145,21 @@ export interface DictationEntry {
   pasted: boolean;
   /** The app it was typed into. */
   app: string | null;
+  /** The user's fixed version, if they corrected it. */
+  corrected: string | null;
+}
+
+/** A rule suggested by the user's corrections. */
+export interface Suggestion {
+  id: number;
+  kind: "vocabulary" | "replacement";
+  /** Empty for vocabulary. */
+  from: string;
+  to: string;
+  app: string | null;
+  /** How many corrections suggested it. */
+  seen: number;
+  status: "pending" | "accepted" | "dismissed";
 }
 
 export interface StorageInfo {
@@ -178,6 +195,41 @@ export interface Progress {
   stage: Stage;
   fraction: number | null;
   message: string | null;
+}
+
+/** What the About window shows. */
+export interface AboutInfo {
+  version: string;
+  /** Commit the app was built from, and its date; empty outside a git checkout. */
+  commit: string;
+  commit_date: string;
+  debug: boolean;
+  os: string;
+  arch: string;
+  speech_model: string;
+  /** null when clean-up is off. */
+  cleanup_model: string | null;
+  summary_model: string;
+  identify_speakers: boolean;
+  data_dir: string;
+}
+
+/** Pages the app links to; the URLs live in Rust (about.rs). */
+export type AboutLink = "repository" | "releases" | "report_problem" | "security" | "license";
+
+/** Model choices for summaries or clean-up (see llm_models.rs). */
+export interface ModelChoices {
+  recommended: { id: string; label: string; note: string; per_hour: number | null }[];
+  /** "ollama:<name>" for each installed model; null if Ollama isn't running. */
+  ollama: string[] | null;
+  /** OpenRouter's catalog; empty if it couldn't be loaded. */
+  catalog: {
+    id: string;
+    name: string;
+    input_per_million: number | null;
+    output_per_million: number | null;
+    context_length: number | null;
+  }[];
 }
 
 /** Quill's disk footprint, by part. */
@@ -234,9 +286,11 @@ export const api = {
   /** Renaming to a name another speaker has merges them. */
   renameSpeaker: (id: string, from: string, to: string) => invoke<void>("rename_speaker", { id, from, to }),
   /** "keychain" | "environment", or null if no key is configured. Never reads the key. */
-  openrouterKeyStatus: () => invoke<string | null>("openrouter_key_status"),
+  /** Never touches the keychain (which can prompt for the password on macOS). */
+  openrouterKeyStatus: () => invoke<"environment" | "keychain" | "unknown">("openrouter_key_status"),
   setOpenrouterKey: (key: string) => invoke<void>("set_openrouter_key", { key }),
-  deleteOpenrouterKey: () => invoke<void>("delete_openrouter_key"),
+  /** False if there was no key to remove. May show the keychain prompt. */
+  deleteOpenrouterKey: () => invoke<boolean>("delete_openrouter_key"),
   storageInfo: () => invoke<StorageInfo>("storage_info"),
   /** Opens a folder picker and moves all recordings there; null if cancelled. */
   chooseRecordingsDir: () => invoke<StorageInfo | null>("choose_recordings_dir"),
@@ -244,6 +298,9 @@ export const api = {
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
   modelsInfo: () => invoke<ModelsInfo>("models_info"),
   footprint: () => invoke<Footprint>("footprint"),
+  modelChoices: (purpose: "summary" | "cleanup") => invoke<ModelChoices>("model_choices", { purpose }),
+  aboutInfo: () => invoke<AboutInfo>("about_info"),
+  openLink: (link: AboutLink) => invoke<void>("open_link", { link }),
   /** Downloads what the saved settings need, in the background. */
   downloadNeededModels: () => invoke<void>("download_needed_models"),
   downloadModel: (name: string) => invoke<void>("download_model", { name }),
@@ -269,6 +326,12 @@ export const api = {
   listDictations: () => invoke<DictationEntry[]>("list_dictations"),
   deleteDictation: (id: number) => invoke<void>("delete_dictation", { id }),
   clearDictations: () => invoke<void>("clear_dictations"),
+  /** Saves a fixed version and returns it with all pending and accepted suggestions. */
+  correctDictation: (id: number, text: string) =>
+    invoke<{ entry: DictationEntry; suggestions: Suggestion[] }>("correct_dictation", { id, text }),
+  listSuggestions: () => invoke<Suggestion[]>("list_suggestions"),
+  setSuggestionStatus: (id: number, status: Suggestion["status"]) =>
+    invoke<Suggestion[]>("set_suggestion_status", { id, status }),
   /** macOS Accessibility: needed to simulate the paste keystroke. */
   pastePermission: () => invoke<boolean>("paste_permission"),
   requestPastePermission: () => invoke<boolean>("request_paste_permission"),

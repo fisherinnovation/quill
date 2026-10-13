@@ -97,7 +97,8 @@ pub const JUDGE: JudgePrompts = JudgePrompts {
 pub struct DictationPrompts {
     pub version: &'static str,
     /// Vars: vocabulary, destination (where the text is going and how it
-    /// should read there; may be empty).
+    /// should read there; may be empty), and from v3 about (what the user
+    /// wrote about themselves; may be empty).
     pub system: &'static str,
     /// Vars: transcript.
     pub user: &'static str,
@@ -105,10 +106,18 @@ pub struct DictationPrompts {
 
 /// v2: adds the destination app and its style (v1, in prompts/dictation-v1,
 /// had no destination).
-pub const DICTATION: DictationPrompts = DictationPrompts {
+pub const DICTATION_V2: DictationPrompts = DictationPrompts {
     version: "dictation-v2",
     system: prompt!("dictation-v2/system.md"),
     user: prompt!("dictation-v2/user.md"),
+};
+
+/// v3: adds what the user wrote about themselves (Dictation → About you):
+/// role, names, spelling preferences. Otherwise unchanged.
+pub const DICTATION: DictationPrompts = DictationPrompts {
+    version: "dictation-v3",
+    system: prompt!("dictation-v3/system.md"),
+    user: prompt!("dictation-v3/user.md"),
 };
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -200,6 +209,7 @@ mod tests {
             &[
                 ("vocabulary", "Quill"),
                 ("destination", "It's going into Slack."),
+                ("about", "I build Quill."),
             ],
         )
         .unwrap();

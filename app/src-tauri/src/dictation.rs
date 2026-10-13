@@ -22,7 +22,7 @@ use quill_audio::STT_SAMPLE_RATE;
 use quill_audio::cue::{self, Cue};
 use quill_audio::live::MicStream;
 use quill_core::dictation;
-use quill_core::library::{DictationEntry, DictationStat};
+use quill_core::library::{DictationEntry, DictationStat, Suggestion, SuggestionStatus};
 use quill_core::settings::{DictationSettings, FN_HOTKEY, Style};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -619,6 +619,7 @@ async fn process(
         latency_ms,
         pasted,
         app: target.as_ref().map(|a| a.name.clone()),
+        corrected: None,
     };
     // Numbers only (no text), for the Insights page, whatever the history
     // setting.
@@ -815,4 +816,71 @@ pub fn open_keyboard_settings() -> CommandResult<()> {
         None::<&str>,
     )
     .map_err(|e| CommandError::Other(e.to_string()))
+}
+
+/// A saved correction and what it suggests learning.
+#[derive(Debug, Clone, Serialize)]
+pub struct Correction {
+    pub entry: DictationEntry,
+    /// All pending and accepted suggestions, the new ones included.
+    pub suggestions: Vec<Suggestion>,
+}
+
+/// Saves the user's fixed version of a dictation and records the rules it
+/// suggests (see `quill_core::corrections`). Nothing is applied until the
+/// user accepts a suggestion.
+#[tauri::command]
+pub async fn correct_dictation(app: AppHandle, id: i64, text: String) -> CommandResult<Correction> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let text = text.trim();
+        if text.is_empty() {
+            return Err(CommandError::Other("the corrected text is empty".into()));
+        }
+        let entry = state.library.correct_dictation(id, text)?;
+        let settings = lock(&state.settings).dictation.clone();
+        let rules: Vec<_> = quill_core::corrections::learn(&entry.text, text)
+            .into_iter()
+            .filter(|rule| !already_known(rule, &settings))
+            .collect();
+        tracing::info!(suggestions = rules.len(), "dictation corrected");
+        state
+            .library
+            .add_suggestions(&rules, entry.app.as_deref())?;
+        Ok(Correction {
+            entry,
+            suggestions: state.library.suggestions()?,
+        })
+    })
+    .await
+}
+
+/// Whether the settings already have this rule.
+fn already_known(rule: &quill_core::corrections::Learned, settings: &DictationSettings) -> bool {
+    use quill_core::corrections::Kind;
+    match rule.kind {
+        Kind::Vocabulary => settings.vocabulary.iter().any(|v| v.trim() == rule.to),
+        Kind::Replacement => settings
+            .replacements
+            .iter()
+            .any(|r| r.from.trim().eq_ignore_ascii_case(&rule.from) && r.to.trim() == rule.to),
+    }
+}
+
+/// Pending and accepted suggestions.
+#[tauri::command]
+pub fn list_suggestions(state: tauri::State<'_, AppState>) -> CommandResult<Vec<Suggestion>> {
+    Ok(state.library.suggestions()?)
+}
+
+/// Marks a suggestion accepted (the UI adds the rule to the settings) or
+/// dismissed (it won't be suggested again).
+#[tauri::command]
+pub fn set_suggestion_status(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    status: SuggestionStatus,
+) -> CommandResult<Vec<Suggestion>> {
+    state.library.set_suggestion_status(id, status)?;
+    Ok(state.library.suggestions()?)
 }

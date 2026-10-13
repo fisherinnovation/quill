@@ -5,6 +5,7 @@
 //! `anthropic/claude-haiku-5.5` goes to OpenRouter, `ollama:qwen3:8b` to a
 //! local Ollama server.
 
+pub mod catalog;
 pub mod keys;
 mod ollama;
 mod openrouter;
@@ -139,8 +140,10 @@ pub fn provider_for_with_key(
     key: impl FnOnce() -> Result<String, LlmError>,
 ) -> Result<(Box<dyn LlmProvider>, String), LlmError> {
     if let Some(model) = spec.strip_prefix("ollama:") {
-        let host = std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".into());
-        return Ok((Box::new(Ollama::new(host)), model.to_string()));
+        return Ok((
+            Box::new(Ollama::new(catalog::ollama_host())),
+            model.to_string(),
+        ));
     }
     Ok((Box::new(OpenRouter::new(key()?, privacy)), spec.to_string()))
 }

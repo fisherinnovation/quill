@@ -13,6 +13,7 @@ use crate::commands::{self, lock};
 
 const TOGGLE: &str = "toggle-recording";
 const OPEN: &str = "open";
+const ABOUT: &str = "tray-about";
 const QUIT: &str = "quit";
 
 /// Handles to update when recording starts or stops.
@@ -24,10 +25,17 @@ pub struct Tray {
 pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
     let toggle = MenuItem::with_id(app, TOGGLE, "Start Recording", true, None::<&str>)?;
     let open = MenuItem::with_id(app, OPEN, "Open Quill", true, None::<&str>)?;
+    let about = MenuItem::with_id(app, ABOUT, "About Quill", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT, "Quit Quill", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
-        &[&toggle, &PredefinedMenuItem::separator(app)?, &open, &quit],
+        &[
+            &toggle,
+            &PredefinedMenuItem::separator(app)?,
+            &open,
+            &about,
+            &quit,
+        ],
     )?;
 
     let icon = TrayIconBuilder::with_id("main")
@@ -56,6 +64,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
                 });
             }
             OPEN => show_window(app),
+            ABOUT => crate::about::show(app),
             QUIT => app.exit(0),
             _ => {}
         })

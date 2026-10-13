@@ -132,15 +132,10 @@ npx tauri build      # release bundle (.app/.dmg on macOS, .msi/.exe on Windows)
 The first build compiles whisper.cpp and takes several minutes; later builds are incremental.
 
 > [!TIP]
-> **Developing on macOS:** macOS ties permissions (microphone, system audio,
-> Accessibility) to an app's code signature. Development builds use a
-> throwaway signature, so permissions reset on every rebuild. To keep them,
-> create a code-signing certificate named **Quill Development** once:
-> Keychain Access → Certificate Assistant → Create a Certificate…, with
-> Identity Type *Self-Signed Root* and Certificate Type *Code Signing*.
-> `npm run app:bundle` signs with it whenever it exists. Also use
-> `app:bundle` (not `app`) to test dictation, because macOS only lets real
-> app bundles into the Accessibility list. See [`app/README.md`](app/README.md).
+> **Developing on macOS:** use `npm run app:bundle` (not `app`) to test
+> dictation, because macOS only lets real app bundles into the Accessibility
+> list. It signs the build with a fixed identity, so microphone, system-audio
+> and Accessibility permissions survive rebuilds. See [`app/README.md`](app/README.md).
 
 ### First run
 
@@ -165,6 +160,8 @@ Progress shows in the meeting view and the sidebar. In the **Transcript** tab, c
 
 Closing the window keeps Quill running in the menu bar, so a recording isn't cut off. Quit from the menu-bar icon.
 
+**About Quill** (in the Quill menu on macOS, or the menu-bar icon's menu) shows the version and build, the models in use, links, and credits. **Copy diagnostic info** there copies what a bug report needs (no keys or text). On macOS, **Help → Report a Problem…** opens a new issue.
+
 ### Dictating
 
 Put your cursor in any text field, then:
@@ -177,6 +174,13 @@ On macOS you can use <kbd>fn</kbd> (🌐) on its own instead: choose **fn** unde
 Press <kbd>Esc</kbd> to cancel. A pill near the bottom of the screen shows the mic level while listening and "Typing…" while processing.
 
 On the **Dictation** page you can change the shortcut, choose the language (your system language by default; auto-detection is available but about 0.5 s slower), turn clean-up on or off, set a style per app, and add vocabulary and replacements. Recent dictations are listed with **Copy**, in case text didn't land where you meant it to.
+
+**Teaching Quill.** When Quill gets a name or term wrong, click **Correct** on it under **Recent** and fix the text. Quill compares your fix with what it typed and suggests what to learn, under **Learn from your fixes**:
+
+- A misspelled name or term ("Quil" → "Quill") becomes a vocabulary word, which steers both the speech model and the clean-up.
+- Words typed apart ("open router" → "OpenRouter") become a replacement.
+
+Nothing is learned until you click **Add**, and learned rules can be removed. Ordinary word changes ("their" → "there") aren't learned, because as a rule for every dictation they'd be wrong as often as right. With clean-up on, **About you** tells the clean-up model about you (your role, names you use, spelling preferences) so it gets them right. It's never added to your text.
 
 ### Per-app styles
 
@@ -198,9 +202,15 @@ Quill talks to models through [OpenRouter](https://openrouter.ai) (one API key, 
 | Meeting notes | `anthropic/claude-haiku-5.5` | Accurate and cheap: a one-hour meeting costs well under a cent. |
 | Dictation clean-up | `google/gemini-3.5-flash-lite` | The fastest consistent model in our comparison (0.66 s median); see [`eval/dictation/README.md`](eval/dictation/README.md). |
 
-Either can be any OpenRouter model id, or `ollama:<model>` (for example `ollama:qwen3:8b`) to stay fully local. Set them in **Settings** and on the **Dictation** page.
+Choose them in **Settings → Summaries** and **Dictation → Clean-up**. Each picker offers:
 
-**OpenRouter key:** paste it in **Settings → Summaries**, or from a terminal run `quill-cli keys set openrouter`. It's stored in your OS keychain. For development, the `QUILL_OPENROUTER_API_KEY` environment variable overrides the keychain.
+- a few recommended models, with what each is good at and, for notes, the rough cost of an hour-long meeting from OpenRouter's current prices;
+- the models installed in Ollama, to stay fully local;
+- **Other OpenRouter model…**, which checks the id you type against OpenRouter's model list and shows its prices.
+
+From the CLI, `-m` takes any OpenRouter id or `ollama:<model>`.
+
+**OpenRouter key:** in **Settings → Summaries**, click **Add key…** (or **Change key…**) and paste it, or from a terminal run `quill-cli keys set openrouter`. It's stored in your OS keychain. Opening Settings never reads the keychain: on macOS that alone can ask for your password. Quill reads the key only when it writes notes or tidies dictation, once per launch. For development, the `QUILL_OPENROUTER_API_KEY` environment variable overrides the keychain.
 
 **Data handling:** requests always ask OpenRouter to route only to providers that don't collect your data. *Zero data retention only* (Settings) is stricter and supported by fewer models.
 

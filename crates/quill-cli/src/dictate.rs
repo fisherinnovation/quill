@@ -36,6 +36,10 @@ pub struct Args {
     /// Terms to spell exactly, comma-separated
     #[arg(long, value_delimiter = ',')]
     vocabulary: Vec<String>,
+    /// What the speaker says about themselves, for the clean-up model
+    /// (the app's Dictation → About you)
+    #[arg(long, default_value = "")]
+    about: String,
     /// Pretend the text is going into this app (by bundle id or .exe), to
     /// try its style, e.g. com.tinyspeck.slackmacgap
     #[arg(long)]
@@ -51,6 +55,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     let transcriber = WhisperTranscriber::load(&model_path, &config)?;
     let settings = DictationSettings {
         vocabulary: args.vocabulary.clone(),
+        about: args.about.clone(),
         language: args.language.clone(),
         ..DictationSettings::default()
     };

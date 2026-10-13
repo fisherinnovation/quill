@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ModelPicker } from "./ModelPicker";
 import { ModelsGroup } from "./Models";
 import { api, errorText, events, type Footprint, fileManager, fileSize, type Settings, type StorageInfo } from "../api";
 import { AccessCheck } from "./AccessCheck";
@@ -89,14 +90,14 @@ export function SettingsView() {
           label="Model"
           hint={
             local
-              ? "Runs locally with Ollama: nothing leaves this computer."
-              : "An OpenRouter model id, or ollama:<model> to stay local. Only the transcript is sent, never audio."
+              ? "Writes the notes on this computer with Ollama."
+              : "Via OpenRouter. Only the transcript is sent, never audio."
           }
         >
-          <input
+          <ModelPicker
+            purpose="summary"
             value={settings.summary_model}
-            spellCheck={false}
-            onChange={(e) => update({ summary_model: e.target.value.trim() })}
+            onChange={(summary_model) => update({ summary_model })}
           />
         </Row>
         {!local && (
@@ -267,30 +268,52 @@ function Storage({ version }: { version: number }) {
   );
 }
 
-/** OpenRouter key: stored in the OS keychain by the app, never shown again. */
+/**
+ * OpenRouter key: kept in the OS keychain, never shown again.
+ *
+ * Opening Settings never touches the keychain: on macOS even checking
+ * whether the key is there can ask for your password. Only replacing or
+ * removing the key, after clicking Change key…, does.
+ */
 function ApiKey() {
-  const [source, setSource] = useState<string | null | undefined>(undefined);
+  const [source, setSource] = useState<"environment" | "keychain" | "unknown" | "none" | null>(null);
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const refresh = () =>
+  useEffect(() => {
     api
       .openrouterKeyStatus()
       .then(setSource)
       .catch((e) => setMessage(errorText(e)));
-  useEffect(() => {
-    void refresh();
   }, []);
 
-  async function run(action: () => Promise<void>, done: string) {
+  async function save() {
+    if (!draft.trim()) return;
     setBusy(true);
     setMessage(null);
     try {
-      await action();
+      await api.setOpenrouterKey(draft);
       setDraft("");
-      setMessage(done);
-      await refresh();
+      setSource("keychain");
+      setEditing(false);
+      setMessage("Saved to your keychain.");
+    } catch (e) {
+      setMessage(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const removed = await api.deleteOpenrouterKey();
+      setSource("none");
+      setEditing(false);
+      setMessage(removed ? "Key removed from your keychain." : "There was no key in your keychain.");
     } catch (e) {
       setMessage(errorText(e));
     } finally {
@@ -299,20 +322,57 @@ function ApiKey() {
   }
 
   const status =
-    source === undefined
-      ? "Checking…"
+    source === "environment"
+      ? "Provided by the QUILL_OPENROUTER_API_KEY environment variable."
       : source === "keychain"
         ? "Stored in your keychain."
-        : source === "environment"
-          ? "Provided by the QUILL_OPENROUTER_API_KEY environment variable."
-          : "Not set. Create one at openrouter.ai/keys.";
+        : source === "none"
+          ? "Not set. Create one at openrouter.ai/keys."
+          : "Kept in your keychain once added. Quill reads it only to write notes or tidy dictation.";
 
+  if (editing) {
+    return (
+      <div className="row">
+        <div className="row-label">
+          <span>OpenRouter API key</span>
+          <p className="row-hint">
+            {message ?? "Paste a new key to replace the current one. macOS may ask for your password."}
+          </p>
+        </div>
+        <div className="row-control">
+          <input
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+            placeholder="sk-or-…"
+            value={draft}
+            style={{ width: 180 }}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+          <button className="primary" disabled={busy || !draft.trim()} onClick={() => void save()}>
+            Save
+          </button>
+          <button className="ghost" disabled={busy} onClick={() => void remove()} title="Remove the key from your keychain">
+            Remove
+          </button>
+          <button className="ghost" disabled={busy} onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="row">
       <div className="row-label">
         <span className="row-gap">
           OpenRouter API key
-          {source && (
+          {(source === "keychain" || source === "environment") && (
             <span className="pill green">
               <Icon name="lock" size={11} /> Set
             </span>
@@ -320,35 +380,18 @@ function ApiKey() {
         </span>
         <p className="row-hint">{message ?? status}</p>
       </div>
-      <div className="row-control">
-        <input
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={source ? "Replace key…" : "sk-or-…"}
-          value={draft}
-          style={{ width: 180 }}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && draft.trim()) void run(() => api.setOpenrouterKey(draft), "Saved to the keychain.");
-          }}
-        />
-        {draft.trim() ? (
+      {source !== "environment" && (
+        <div className="row-control">
           <button
-            className="primary"
-            disabled={busy}
-            onClick={() => run(() => api.setOpenrouterKey(draft), "Saved to the keychain.")}
+            onClick={() => {
+              setMessage(null);
+              setEditing(true);
+            }}
           >
-            Save
+            {source === "none" ? "Add key…" : "Change key…"}
           </button>
-        ) : (
-          source === "keychain" && (
-            <button className="ghost" disabled={busy} onClick={() => run(() => api.deleteOpenrouterKey(), "Key removed.")}>
-              Remove
-            </button>
-          )
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

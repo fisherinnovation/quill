@@ -159,11 +159,19 @@ pub fn rename_speaker(
     Ok(())
 }
 
-/// Where the OpenRouter key comes from ("keychain" / "environment"), or
-/// `None` if there isn't one. Doesn't read the key, so never prompts.
+/// Where the OpenRouter key is, as far as Quill knows *without touching the
+/// keychain* (on macOS even looking an item up can show the password
+/// prompt): "environment" (QUILL_OPENROUTER_API_KEY), "keychain" (already
+/// read or saved this session), or "unknown".
 #[tauri::command]
-pub async fn openrouter_key_status() -> CommandResult<Option<String>> {
-    blocking(|| Ok(quill_llm::keys::openrouter_key_source()?.map(String::from))).await
+pub fn openrouter_key_status(state: State<'_, AppState>) -> &'static str {
+    if std::env::var(quill_llm::keys::OPENROUTER_ENV).is_ok_and(|k| !k.is_empty()) {
+        "environment"
+    } else if lock(&state.openrouter_key).is_some() {
+        "keychain"
+    } else {
+        "unknown"
+    }
 }
 
 /// Saves the key to the keychain from the app, which makes the app the
@@ -180,11 +188,12 @@ pub async fn set_openrouter_key(app: AppHandle, key: String) -> CommandResult<()
     Ok(())
 }
 
+/// Removes the key from the keychain. Returns false if there was none.
 #[tauri::command]
-pub async fn delete_openrouter_key(app: AppHandle) -> CommandResult<()> {
-    blocking(|| Ok(quill_llm::keys::delete(quill_llm::keys::OPENROUTER).map(|_| ())?)).await?;
+pub async fn delete_openrouter_key(app: AppHandle) -> CommandResult<bool> {
+    let removed = blocking(|| Ok(quill_llm::keys::delete(quill_llm::keys::OPENROUTER)?)).await?;
     *lock(&app.state::<AppState>().openrouter_key) = None;
-    Ok(())
+    Ok(removed)
 }
 
 /// Runs work that can block (keychain prompts, dialogs, file moves) off the

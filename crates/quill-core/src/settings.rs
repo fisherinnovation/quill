@@ -60,6 +60,9 @@ pub struct DictationSettings {
     pub polish: bool,
     /// OpenRouter model id or `ollama:<model>` for the polish step.
     pub polish_model: String,
+    /// What the user tells the clean-up model about themselves: role,
+    /// names they use, spelling preferences. Only used when polishing.
+    pub about: String,
     /// Names and terms to spell exactly (fed to Whisper and the polish step).
     pub vocabulary: Vec<String>,
     /// Applied to the text before it's typed, whole words, ignoring case.
@@ -102,6 +105,7 @@ impl Default for DictationSettings {
             language: None,
             polish: true,
             polish_model: DEFAULT_POLISH_MODEL.into(),
+            about: String::new(),
             vocabulary: Vec::new(),
             replacements: Vec::new(),
             keep_history: true,

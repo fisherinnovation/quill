@@ -37,8 +37,10 @@ pub fn delete(provider: &str) -> Result<bool, LlmError> {
     }
 }
 
-/// Where the OpenRouter key would come from, without reading it: checking
-/// only the item's attributes never triggers a keychain access prompt.
+/// Where the OpenRouter key would come from. On macOS, finding the keychain
+/// item reads it, which can show the keychain password prompt just like
+/// reading the key: only call this when the user asked (`quill-cli keys
+/// status`), never on a screen that merely opens.
 pub fn openrouter_key_source() -> Result<Option<&'static str>, LlmError> {
     if std::env::var(OPENROUTER_ENV).is_ok_and(|k| !k.is_empty()) {
         return Ok(Some("environment"));

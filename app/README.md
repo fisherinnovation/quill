@@ -10,7 +10,7 @@ cd app
 npm install
 npm run app        # run with hot reload (scripts/dev.sh: no keychain prompts on rebuilds)
 npm run app:bundle # build ~/Applications/Quill.app and open it (needed for dictation's paste)
-npx tauri build   # release bundle (.app / .dmg on macOS, .msi / .exe on Windows)
+npx tauri build    # release bundle; see below for the .dmg as CI makes it
 ```
 
 The app and `quill-cli` share one meeting library in the data directory
@@ -31,13 +31,21 @@ Privacy & Security → Accessibility (needed for dictation to paste). To test
 dictation, use `npm run app:bundle`. It builds a real `Quill.app` into
 `~/Applications`, signs it and opens it.
 
-macOS remembers permissions by code signature. To keep them across rebuilds,
-create a signing certificate once: Keychain Access → Certificate Assistant →
-Create a Certificate…, name it **Quill Development**, set Identity Type to
-*Self-Signed Root* and Certificate Type to *Code Signing*. `app:bundle`
-signs with it whenever it exists. Without it, builds are signed ad hoc, and
-after each rebuild you must remove Quill from Accessibility and add it again.
+macOS remembers permissions by the app's designated requirement. `app:bundle`
+signs ad hoc with a fixed requirement (Quill's bundle identifier), so
+Accessibility and microphone approval survive rebuilds. If a code-signing
+certificate named **Quill Development** exists (Keychain Access → Certificate
+Assistant → Create a Certificate…, Self-Signed Root, Code Signing), it's used
+instead.
+
+A release build like CI's (a `.dmg` in `dist-release/`):
+
+```sh
+export SHERPA_ONNX_LIB_DIR="$(../scripts/fetch-sherpa-onnx.sh)"
+npx tauri build --bundles app && sh scripts/package-macos.sh
+```
 
 To try the UI in a browser with sample data, run `npm run dev` and open
 http://localhost:1420 (flags: `?onboarding`, `?recording`, `?listening`,
-`?processing`, `?failed`, `?nopaste`, `?empty`, `?light`).
+`?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`,
+`?others`, `?nomodels`, `?fn`; see `src/dev/mock.ts`).

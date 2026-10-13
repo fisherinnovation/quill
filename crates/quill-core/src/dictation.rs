@@ -279,13 +279,17 @@ pub async fn polish(
     } else {
         vocabulary
     };
-    let system = render(
-        prompts.system,
-        &[
-            ("vocabulary", &vocabulary),
-            ("destination", &destination_text(destination)),
-        ],
-    )?;
+    let about = about_text(&settings.about);
+    let destination = destination_text(destination);
+    let mut vars = vec![
+        ("vocabulary", vocabulary.as_str()),
+        ("destination", destination.as_str()),
+    ];
+    // Older prompt versions (kept for comparisons) have no {{about}}.
+    if prompts.system.contains("{{about}}") {
+        vars.push(("about", about.as_str()));
+    }
+    let system = render(prompts.system, &vars)?;
     let user = render(prompts.user, &[("transcript", text)])?;
     let words = u32::try_from(text.split_whitespace().count()).unwrap_or(u32::MAX);
     let response = provider
@@ -312,6 +316,18 @@ pub async fn polish(
         latency_ms: response.latency_ms,
         cost_usd: response.cost_usd,
     })
+}
+
+/// The prompt's "about the speaker" block, or nothing if the user wrote
+/// nothing.
+fn about_text(about: &str) -> String {
+    let about = about.trim();
+    if about.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\nAbout the speaker, in their own words. Use it to get names, jargon and spelling right; never add any of it to the text:\n<about>\n{about}\n</about>\n"
+    )
 }
 
 /// Validates the model's cleaned-up version of `raw`, returning it tidied,

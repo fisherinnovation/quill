@@ -5,8 +5,8 @@
 // URL flags pick a state: ?onboarding, ?recording, ?listening, ?processing,
 // ?failed, ?nopaste, ?empty, ?light to force the light theme, ?indicator
 // for the dictation pill (with ?listening or ?processing), ?others for a
-// call not yet split into speakers, ?nomodels for a fresh install, and ?fn
-// for fn as the dictation key.
+// call not yet split into speakers, ?nomodels for a fresh install, ?fn for
+// fn as the dictation key, and ?about for the About window.
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
@@ -89,6 +89,7 @@ const settings = {
     language: null,
     polish: true,
     polish_model: "google/gemini-3.5-flash-lite",
+    about: "",
     vocabulary: ["Quill", "OpenRouter", "Priya"],
     replacements: [{ from: "open router", to: "OpenRouter" }],
     keep_history: true,
@@ -146,6 +147,11 @@ async function fakeDownload(names: string[]) {
     await emit("model-download", { name, done: model.size_bytes, total: model.size_bytes, finished: true, error: null });
   }
 }
+
+let suggestions: { id: number; kind: string; from: string; to: string; app: string | null; seen: number; status: string }[] = [
+  { id: 1, kind: "replacement", from: "open router", to: "OpenRouter", app: "Slack", seen: 2, status: "pending" },
+  { id: 2, kind: "vocabulary", from: "", to: "Kubernetes", app: "VS Code", seen: 1, status: "pending" },
+];
 
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_meetings: () => meetings,
@@ -210,12 +216,60 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     return modelsInfo();
   },
   show_models_dir: () => null,
+  model_choices: ({ purpose }) => ({
+    recommended:
+      purpose === "summary"
+        ? [
+            { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", note: "Fast and inexpensive (the default)", per_hour: 0.00205 },
+            { id: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", note: "More thorough notes; costs more", per_hour: 0.041 },
+            { id: "openai/gpt-6-luna", label: "GPT-6 Luna", note: "Fast and inexpensive", per_hour: 0.00205 },
+            { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", note: "Least expensive", per_hour: 0.0029 },
+          ]
+        : [
+            { id: "google/gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite", note: "Fastest reliable: about 0.7 s (the default)", per_hour: null },
+            { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", note: "Accurate, but about 1.1 s", per_hour: null },
+          ],
+    ollama: flags.has("noollama") ? null : ["ollama:qwen3:8b", "ollama:llama3.3:70b"],
+    catalog: [
+      { id: "mistralai/mistral-large-4-0", name: "Mistral Large 4", input_per_million: 0.68, output_per_million: 2.09, context_length: 1048576 },
+      { id: "x-ai/grok-4.7", name: "Grok 4.7", input_per_million: 2, output_per_million: 6, context_length: 500000 },
+    ],
+  }),
+  about_info: () => ({
+    version: "0.1.0",
+    commit: "6530ca8f2",
+    commit_date: "2026-10-12",
+    debug: false,
+    os: "macOS 26.0",
+    arch: "Apple Silicon",
+    speech_model: "turbo",
+    cleanup_model: "google/gemini-3.5-flash-lite",
+    summary_model: "anthropic/claude-haiku-5.5",
+    identify_speakers: true,
+    data_dir: "/Users/you/Library/Application Support/com.fisherinnovation.Quill",
+  }),
+  open_link: () => null,
+  list_suggestions: () => suggestions,
+  set_suggestion_status: ({ id, status }) => {
+    suggestions = suggestions.map((s) => (s.id === id ? { ...s, status: String(status) } : s));
+    return suggestions.filter((s) => s.status !== "dismissed");
+  },
+  correct_dictation: ({ id, text }) => {
+    const entry = dictations.find((d) => d.id === id);
+    if (entry) (entry as { corrected?: string }).corrected = String(text);
+    suggestions = [
+      { id: 10 + suggestions.length, kind: "vocabulary", from: "", to: "Northwind", app: entry?.app ?? null, seen: 1, status: "pending" },
+      ...suggestions,
+    ];
+    return { entry, suggestions: suggestions.filter((s) => s.status !== "dismissed") };
+  },
   globe_key_action: () => "default",
   open_keyboard_settings: () => null,
   rename_speaker: ({ from, to }) => {
     SEGMENTS = SEGMENTS.map((seg) => (seg.speaker === from ? { ...seg, speaker: String(to) } : seg));
   },
-  openrouter_key_status: () => "keychain",
+  openrouter_key_status: () => "unknown",
+  delete_openrouter_key: () => true,
   storage_info: () => ({ path: "/Users/you/Library/Application Support/com.fisherinnovation.Quill/recordings", is_default: true, available: true, bytes: 3_412_000_000 }),
   check_audio_access: async () => {
     await new Promise((r) => setTimeout(r, 1500));
@@ -272,7 +326,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
 
 export function installMocks() {
   if (flags.has("light")) document.documentElement.dataset.theme = "light";
-  mockWindows(flags.has("indicator") ? "indicator" : "main");
+  mockWindows(flags.has("indicator") ? "indicator" : flags.has("about") ? "about" : "main");
   mockIPC(
     (cmd, args) => {
       const handler = handlers[cmd];

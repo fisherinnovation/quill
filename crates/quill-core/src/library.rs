@@ -12,7 +12,9 @@ use std::sync::{Mutex, RwLock};
 
 use quill_stt::Segment;
 use rusqlite::{Connection, OptionalExtension, params};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+use crate::corrections::{Kind, Learned};
 
 use crate::summary::Summary;
 
@@ -97,6 +99,23 @@ ALTER TABLE dictation_stats ADD COLUMN app_id TEXT;
 ALTER TABLE dictation_stats ADD COLUMN app TEXT;
 ALTER TABLE dictations ADD COLUMN app TEXT;
 ",
+    "
+-- Learning from corrections: the user's fixed version of a dictation, and
+-- the rules suggested by fixes (pairs of words only, never the text).
+ALTER TABLE dictations ADD COLUMN corrected TEXT;
+CREATE TABLE suggestions (
+    id         INTEGER PRIMARY KEY,
+    kind       TEXT NOT NULL,              -- 'vocabulary' | 'replacement'
+    from_text  TEXT NOT NULL DEFAULT '',   -- '' for vocabulary
+    to_text    TEXT NOT NULL,
+    app        TEXT,                       -- where it was last seen
+    seen       INTEGER NOT NULL DEFAULT 1, -- corrections that suggested it
+    status     TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | dismissed
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (kind, from_text, to_text)
+);
+",
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -172,6 +191,49 @@ pub struct DictationEntry {
     pub pasted: bool,
     /// The app it was typed into, e.g. "Slack".
     pub app: Option<String>,
+    /// The user's fixed version, if they corrected it.
+    #[serde(default)]
+    pub corrected: Option<String>,
+}
+
+/// A rule suggested by the user's corrections (see `corrections`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Suggestion {
+    pub id: i64,
+    pub kind: Kind,
+    /// Empty for vocabulary.
+    pub from: String,
+    pub to: String,
+    pub app: Option<String>,
+    /// How many corrections suggested it.
+    pub seen: u32,
+    pub status: SuggestionStatus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SuggestionStatus {
+    Pending,
+    Accepted,
+    Dismissed,
+}
+
+impl SuggestionStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Accepted => "accepted",
+            Self::Dismissed => "dismissed",
+        }
+    }
+
+    fn parse(s: &str) -> Self {
+        match s {
+            "accepted" => Self::Accepted,
+            "dismissed" => Self::Dismissed,
+            _ => Self::Pending,
+        }
+    }
 }
 
 /// One dictation's numbers, kept for insights (no text).
@@ -571,7 +633,7 @@ impl Library {
     pub fn dictations(&self, limit: usize) -> Result<Vec<DictationEntry>, LibraryError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app
+            "SELECT id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected
              FROM dictations ORDER BY id DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map([i64::try_from(limit).unwrap_or(i64::MAX)], |r| {
@@ -585,9 +647,106 @@ impl Library {
                 latency_ms: u64::try_from(r.get::<_, i64>(6)?).unwrap_or(0),
                 pasted: r.get(7)?,
                 app: r.get(8)?,
+                corrected: r.get(9)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Saves the user's fixed version of a dictation and returns the entry.
+    pub fn correct_dictation(
+        &self,
+        id: i64,
+        corrected: &str,
+    ) -> Result<DictationEntry, LibraryError> {
+        let conn = self.conn();
+        let changed = conn.execute(
+            "UPDATE dictations SET corrected = ?2 WHERE id = ?1",
+            params![id, corrected],
+        )?;
+        if changed == 0 {
+            return Err(LibraryError::NotFound(id.to_string()));
+        }
+        drop(conn);
+        self.dictations(DICTATION_HISTORY_LIMIT as usize)?
+            .into_iter()
+            .find(|e| e.id == id)
+            .ok_or_else(|| LibraryError::NotFound(id.to_string()))
+    }
+
+    /// Records rules suggested by a correction. One already known counts
+    /// as seen again; its status (accepted, dismissed) is kept.
+    pub fn add_suggestions(
+        &self,
+        rules: &[Learned],
+        app: Option<&str>,
+    ) -> Result<(), LibraryError> {
+        let now = jiff::Timestamp::now().to_string();
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        for rule in rules {
+            tx.execute(
+                "INSERT INTO suggestions (kind, from_text, to_text, app, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+                 ON CONFLICT (kind, from_text, to_text) DO UPDATE SET
+                     seen = seen + 1, app = COALESCE(?4, app), updated_at = ?5",
+                params![rule.kind.as_str(), rule.from, rule.to, app, now],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Pending and accepted suggestions, most recent first.
+    pub fn suggestions(&self) -> Result<Vec<Suggestion>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, kind, from_text, to_text, app, seen, status FROM suggestions
+             WHERE status != 'dismissed' ORDER BY updated_at DESC, id DESC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, i64>(5)?,
+                r.get::<_, String>(6)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, kind, from, to, app, seen, status) = row?;
+            let Some(kind) = Kind::parse(&kind) else {
+                continue;
+            };
+            out.push(Suggestion {
+                id,
+                kind,
+                from,
+                to,
+                app,
+                seen: u32::try_from(seen).unwrap_or(u32::MAX),
+                status: SuggestionStatus::parse(&status),
+            });
+        }
+        Ok(out)
+    }
+
+    pub fn set_suggestion_status(
+        &self,
+        id: i64,
+        status: SuggestionStatus,
+    ) -> Result<(), LibraryError> {
+        let changed = self.conn().execute(
+            "UPDATE suggestions SET status = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, status.as_str(), jiff::Timestamp::now().to_string()],
+        )?;
+        if changed == 0 {
+            return Err(LibraryError::NotFound(id.to_string()));
+        }
+        Ok(())
     }
 
     pub fn delete_dictation(&self, id: i64) -> Result<(), LibraryError> {
@@ -952,6 +1111,45 @@ mod tests {
     }
 
     #[test]
+    fn corrections_and_suggestions() {
+        let (lib, _dir) = library();
+        let entry = lib
+            .add_dictation(&DictationEntry {
+                id: 0,
+                created_at: String::new(),
+                text: "Ask open router".into(),
+                raw: None,
+                polish_model: None,
+                audio_ms: 1000,
+                latency_ms: 300,
+                pasted: true,
+                app: Some("Slack".into()),
+                corrected: None,
+            })
+            .unwrap();
+        let fixed = lib.correct_dictation(entry.id, "Ask OpenRouter").unwrap();
+        assert_eq!(fixed.corrected.as_deref(), Some("Ask OpenRouter"));
+        assert!(lib.correct_dictation(9999, "x").is_err());
+
+        let rule = Learned {
+            kind: Kind::Replacement,
+            from: "open router".into(),
+            to: "OpenRouter".into(),
+        };
+        lib.add_suggestions(std::slice::from_ref(&rule), Some("Slack"))
+            .unwrap();
+        lib.add_suggestions(&[rule], None).unwrap();
+        let all = lib.suggestions().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!((all[0].seen, all[0].status), (2, SuggestionStatus::Pending));
+        assert_eq!(all[0].app.as_deref(), Some("Slack"));
+
+        lib.set_suggestion_status(all[0].id, SuggestionStatus::Dismissed)
+            .unwrap();
+        assert!(lib.suggestions().unwrap().is_empty());
+    }
+
+    #[test]
     fn renaming_a_speaker_relabels_and_can_merge() {
         let (lib, _dir) = library();
         let m = lib.create_meeting().unwrap();
@@ -1113,6 +1311,7 @@ mod tests {
             latency_ms: 300,
             pasted: true,
             app: Some("Slack".into()),
+            corrected: None,
         };
         let first = lib.add_dictation(&entry("Same.", "Same.")).unwrap();
         assert_eq!(first.raw, None);
