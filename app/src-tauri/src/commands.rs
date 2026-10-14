@@ -69,6 +69,20 @@ pub fn delete_meeting(state: State<'_, AppState>, id: String) -> CommandResult<(
     Ok(state.library.delete(&id)?)
 }
 
+/// Talk time, pace, moments and most used words for one meeting's
+/// transcript (empty stats if it isn't transcribed).
+#[tauri::command]
+pub async fn meeting_stats(
+    app: AppHandle,
+    id: String,
+) -> CommandResult<quill_core::stats::MeetingStats> {
+    blocking(move || {
+        let detail = app.state::<AppState>().library.get(&id)?;
+        Ok(quill_core::stats::meeting(&detail.segments))
+    })
+    .await
+}
+
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Settings {
     lock(&state.settings).clone()

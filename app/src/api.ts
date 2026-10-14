@@ -218,6 +218,65 @@ export interface AboutInfo {
   data_dir: string;
 }
 
+/** One person's share of a meeting (see quill_core::stats). */
+export interface SpeakerStats {
+  name: string;
+  talk_ms: number;
+  /** Of everyone's talking time, 0–1. */
+  share: number;
+  words: number;
+  wpm: number | null;
+  turns: number;
+  questions: number;
+  longest_stretch_ms: number;
+  fillers: number;
+  /** Words this person said far more than anyone else. */
+  signature_words: string[];
+}
+
+/** One person talking without a long pause or anyone cutting in. */
+export interface Stretch {
+  speaker: string;
+  start_ms: number;
+  end_ms: number;
+  words: number;
+  preview: string;
+}
+
+export interface WordCount {
+  text: string;
+  count: number;
+}
+
+export interface MeetingStats {
+  span_ms: number;
+  speech_ms: number;
+  words: number;
+  wpm: number | null;
+  turns: number;
+  questions: number;
+  /** "Me" first, then in order of first appearance (the transcript's colour order). */
+  speakers: SpeakerStats[];
+  stretches: Stretch[];
+  longest_stretch: Stretch | null;
+  longest_silence: { start_ms: number; end_ms: number } | null;
+  busiest_pair: { a: string; b: string; handovers: number } | null;
+  top_words: WordCount[];
+  top_phrases: WordCount[];
+}
+
+export interface DictationStats {
+  words: number;
+  speaking_wpm: number | null;
+  saved_ms: number;
+  typing_wpm: number;
+  /** Words Whisper heard, when clean-up changed them. */
+  raw_words: number | null;
+  fillers_removed: number;
+  /** The user's average speaking speed, to compare. */
+  usual_wpm: number | null;
+}
+
 /** Where updating stands (see updates.rs). */
 export type UpdateStatus =
   | { state: "idle" }
@@ -291,6 +350,7 @@ export interface DownloadProgress {
 export const api = {
   listMeetings: () => invoke<Meeting[]>("list_meetings"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
+  meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),
   renameMeeting: (id: string, title: string) => invoke<void>("rename_meeting", { id, title }),
   deleteMeeting: (id: string) => invoke<void>("delete_meeting", { id }),
@@ -354,6 +414,7 @@ export const api = {
   listDictations: (before: number | null, limit: number) =>
     invoke<DictationEntry[]>("list_dictations", { before, limit }),
   getDictation: (id: number) => invoke<DictationEntry>("get_dictation", { id }),
+  dictationStats: (id: number) => invoke<DictationStats>("dictation_stats", { id }),
   deleteDictation: (id: number) => invoke<void>("delete_dictation", { id }),
   clearDictations: () => invoke<void>("clear_dictations"),
   /** Saves a fixed version and returns it with all pending and accepted suggestions. */

@@ -159,3 +159,24 @@ export const LANGUAGES: [string, string][] = [
   ["ko", "Korean"],
   ["hi", "Hindi"],
 ];
+
+/** A headline number: label, value and a short note under it. */
+export function Stat({
+  label,
+  value,
+  note,
+  accent,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className={`stat card${accent ? " accent" : ""}`}>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-note">{note}</div>
+    </div>
+  );
+}

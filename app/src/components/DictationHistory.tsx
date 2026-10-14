@@ -1,8 +1,9 @@
 // The dictation history: listed in the sidebar under the meetings, a page
 // at a time, and opened one entry at a time in the main pane.
 import { useCallback, useEffect, useState } from "react";
-import { api, errorText, events, shortDate, type DictationEntry } from "../api";
+import { api, errorText, events, shortDate, type DictationEntry, type DictationStats } from "../api";
 import { Icon } from "./Icon";
+import { Stat } from "./ui";
 
 /** Dictations loaded per page ("Show more" loads another). */
 export const DICTATION_PAGE = 10;
@@ -84,12 +85,14 @@ export function DictationEntryView({
   const [learned, setLearned] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [stats, setStats] = useState<DictationStats | null>(null);
 
   useEffect(() => {
     api
       .getDictation(id)
       .then(setEntry)
       .catch((e) => setError(errorText(e)));
+    void api.dictationStats(id).then(setStats).catch(() => setStats(null));
   }, [id]);
 
   if (!entry) return error ? <div className="page error-text">{error}</div> : null;
@@ -233,6 +236,60 @@ export function DictationEntryView({
           </details>
         )}
       </div>
+
+      {stats && <EntryStats stats={stats} entry={entry} />}
     </article>
+  );
+}
+
+/** "0.8 s", "4.5 s", "1 min 12 s". */
+function seconds(ms: number): string {
+  const s = ms / 1000;
+  if (s < 10) return `${s.toFixed(1)} s`;
+  if (s < 60) return `${Math.round(s)} s`;
+  return `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
+}
+
+/** Words, pace against the user's usual, time saved and what clean-up did. */
+function EntryStats({ stats, entry }: { stats: DictationStats; entry: DictationEntry }) {
+  const wpm = stats.speaking_wpm;
+  const usual = stats.usual_wpm;
+  const change = wpm && usual ? wpm / usual - 1 : null;
+  return (
+    <div className="stat-grid">
+      <Stat label="Words" value={String(stats.words)} note={`${seconds(entry.audio_ms)} of speaking`} />
+      <Stat
+        label="Pace"
+        value={wpm ? `${Math.round(wpm)} wpm` : "–"}
+        note={
+          change === null || usual === null
+            ? "Too short to time"
+            : Math.abs(change) < 0.05
+              ? "About your usual pace"
+              : `${Math.round(Math.abs(change) * 100)}% ${change > 0 ? "faster" : "slower"} than your usual ${Math.round(usual)}`
+        }
+      />
+      <Stat
+        label="Time saved"
+        value={stats.saved_ms > 0 ? seconds(stats.saved_ms) : "–"}
+        note={`Compared with typing at ${stats.typing_wpm} wpm`}
+        accent={stats.saved_ms > 0}
+      />
+      <Stat
+        label="Clean-up"
+        value={
+          stats.raw_words !== null ? `${stats.raw_words} → ${stats.words}` : entry.polish_model ? "No changes" : "Off"
+        }
+        note={
+          stats.raw_words !== null
+            ? stats.fillers_removed > 0
+              ? `${stats.fillers_removed} filler ${stats.fillers_removed === 1 ? "word" : "words"} taken out`
+              : "Words, as heard → as typed"
+            : entry.polish_model
+              ? "It was clean already"
+              : "Typed as heard"
+        }
+      />
+    </div>
   );
 }

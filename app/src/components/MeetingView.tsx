@@ -15,6 +15,7 @@ import {
 import { useElapsed } from "./RecordButton";
 import { Icon } from "./Icon";
 import { Banner } from "./ui";
+import { MeetingStatsView } from "./MeetingStats";
 
 interface Props {
   id: string;
@@ -32,7 +33,9 @@ interface Props {
 export function MeetingView({ id, jumpTo, version, recording, progress, onChanged, onDeleted }: Props) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"summary" | "transcript">(jumpTo !== undefined ? "transcript" : "summary");
+  const [tab, setTab] = useState<"summary" | "transcript" | "stats">(jumpTo !== undefined ? "transcript" : "summary");
+  // A moment picked on the Stats tab, to show in the transcript.
+  const [statsJump, setStatsJump] = useState<number | undefined>(undefined);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exported, setExported] = useState<{ path: string } | { error: string } | null>(null);
@@ -164,6 +167,9 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
             <Icon name="text" size={14} /> Transcript
             {segments.length > 0 && <span className="tab-count">{turns(segments).length}</span>}
           </button>
+          <button role="tab" aria-selected={tab === "stats"} onClick={() => setTab("stats")}>
+            <Icon name="chart" size={14} /> Stats
+          </button>
         </div>
       </header>
 
@@ -275,7 +281,22 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
         <SpeakerBar segments={segments} busy={busy} onRename={renameSpeaker} onSplit={splitSpeakers} />
       )}
       {tab === "transcript" && (
-        <Transcript segments={segments} jumpTo={jumpTo} recording={!!recording} empty={meeting.empty} />
+        <Transcript
+          segments={segments}
+          jumpTo={statsJump ?? jumpTo}
+          recording={!!recording}
+          empty={meeting.empty}
+        />
+      )}
+      {tab === "stats" && (
+        <MeetingStatsView
+          id={id}
+          version={version}
+          onJump={(ms) => {
+            setStatsJump(ms);
+            setTab("transcript");
+          }}
+        />
       )}
     </article>
   );
@@ -356,7 +377,12 @@ function Transcript({
   const colors = useMemo(() => speakerColors(segments), [segments]);
   // The turn containing the search hit, if any.
   const targetIndex =
-    jumpTo === undefined ? -1 : paragraphs.findIndex((t) => t.start_ms <= jumpTo && jumpTo <= t.end_ms);
+    jumpTo === undefined
+      ? -1
+      : // The turn containing that moment, or (in a pause) the next one.
+        ((i) => (i >= 0 ? i : paragraphs.findIndex((t) => t.start_ms >= jumpTo)))(
+          paragraphs.findIndex((t) => t.start_ms <= jumpTo && jumpTo <= t.end_ms),
+        );
 
   useEffect(() => {
     target.current?.scrollIntoView({ block: "center", behavior: "smooth" });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, errorText, type Insights } from "../api";
 import { Logo } from "./Icon";
+import { Stat } from "./ui";
 
 const number = new Intl.NumberFormat();
 
@@ -158,26 +159,6 @@ export function InsightsView() {
             </button>
           ))}
       </footer>
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  note,
-  accent,
-}: {
-  label: string;
-  value: string;
-  note: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className={`stat card${accent ? " accent" : ""}`}>
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-note">{note}</div>
     </div>
   );
 }

@@ -210,8 +210,97 @@ let suggestions: { id: number; kind: string; from: string; to: string; app: stri
   { id: 2, kind: "vocabulary", from: "", to: "Kubernetes", app: "VS Code", seen: 1, status: "pending" },
 ];
 
+/** Stats for a 31-minute call, from made-up stretches of talking. */
+function meetingStats() {
+  const names = flags.has("others") ? ["Me", "Others"] : ["Me", "Speaker 1", "Speaker 2", "Speaker 3"];
+  const weights = flags.has("others") ? [0.4, 0.6] : [0.34, 0.38, 0.18, 0.1];
+  const pace = [148, 162, 131, 175];
+  const previews = [
+    "Okay, let's get started. Main things today are the onboarding launch and the analytics problem",
+    "So the usability study came back and completion went from forty-one to fifty-eight percent",
+    "Yes, that's easy. I'd still ship Friday behind the flag and test that separately",
+    "On analytics: signups have been about twelve percent too high since the SDK upgrade",
+  ];
+  let seed = 7;
+  const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pick = () => {
+    let r = random();
+    for (let i = 0; i < weights.length; i++) if ((r -= weights[i]) < 0) return i;
+    return 0;
+  };
+  const stretches: { speaker: string; start_ms: number; end_ms: number; words: number; preview: string }[] = [];
+  let t = 2_000;
+  let last = -1;
+  while (t < 31 * 60_000) {
+    let who = pick();
+    if (who === last) who = (who + 1) % names.length;
+    const ms = (who === 1 && random() < 0.12 ? 90 : 6 + random() * 40) * 1000;
+    stretches.push({ speaker: names[who], start_ms: t, end_ms: t + ms, words: Math.round((ms / 60_000) * pace[who]), preview: previews[who] });
+    // A long quiet moment about two-thirds through.
+    t += ms + (t > 20 * 60_000 && t < 20.8 * 60_000 ? 38_000 : 600 + random() * 2500);
+    last = who;
+  }
+  const signature = [["rollout", "support"], ["onboarding", "invite", "study"], ["flag", "variants"], ["analytics", "SDK", "events"]];
+  const speakers = names.map((name, i) => {
+    const own = stretches.filter((s) => s.speaker === name);
+    const talk_ms = own.reduce((n, s) => n + s.end_ms - s.start_ms, 0);
+    const words = own.reduce((n, s) => n + s.words, 0);
+    return {
+      name,
+      talk_ms,
+      share: 0,
+      words,
+      wpm: talk_ms > 30_000 ? (words / talk_ms) * 60_000 : null,
+      turns: own.length,
+      questions: [9, 4, 2, 1][i] ?? 0,
+      longest_stretch_ms: Math.max(...own.map((s) => s.end_ms - s.start_ms)),
+      fillers: [3, 11, 2, 6][i] ?? 0,
+      signature_words: flags.has("others") ? [] : signature[i],
+    };
+  });
+  const total = speakers.reduce((n, s) => n + s.talk_ms, 0);
+  speakers.forEach((s) => (s.share = s.talk_ms / total));
+  const longest = stretches.reduce((a, b) => (b.end_ms - b.start_ms > a.end_ms - a.start_ms ? b : a));
+  return {
+    span_ms: stretches[stretches.length - 1].end_ms,
+    speech_ms: total,
+    words: speakers.reduce((n, s) => n + s.words, 0),
+    wpm: (speakers.reduce((n, s) => n + s.words, 0) / total) * 60_000,
+    turns: stretches.length,
+    questions: speakers.reduce((n, s) => n + s.questions, 0),
+    speakers,
+    stretches,
+    longest_stretch: longest,
+    longest_silence: { start_ms: 20.4 * 60_000, end_ms: 20.4 * 60_000 + 38_000 },
+    busiest_pair: { a: "Me", b: names[1], handovers: 41 },
+    top_words: [
+      ["onboarding", 23], ["pricing", 17], ["analytics", 15], ["flag", 12], ["launch", 11], ["signups", 9],
+      ["invite", 8], ["friday", 7], ["support", 6], ["variants", 5], ["events", 5], ["sprint", 4],
+    ].map(([text, count]) => ({ text, count })),
+    top_phrases: [
+      ["pricing page", 6], ["feature flag", 5], ["invite step", 4], ["usability study", 3], ["next sprint", 3], ["rollout plan", 2],
+    ].map(([text, count]) => ({ text, count })),
+  };
+}
+
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_meetings: () => meetings,
+  meeting_stats: ({ id }) =>
+    meetings.find((m) => m.id === id)?.has_transcript ? meetingStats() : { ...meetingStats(), speakers: [], stretches: [] },
+  dictation_stats: ({ id }) => {
+    const entry = dictations.find((d) => d.id === id);
+    const words = entry ? entry.text.split(/\s+/).length : 0;
+    const audio = entry?.audio_ms ?? 1;
+    return {
+      words,
+      speaking_wpm: (words / audio) * 60_000,
+      saved_ms: Math.max(0, (words / 40) * 60_000 - audio),
+      typing_wpm: 40,
+      raw_words: entry?.raw ? entry.raw.split(/\s+/).length : null,
+      fillers_removed: entry?.raw ? 2 : 0,
+      usual_wpm: 151,
+    };
+  },
   get_meeting: ({ id }) => {
     const meeting = meetings.find((m) => m.id === id) ?? meetings[0];
     return {

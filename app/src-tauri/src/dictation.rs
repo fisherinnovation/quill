@@ -701,6 +701,24 @@ pub fn list_dictations(
     Ok(state.library.dictations(before, limit.min(100))?)
 }
 
+/// Words, pace, time saved and what clean-up changed for one dictation,
+/// with the user's usual speaking speed to compare against.
+#[tauri::command]
+pub async fn dictation_stats(
+    app: AppHandle,
+    id: i64,
+) -> CommandResult<quill_core::stats::DictationStats> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let entry = state.library.dictation(id)?;
+        let usual = quill_core::insights::compute(&state.library, &jiff::Zoned::now())?
+            .dictation
+            .speaking_wpm;
+        Ok(quill_core::stats::dictation(&entry, usual))
+    })
+    .await
+}
+
 #[tauri::command]
 pub fn get_dictation(state: tauri::State<'_, AppState>, id: i64) -> CommandResult<DictationEntry> {
     Ok(state.library.dictation(id)?)

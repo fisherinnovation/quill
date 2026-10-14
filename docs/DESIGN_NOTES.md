@@ -195,6 +195,21 @@ decision someone might otherwise undo.
   is measured against typing at 40 wpm.
 - Logs are daily files kept for two weeks, panics included, and never
   contain transcripts, notes, dictated text or keys.
+- Meeting and dictation stats (`quill_core::stats`) are computed from the
+  stored transcript or entry each time they're shown; nothing is cached,
+  so renaming or re-splitting speakers shows up straight away. A
+  "stretch" is one person talking with pauses of at most 5 s and nobody
+  else starting; turns, the longest monologue and back-and-forths are
+  counted in stretches. Talk time merges each person's overlapping
+  segments so nothing is counted twice.
+- Interruptions aren't counted: Whisper's segments are coarse (a segment
+  can span a pause), so overlap between them doesn't reliably mean anyone
+  talked over anyone.
+- Stats charts reuse the transcript's speaker colours, so a person keeps
+  their colour everywhere, but identity never rests on colour alone: each
+  bar and timeline lane is labelled with the name. The palette (built for
+  avatars) fails the colour-vision checks for charts; re-stepping it would
+  recolour the transcript too, so that's left as a separate change.
 
 ## macOS signing and the keychain
 

@@ -384,7 +384,7 @@ pub fn check_polish(raw: &str, output: &str) -> Result<String, &'static str> {
     Ok(text)
 }
 
-fn word_count(text: &str) -> usize {
+pub(crate) fn word_count(text: &str) -> usize {
     // List markers aren't words.
     text.split_whitespace()
         .filter(|w| !matches!(*w, "-" | "*") && !is_list_number(w))
