@@ -188,6 +188,7 @@ fn main() {
             dictation::dictation_state,
             dictation::save_dictation_settings,
             dictation::list_dictations,
+            dictation::get_dictation,
             dictation::delete_dictation,
             dictation::clear_dictations,
             dictation::paste_permission,

@@ -350,7 +350,10 @@ export const api = {
   dictationState: () => invoke<DictationState>("dictation_state"),
   /** Saves and rebinds the hotkey; rejects (keeping the old settings) if it can't be bound. */
   saveDictationSettings: (dictation: DictationSettings) => invoke<void>("save_dictation_settings", { dictation }),
-  listDictations: () => invoke<DictationEntry[]>("list_dictations"),
+  /** Newest first: up to `limit` entries older than `before` (an id), or the newest. */
+  listDictations: (before: number | null, limit: number) =>
+    invoke<DictationEntry[]>("list_dictations", { before, limit }),
+  getDictation: (id: number) => invoke<DictationEntry>("get_dictation", { id }),
   deleteDictation: (id: number) => invoke<void>("delete_dictation", { id }),
   clearDictations: () => invoke<void>("clear_dictations"),
   /** Saves a fixed version and returns it with all pending and accepted suggestions. */

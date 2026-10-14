@@ -2,13 +2,10 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import {
   api,
   errorText,
-  events,
   FN_HOTKEY,
   hotkeyLabel,
   isMac,
-  shortDate,
   type AppStyleInfo,
-  type DictationEntry,
   type DictationSettings,
   type Style,
   type DictationState,
@@ -20,13 +17,14 @@ import { ModelPicker } from "./ModelPicker";
 import { ModelDownload } from "./Models";
 import { Banner, Group, Keys, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
 
-export function DictationView({ state }: { state: DictationState }) {
+export function DictationView({ state, onCleared }: { state: DictationState; onCleared: () => void }) {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [systemLanguage, setSystemLanguage] = useState<string | null>(null);
   const saveState = useAutosave(settings, api.saveDictationSettings);
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [confirmClear, setConfirmClear] = useState(false);
   // Bumped when a suggestion changes the vocabulary or replacements, so
   // their text boxes show it.
   const [wordsRevision, setWordsRevision] = useState(0);
@@ -196,16 +194,37 @@ export function DictationView({ state }: { state: DictationState }) {
       </Group>
 
       <Group title="History">
-        <Row label="Keep a history" hint="Stored only on this computer, so you can copy something again.">
+        <Row
+          label="Keep a history"
+          hint="Stored only on this computer and listed in the sidebar, so you can copy or correct something later."
+        >
           <Switch
             label="Keep a history"
             checked={settings.keep_history}
             onChange={(keep_history) => update({ keep_history })}
           />
         </Row>
+        <Row label="Delete all history" hint="Removes every dictation listed in the sidebar. Learned words stay.">
+          {confirmClear ? (
+            <div className="confirm">
+              Delete all?
+              <button
+                className="danger"
+                onClick={async () => {
+                  await api.clearDictations();
+                  setConfirmClear(false);
+                  onCleared();
+                }}
+              >
+                Delete
+              </button>
+              <button onClick={() => setConfirmClear(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmClear(true)}>Delete…</button>
+          )}
+        </Row>
       </Group>
-
-      {settings.keep_history && <History onSuggestions={setSuggestions} />}
     </div>
   );
 }
@@ -367,191 +386,12 @@ function Suggestions({
           label="Nothing to learn yet"
           hint={
             settings.keep_history
-              ? "When Quill gets a name or term wrong, click Correct on it under Recent below. Quill suggests what to learn from your fix."
-              : "Turn on history below, then click Correct on a dictation Quill got wrong. Quill suggests what to learn from your fix."
+              ? "When Quill gets a name or term wrong, open that dictation in the sidebar and click Correct. Quill suggests what to learn from your fix."
+              : "Turn on history below, then open a dictation Quill got wrong in the sidebar and click Correct. Quill suggests what to learn from your fix."
           }
         />
       )}
     </Group>
-  );
-}
-
-function History({ onSuggestions }: { onSuggestions: (all: Suggestion[]) => void }) {
-  const [entries, setEntries] = useState<DictationEntry[]>([]);
-  const [copied, setCopied] = useState<number | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
-  // The entry being corrected, and its draft.
-  const [editing, setEditing] = useState<{ id: number; text: string } | null>(null);
-  const [learned, setLearned] = useState<{ id: number; count: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function saveCorrection() {
-    if (!editing) return;
-    try {
-      const before = new Set((await api.listSuggestions()).map((s) => s.id));
-      const { entry, suggestions } = await api.correctDictation(editing.id, editing.text);
-      setEntries((all) => all.map((e) => (e.id === entry.id ? entry : e)));
-      onSuggestions(suggestions);
-      const fresh = suggestions.filter((s) => s.status === "pending" && !before.has(s.id)).length;
-      setLearned({ id: entry.id, count: fresh });
-      setEditing(null);
-      setError(null);
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }
-
-  useEffect(() => {
-    void api.listDictations().then(setEntries);
-    const unlisten = events.onDictationEntry((entry) => setEntries((all) => [entry, ...all]));
-    return () => void unlisten.then((f) => f());
-  }, []);
-
-  async function copy(entry: DictationEntry) {
-    await navigator.clipboard.writeText(entry.corrected ?? entry.text);
-    setCopied(entry.id);
-    setTimeout(() => setCopied(null), 1500);
-  }
-
-  return (
-    <section className="group">
-      <div className="row-gap" style={{ marginBottom: 8 }}>
-        <h2 className="group-title" style={{ margin: "0 0 0 2px" }}>
-          Recent
-        </h2>
-        <span className="spacer" />
-        {entries.length > 0 &&
-          (confirmClear ? (
-            <div className="confirm">
-              Delete all history?
-              <button
-                className="danger"
-                onClick={async () => {
-                  await api.clearDictations();
-                  setEntries([]);
-                  setConfirmClear(false);
-                }}
-              >
-                Delete
-              </button>
-              <button onClick={() => setConfirmClear(false)}>Cancel</button>
-            </div>
-          ) : (
-            <button className="ghost" onClick={() => setConfirmClear(true)}>
-              Clear all
-            </button>
-          ))}
-      </div>
-      <div className="card">
-        {entries.length === 0 ? (
-          <div className="placeholder" style={{ padding: "32px 20px" }}>
-            <div className="placeholder-icon">
-              <Icon name="history" size={20} />
-            </div>
-            <span>Nothing dictated yet.</span>
-          </div>
-        ) : (
-          <ul className="history-list">
-            {entries.map((entry) => (
-              <li key={entry.id} className="history-item">
-                {editing?.id === entry.id ? (
-                  <div className="correct-editor">
-                    <textarea
-                      autoFocus
-                      rows={Math.min(8, Math.max(2, Math.ceil(editing.text.length / 70)))}
-                      value={editing.text}
-                      onChange={(e) => setEditing({ id: entry.id, text: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void saveCorrection();
-                        if (e.key === "Escape") setEditing(null);
-                      }}
-                    />
-                    <div className="row-gap">
-                      <span className="faint small">
-                        Fix what Quill got wrong. It suggests words to learn from your changes.
-                      </span>
-                      <span className="spacer" />
-                      <button onClick={() => setEditing(null)}>Cancel</button>
-                      <button
-                        className="primary"
-                        disabled={!editing.text.trim() || editing.text.trim() === (entry.corrected ?? entry.text)}
-                        onClick={() => void saveCorrection()}
-                      >
-                        Save
-                      </button>
-                    </div>
-                    {error && <p className="error-text small">{error}</p>}
-                  </div>
-                ) : (
-                  <p className="history-text">{entry.corrected ?? entry.text}</p>
-                )}
-                {learned?.id === entry.id && (
-                  <p className="correct-result small">
-                    <Icon name="check" size={12} />{" "}
-                    {learned.count > 0
-                      ? `Saved. ${learned.count === 1 ? "1 suggestion" : `${learned.count} suggestions`} above, under “Learn from your fixes”.`
-                      : "Saved. Nothing to learn from this one (only misspelled names and terms, or words typed apart, are learned)."}
-                  </p>
-                )}
-                <div className="history-meta">
-                  <span>{shortDate(entry.created_at)}</span>
-                  {entry.app && <span className="dot-sep">{entry.app}</span>}
-                  <span className="dot-sep">{(entry.latency_ms / 1000).toFixed(1)} s</span>
-                  {entry.polish_model && (
-                    <span className="dot-sep row-gap" style={{ gap: 4 }}>
-                      <Icon name="sparkle" size={12} /> tidied
-                    </span>
-                  )}
-                  {!entry.pasted && <span className="pill amber">Left on clipboard</span>}
-                  {entry.corrected && <span className="dot-sep">corrected</span>}
-                  <span className="spacer" />
-                  <span className="history-actions row-gap" style={{ gap: 4 }}>
-                    {editing?.id !== entry.id && (
-                      <button
-                        className="ghost"
-                        onClick={() => {
-                          setLearned(null);
-                          setEditing({ id: entry.id, text: entry.corrected ?? entry.text });
-                        }}
-                      >
-                        <Icon name="text" size={13} /> Correct
-                      </button>
-                    )}
-                    <button className="ghost" onClick={() => void copy(entry)}>
-                      <Icon name={copied === entry.id ? "check" : "copy"} size={13} />
-                      {copied === entry.id ? "Copied" : "Copy"}
-                    </button>
-                    <button
-                      className="ghost icon-btn"
-                      aria-label="Delete"
-                      title="Delete"
-                      onClick={async () => {
-                        await api.deleteDictation(entry.id);
-                        setEntries((all) => all.filter((e) => e.id !== entry.id));
-                      }}
-                    >
-                      <Icon name="trash" size={13} />
-                    </button>
-                  </span>
-                </div>
-                {entry.corrected && (
-                  <details>
-                    <summary>As typed</summary>
-                    {entry.text}
-                  </details>
-                )}
-                {entry.raw && (
-                  <details>
-                    <summary>As spoken</summary>
-                    {entry.raw}
-                  </details>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
   );
 }
 

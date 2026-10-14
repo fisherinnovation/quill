@@ -690,9 +690,20 @@ pub async fn save_dictation_settings(
     .await
 }
 
+/// A page of the dictation history, newest first: up to `limit` entries
+/// (at most 100) older than the entry `before`, or the newest if `None`.
 #[tauri::command]
-pub fn list_dictations(state: tauri::State<'_, AppState>) -> CommandResult<Vec<DictationEntry>> {
-    Ok(state.library.dictations(100)?)
+pub fn list_dictations(
+    state: tauri::State<'_, AppState>,
+    before: Option<i64>,
+    limit: usize,
+) -> CommandResult<Vec<DictationEntry>> {
+    Ok(state.library.dictations(before, limit.min(100))?)
+}
+
+#[tauri::command]
+pub fn get_dictation(state: tauri::State<'_, AppState>, id: i64) -> CommandResult<DictationEntry> {
+    Ok(state.library.dictation(id)?)
 }
 
 #[tauri::command]

@@ -574,6 +574,40 @@ kbd {
   color: var(--text-3);
 }
 
+/* "Meetings" and "Dictations": the sidebar's two lists. */
+.list-section {
+  padding: 14px 10px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.list-section ~ .list-section {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.list-more {
+  width: 100%;
+  height: auto;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.list-more:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 .list-item {
   display: flex;
   flex-direction: column;
@@ -606,6 +640,10 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.list-title.dictation {
+  font-weight: 500;
 }
 
 .list-meta {
@@ -2697,4 +2735,9 @@ html.indicator-window #root {
   .home-actions {
     grid-template-columns: 1fr;
   }
+}
+
+/* One dictation, opened from the sidebar */
+.dictation-entry .page-head {
+  margin-bottom: 18px;
 }

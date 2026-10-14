@@ -175,9 +175,9 @@ On macOS you can use <kbd>fn</kbd> (🌐) on its own instead: choose **fn** unde
 
 Press <kbd>Esc</kbd> to cancel. A pill near the bottom of the screen shows the mic level while listening and "Typing…" while processing.
 
-On the **Dictation** page you can change the shortcut, choose the language (your system language by default; auto-detection is available but about 0.5 s slower), turn clean-up on or off, set a style per app, and add vocabulary and replacements. Recent dictations are listed with **Copy**, in case text didn't land where you meant it to.
+On the **Dictation** page you can change the shortcut, choose the language (your system language by default; auto-detection is available but about 0.5 s slower), turn clean-up on or off, set a style per app, and add vocabulary and replacements. Your dictations are listed in the sidebar under your meetings, newest first, with **Show more** for older ones. Open one to **Copy** it (in case text didn't land where you meant it to), correct it or delete it.
 
-**Teaching Quill.** When Quill gets a name or term wrong, click **Correct** on it under **Recent** and fix the text. Quill compares your fix with what it typed and suggests what to learn, under **Learn from your fixes**:
+**Teaching Quill.** When Quill gets a name or term wrong, open that dictation from the sidebar, click **Correct** and fix the text. Quill compares your fix with what it typed and suggests what to learn, under **Learn from your fixes**:
 
 - A misspelled name or term ("Quil" → "Quill") becomes a vocabulary word, which steers both the speech model and the clean-up.
 - Words typed apart ("open router" → "OpenRouter") become a replacement.

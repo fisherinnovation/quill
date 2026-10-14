@@ -9,11 +9,18 @@ import {
   type Progress,
   type SearchHit,
 } from "../api";
+import { type DictationHistory, dictationTitle } from "./DictationHistory";
 import { Icon } from "./Icon";
+
+/** Meetings shown before "Show more", and how many more each click shows. */
+const MEETING_PAGE = 20;
 
 interface Props {
   meetings: Meeting[];
   selectedId: string | null;
+  dictations: DictationHistory;
+  selectedDictation: number | null;
+  onSelectDictation: (id: number) => void;
   progress: Record<string, Progress>;
   recordingId: string | null;
   dictation: DictationPhase;
@@ -31,6 +38,9 @@ interface Props {
 export function Sidebar({
   meetings,
   selectedId,
+  dictations,
+  selectedDictation,
+  onSelectDictation,
   progress,
   recordingId,
   dictation,
@@ -45,6 +55,8 @@ export function Sidebar({
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [meetingsShown, setMeetingsShown] = useState(MEETING_PAGE);
+  const shownMeetings = meetings.slice(0, meetingsShown);
 
   // Search as you type, debounced so we don't query on every keystroke.
   useEffect(() => {
@@ -101,8 +113,9 @@ export function Sidebar({
         </ul>
       ) : (
         <ul className="list">
+          <li className="list-section">Meetings</li>
           {meetings.length === 0 && <li className="list-empty">No meetings yet</li>}
-          {groupByDay(meetings).map(([label, group]) => (
+          {groupByDay(shownMeetings, (m) => m.started_at).map(([label, group]) => (
             <li key={label}>
               <div className="list-group">{label}</div>
               <ul className="list" style={{ padding: 0 }}>
@@ -124,6 +137,47 @@ export function Sidebar({
               </ul>
             </li>
           ))}
+          {meetings.length > meetingsShown && (
+            <li>
+              <button className="list-more" onClick={() => setMeetingsShown((n) => n + MEETING_PAGE)}>
+                Show more meetings
+              </button>
+            </li>
+          )}
+
+          {dictations.entries.length > 0 && (
+            <>
+              <li className="list-section">Dictations</li>
+              {groupByDay(dictations.entries, (d) => d.created_at).map(([label, group]) => (
+                <li key={`d-${label}`}>
+                  <div className="list-group">{label}</div>
+                  <ul className="list" style={{ padding: 0 }}>
+                    {group.map((d) => (
+                      <li key={d.id}>
+                        <button
+                          className={`list-item${d.id === selectedDictation ? " selected" : ""}`}
+                          onClick={() => onSelectDictation(d.id)}
+                        >
+                          <span className="list-title dictation">{dictationTitle(d)}</span>
+                          <span className="list-meta">
+                            {time(d.created_at)}
+                            {d.app && <span className="dot-sep">{d.app}</span>}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+              {dictations.more && (
+                <li>
+                  <button className="list-more" onClick={dictations.loadMore}>
+                    Show more dictations
+                  </button>
+                </li>
+              )}
+            </>
+          )}
         </ul>
       )}
 
@@ -186,13 +240,13 @@ export function Status({ meeting, progress, recording }: { meeting: Meeting; pro
 }
 
 /** "Today", "Yesterday", weekday names this week, then "October 2026". */
-function groupByDay(meetings: Meeting[]): [string, Meeting[]][] {
-  const groups = new Map<string, Meeting[]>();
+function groupByDay<T>(items: T[], when: (item: T) => string): [string, T[]][] {
+  const groups = new Map<string, T[]>();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const day = 86_400_000;
-  for (const m of meetings) {
-    const date = new Date(m.started_at);
+  for (const m of items) {
+    const date = new Date(when(m));
     const ago = startOfToday.getTime() - date.getTime();
     const label =
       ago <= 0

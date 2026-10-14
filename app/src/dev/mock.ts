@@ -6,8 +6,9 @@
 // ?failed, ?nopaste, ?empty, ?light to force the light theme, ?indicator
 // for the dictation pill (with ?listening or ?processing), ?others for a
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
-// fn as the dictation key, ?about for the About window, and ?update for a
-// new version waiting to be installed.
+// fn as the dictation key, ?about for the About window, ?update for a
+// new version waiting to be installed, and ?backlog for enough older
+// meetings and dictations to need "Show more".
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { UpdateInfo } from "../api";
@@ -72,6 +73,20 @@ let meetings = flags.has("empty")
       { id: "m5", title: "Customer call — Northwind", started_at: iso(4 * D), duration_ms: 37 * 60_000, has_transcript: true, has_summary: true , empty: false },
       { id: "m6", title: "Hiring sync", started_at: iso(12 * D), duration_ms: 55 * 60_000, has_transcript: true, has_summary: true , empty: false },
     ];
+if (flags.has("backlog")) {
+  const titles = ["Weekly planning", "1:1 with Dan", "Vendor demo", "Retro", "Roadmap review"];
+  meetings = meetings.concat(
+    Array.from({ length: 40 }, (_, i) => ({
+      id: `old${i}`,
+      title: titles[i % titles.length],
+      started_at: iso((14 + i * 2) * D),
+      duration_ms: (20 + (i % 4) * 10) * 60_000,
+      has_transcript: true,
+      has_summary: true,
+      empty: false,
+    })),
+  );
+}
 
 const recording = flags.has("recording") ? { recording: true, meeting_id: "m1", elapsed_ms: 754_000 } : null;
 const phase = flags.has("listening") ? "listening" : flags.has("processing") ? "processing" : "idle";
@@ -122,11 +137,28 @@ async function installUpdate() {
   location.search = flags.toString();
 }
 
-const dictations = [
-  { id: 3, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true, app: "Slack" },
-  { id: 2, created_at: iso(40 * 60_000), text: "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", raw: "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 9100, latency_ms: 980, pasted: true, app: "Notion" },
-  { id: 1, created_at: iso(3 * H), text: "Let's meet at 4 p.m. on Thursday in the big conference room.", raw: "Let's meet at 3, no wait, 4 p.m. on Thursday in the big conference room.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 6100, latency_ms: 940, pasted: false, app: "Mail" },
+let dictations = [
+  { id: 103, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true, app: "Slack" },
+  { id: 102, created_at: iso(40 * 60_000), text: "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", raw: "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 9100, latency_ms: 980, pasted: true, app: "Notion" },
+  { id: 101, created_at: iso(3 * H), text: "Let's meet at 4 p.m. on Thursday in the big conference room.", raw: "Let's meet at 3, no wait, 4 p.m. on Thursday in the big conference room.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 6100, latency_ms: 940, pasted: false, app: "Mail" },
 ];
+if (flags.has("backlog")) {
+  const lines = ["Can you send me the deck before the call?", "Looks good to me, ship it.", "Let's push this to next sprint.", "Thanks, that fixed it."];
+  const apps = ["Slack", "Mail", "Notion", "Messages"];
+  dictations = dictations.concat(
+    Array.from({ length: 30 }, (_, i) => ({
+      id: 100 - i,
+      created_at: iso((1 + i * 0.4) * D),
+      text: lines[i % lines.length],
+      raw: null,
+      polish_model: null,
+      audio_ms: 2500,
+      latency_ms: 300,
+      pasted: true,
+      app: apps[i % apps.length],
+    })),
+  );
+}
 
 const fresh = flags.has("nomodels");
 let models = [
@@ -327,7 +359,15 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     };
   },
   dictation_state: () => ({ phase, error: flags.has("failed") ? "Quill isn't allowed to paste, so the text is on your clipboard." : null }),
-  list_dictations: () => dictations,
+  list_dictations: ({ before, limit }) =>
+    dictations.filter((d) => before == null || d.id < Number(before)).slice(0, Number(limit)),
+  get_dictation: ({ id }) => dictations.find((d) => d.id === id),
+  delete_dictation: ({ id }) => {
+    dictations = dictations.filter((d) => d.id !== id);
+  },
+  clear_dictations: () => {
+    dictations = [];
+  },
   paste_permission: () => !flags.has("nopaste"),
   system_language: () => "en",
   dictation_apps: () => [

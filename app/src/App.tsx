@@ -16,10 +16,12 @@ import { Onboarding } from "./components/Onboarding";
 import { DictationView } from "./components/DictationView";
 import { HomeView } from "./components/HomeView";
 import { InsightsView } from "./components/InsightsView";
+import { DictationEntryView, useDictationHistory } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
 
 type View =
   | { kind: "meeting"; id: string; at?: number }
+  | { kind: "dictation-entry"; id: number }
   | { kind: "settings" }
   | { kind: "dictation" }
   | { kind: "insights" }
@@ -39,6 +41,8 @@ export function App() {
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // Bumped when a meeting's data changes on the Rust side, so views refetch.
   const [version, setVersion] = useState(0);
+  // The dictation history listed in the sidebar.
+  const dictations = useDictationHistory();
   // null until settings load; false shows the first-run screen.
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
@@ -107,6 +111,9 @@ export function App() {
       <Sidebar
         meetings={meetings}
         selectedId={view.kind === "meeting" ? view.id : null}
+        dictations={dictations}
+        selectedDictation={view.kind === "dictation-entry" ? view.id : null}
+        onSelectDictation={(id) => setView({ kind: "dictation-entry", id })}
         progress={progress}
         recordingId={recording.meeting_id}
         dictation={dictation.phase}
@@ -153,7 +160,19 @@ export function App() {
           )}
           {view.kind === "settings" && <SettingsView />}
           {view.kind === "insights" && <InsightsView />}
-          {view.kind === "dictation" && <DictationView state={dictation} />}
+          {view.kind === "dictation" && <DictationView state={dictation} onCleared={dictations.clear} />}
+          {view.kind === "dictation-entry" && (
+            <DictationEntryView
+              key={view.id}
+              id={view.id}
+              onChanged={dictations.replace}
+              onDeleted={(id) => {
+                dictations.remove(id);
+                setView({ kind: "home" });
+              }}
+              onOpenDictation={() => setView({ kind: "dictation" })}
+            />
+          )}
           {view.kind === "home" && (
             <HomeView
               meetings={meetings}

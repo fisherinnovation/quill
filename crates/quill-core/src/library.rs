@@ -277,6 +277,25 @@ pub struct AppUsage {
 /// Dictation history entries kept; older ones are deleted as new ones arrive.
 pub const DICTATION_HISTORY_LIMIT: i64 = 500;
 
+/// The `dictations` columns [`dictation_row`] reads, in its order.
+const DICTATION_COLUMNS: &str =
+    "id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected";
+
+fn dictation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DictationEntry> {
+    Ok(DictationEntry {
+        id: r.get(0)?,
+        created_at: r.get(1)?,
+        text: r.get(2)?,
+        raw: r.get(3)?,
+        polish_model: r.get(4)?,
+        audio_ms: u64::try_from(r.get::<_, i64>(5)?).unwrap_or(0),
+        latency_ms: u64::try_from(r.get::<_, i64>(6)?).unwrap_or(0),
+        pasted: r.get(7)?,
+        app: r.get(8)?,
+        corrected: r.get(9)?,
+    })
+}
+
 /// Handle to the library. Cheap to share behind an `Arc`; the connection is
 /// behind a `Mutex` because `rusqlite::Connection` can't be used from two
 /// threads at once.
@@ -679,28 +698,37 @@ impl Library {
         })
     }
 
-    /// Most recent dictations first.
-    pub fn dictations(&self, limit: usize) -> Result<Vec<DictationEntry>, LibraryError> {
+    /// Most recent dictations first: up to `limit` of them, older than the
+    /// entry `before` if given (for loading the history a page at a time).
+    pub fn dictations(
+        &self,
+        before: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<DictationEntry>, LibraryError> {
         let conn = self.conn();
-        let mut stmt = conn.prepare(
-            "SELECT id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected
-             FROM dictations ORDER BY id DESC LIMIT ?1",
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {DICTATION_COLUMNS} FROM dictations WHERE id < ?1 ORDER BY id DESC LIMIT ?2"
+        ))?;
+        let rows = stmt.query_map(
+            params![
+                before.unwrap_or(i64::MAX),
+                i64::try_from(limit).unwrap_or(i64::MAX)
+            ],
+            dictation_row,
         )?;
-        let rows = stmt.query_map([i64::try_from(limit).unwrap_or(i64::MAX)], |r| {
-            Ok(DictationEntry {
-                id: r.get(0)?,
-                created_at: r.get(1)?,
-                text: r.get(2)?,
-                raw: r.get(3)?,
-                polish_model: r.get(4)?,
-                audio_ms: u64::try_from(r.get::<_, i64>(5)?).unwrap_or(0),
-                latency_ms: u64::try_from(r.get::<_, i64>(6)?).unwrap_or(0),
-                pasted: r.get(7)?,
-                app: r.get(8)?,
-                corrected: r.get(9)?,
-            })
-        })?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// One dictation by id.
+    pub fn dictation(&self, id: i64) -> Result<DictationEntry, LibraryError> {
+        let conn = self.conn();
+        conn.query_row(
+            &format!("SELECT {DICTATION_COLUMNS} FROM dictations WHERE id = ?1"),
+            [id],
+            dictation_row,
+        )
+        .optional()?
+        .ok_or_else(|| LibraryError::NotFound(id.to_string()))
     }
 
     /// Saves the user's fixed version of a dictation and returns the entry.
@@ -718,10 +746,7 @@ impl Library {
             return Err(LibraryError::NotFound(id.to_string()));
         }
         drop(conn);
-        self.dictations(DICTATION_HISTORY_LIMIT as usize)?
-            .into_iter()
-            .find(|e| e.id == id)
-            .ok_or_else(|| LibraryError::NotFound(id.to_string()))
+        self.dictation(id)
     }
 
     /// Records rules suggested by a correction. One already known counts
@@ -1399,13 +1424,53 @@ mod tests {
             .unwrap();
         assert_eq!(second.raw.as_deref(), Some("Meet at 3, no, 4."));
 
-        let all = lib.dictations(10).unwrap();
+        let all = lib.dictations(None, 10).unwrap();
         assert_eq!(all.len(), 2);
         assert_eq!(all[0], second, "newest first, as stored");
+        assert_eq!(lib.dictation(first.id).unwrap(), first);
         lib.delete_dictation(first.id).unwrap();
-        assert_eq!(lib.dictations(10).unwrap().len(), 1);
+        assert_eq!(lib.dictations(None, 10).unwrap().len(), 1);
         lib.clear_dictations().unwrap();
-        assert!(lib.dictations(10).unwrap().is_empty());
+        assert!(lib.dictations(None, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn dictation_history_loads_a_page_at_a_time() {
+        let (lib, _dir) = library();
+        let ids: Vec<i64> = (0..5)
+            .map(|i| {
+                lib.add_dictation(&DictationEntry {
+                    id: 0,
+                    created_at: String::new(),
+                    text: format!("Dictation {i}."),
+                    raw: None,
+                    polish_model: None,
+                    audio_ms: 1000,
+                    latency_ms: 200,
+                    pasted: true,
+                    app: None,
+                    corrected: None,
+                })
+                .unwrap()
+                .id
+            })
+            .collect();
+        let page = |before, limit| -> Vec<i64> {
+            lib.dictations(before, limit)
+                .unwrap()
+                .iter()
+                .map(|e| e.id)
+                .collect()
+        };
+        let first = page(None, 2);
+        assert_eq!(first, vec![ids[4], ids[3]]);
+        assert_eq!(page(first.last().copied(), 2), vec![ids[2], ids[1]]);
+        assert_eq!(
+            page(Some(ids[1]), 2),
+            vec![ids[0]],
+            "the last page is short"
+        );
+        assert!(page(Some(ids[0]), 2).is_empty());
     }
 
     #[test]
