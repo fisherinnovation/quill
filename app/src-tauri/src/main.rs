@@ -203,6 +203,16 @@ fn main() {
             updates::check_for_updates,
             updates::install_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Quill");
+        .build(tauri::generate_context!())
+        .expect("error while building Quill")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Unload Whisper before the process exits (quitting, or
+                // restarting after an update). whisper.cpp's Metal backend
+                // aborts in its exit-time destructor while a model is still
+                // loaded, so every quit ended in a crash report.
+                let loaded = commands::lock(&app.state::<AppState>().transcriber).take();
+                drop(loaded);
+            }
+        });
 }
