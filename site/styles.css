@@ -764,6 +764,9 @@ mark {
 }
 
 .app-chips li {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
   padding: 22px 26px;
   border-radius: 16px;
   background: var(--card);
@@ -784,6 +787,25 @@ mark {
 .app-chips:hover li.big:not(:hover) {
   padding: 22px 26px;
   font-size: 18px;
+}
+
+/* Sized in em, so a logo grows with its chip's text. */
+.app-chips .logo {
+  flex: none;
+  width: 1.3em;
+  height: 1.3em;
+}
+
+.app-chips .logo.mono {
+  fill: currentColor;
+}
+
+.app-chips .logo.line {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .apps .center {
