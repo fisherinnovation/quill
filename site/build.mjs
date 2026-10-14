@@ -44,6 +44,8 @@ const values = {
   MAC_URL: release?.mac ?? "",
   WINDOWS_URL: release?.windows ?? "",
   BUILD: (env.GITHUB_SHA ?? String(Date.now())).slice(0, 8),
+  // What the header video shows, for screen readers (site/video/script.json).
+  VIDEO_LABEL: JSON.parse(readFileSync(join(here, "video/script.json"), "utf8")).label,
 };
 
 let html = readFileSync(join(here, "index.html"), "utf8");
@@ -65,6 +67,7 @@ mkdirSync(out);
 writeFileSync(join(out, "index.html"), html);
 for (const f of ["styles.css", "main.js"]) cpSync(join(here, f), join(out, f));
 cpSync(join(root, "app/app-icon.svg"), join(out, "icon.svg"));
+cpSync(join(here, "media"), join(out, "media"), { recursive: true });
 // Serve files as they are (no Jekyll processing on GitHub Pages).
 writeFileSync(join(out, ".nojekyll"), "");
 

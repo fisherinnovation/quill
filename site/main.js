@@ -41,16 +41,25 @@
     for (const el of reveals) el.classList.add("shown");
   }
 
-  // Hero demo: Notes / Transcript tabs.
-  const tabs = [...document.querySelectorAll('[role="tab"]')];
-  for (const tab of tabs) {
-    tab.addEventListener("click", () => {
-      for (const t of tabs) {
-        const on = t === tab;
-        t.setAttribute("aria-selected", String(on));
-        document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+  // Hero video: the one for the visitor's theme. With reduced motion it
+  // stays on its poster, with controls to play it on purpose.
+  const video = document.querySelector(".hero-video");
+  if (video) {
+    const dark = matchMedia("(prefers-color-scheme: dark)");
+    const calm = matchMedia("(prefers-reduced-motion: reduce)");
+    const pick = () => {
+      const theme = dark.matches ? "dark" : "light";
+      if (video.getAttribute("src") !== video.dataset[theme]) {
+        video.poster = `media/hero-${theme}.jpg`;
+        video.src = video.dataset[theme];
       }
-    });
+      video.controls = calm.matches;
+      if (calm.matches) video.pause();
+      else video.play().catch(() => {});
+    };
+    dark.addEventListener("change", pick);
+    calm.addEventListener("change", pick);
+    pick();
   }
 
   // Privacy: the model choice is a toggle you can play with.

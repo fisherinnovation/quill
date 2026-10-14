@@ -348,99 +348,13 @@ main,
   z-index: 1;
 }
 
-.demo-window {
-  padding: 22px;
+.hero-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
   border-radius: 18px;
   background: var(--card-2);
-}
-
-.demo-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.demo-head strong {
-  display: block;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.demo-head .muted {
-  font-size: 13px;
-}
-
-.tabs {
-  display: inline-flex;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--card);
-}
-
-.tabs button {
-  padding: 6px 14px;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--text-2);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 550;
-  cursor: pointer;
-}
-
-.tabs button[aria-selected="true"] {
-  background: var(--dark);
-  color: var(--on-dark);
-}
-
-.demo-body {
-  min-height: 252px;
-  padding: 18px 20px;
-  border-radius: 14px;
-  background: var(--card);
-  font-size: 15px;
-  animation: fade-up 0.35s ease both;
-}
-
-.demo-label {
-  margin: 4px 0 6px;
-  color: var(--text-3);
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.demo-list {
-  margin: 0 0 14px;
-  padding-left: 18px;
-}
-
-.demo-list li {
-  margin-bottom: 4px;
-}
-
-.demo-actions {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.demo-actions li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  border-top: 1px solid var(--line);
-}
-
-.demo-actions li:first-child {
-  border-top: 0;
+  box-shadow: var(--shadow);
 }
 
 .who {
@@ -471,18 +385,6 @@ main,
 .who.lime {
   background: var(--lime);
   color: var(--lime-ink);
-}
-
-.line {
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 10px;
-  align-items: start;
-  padding: 7px 0;
-}
-
-.line .who {
-  justify-self: start;
 }
 
 /* The waveform: thin bars, one in the accent colour, like an audio level
@@ -1394,9 +1296,6 @@ mark {
     left: 20px;
     right: 20px;
     height: 90px;
-  }
-  .demo-window {
-    padding: 14px;
   }
   .stats,
   .bento {

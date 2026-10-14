@@ -61,42 +61,22 @@
           </div>
         </div>
 
-        <div class="hero-demo reveal" aria-label="Example meeting in Quill">
-          <div class="demo-window">
-            <div class="demo-head">
-              <div>
-                <strong>Product sync</strong>
-                <span class="muted">Tue · 31 min · 3 people</span>
-              </div>
-              <div class="tabs" role="tablist" aria-label="Meeting view">
-                <button role="tab" aria-selected="true" aria-controls="demo-notes" id="tab-notes">Notes</button>
-                <button role="tab" aria-selected="false" aria-controls="demo-transcript" id="tab-transcript">
-                  Transcript
-                </button>
-              </div>
-            </div>
-
-            <div class="demo-body" id="demo-notes" role="tabpanel" aria-labelledby="tab-notes">
-              <p class="demo-label">TL;DR</p>
-              <ul class="demo-list">
-                <li>Onboarding launch moves to the 24th, after the analytics fix.</li>
-                <li>Priya owns the event audit; Sam drafts the release note.</li>
-              </ul>
-              <p class="demo-label">Action items</p>
-              <ul class="demo-actions">
-                <li><span class="who sky">Priya</span> Audit the sign-up events <span class="muted">· Fri</span></li>
-                <li><span class="who rose">Sam</span> Draft the launch note</li>
-                <li><span class="who me">You</span> Book the review with design</li>
-              </ul>
-            </div>
-
-            <div class="demo-body" id="demo-transcript" role="tabpanel" aria-labelledby="tab-transcript" hidden>
-              <div class="line"><span class="who me">You</span><p>Main things today: the onboarding launch and the analytics problem.</p></div>
-              <div class="line"><span class="who sky">Priya</span><p>Sign-ups dropped on Tuesday, but I think it's the event, not the funnel.</p></div>
-              <div class="line"><span class="who rose">Sam</span><p>Then let's hold the launch until that's fixed. The 24th works.</p></div>
-              <div class="line"><span class="who me">You</span><p>Agreed. Priya, can you audit the events by Friday?</p></div>
-            </div>
-          </div>
+        <div class="hero-demo reveal">
+          <!-- Rendered from site/video/script.json (see .claude/skills/site-video). main.js picks the
+               visitor's theme and holds still for reduced motion. -->
+          <video
+            class="hero-video"
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            poster="media/hero-light.jpg"
+            data-light="media/hero-light.mp4"
+            data-dark="media/hero-dark.mp4"
+            aria-label="{{VIDEO_LABEL}}"
+          >
+            <source src="media/hero-light.mp4" type="video/mp4" />
+          </video>
         </div>
 
         <div class="wave" aria-hidden="true" data-bars="34"></div>

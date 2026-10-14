@@ -33,3 +33,4 @@ Thumbs.db
 /dist-release/
 /app/src-tauri/windows-libs/
 /site/_site/
+/site/video/out/

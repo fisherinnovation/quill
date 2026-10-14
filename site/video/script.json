@@ -1,0 +1,169 @@
+{
+  "based_on": "9862429",
+  "label": "Quill in use: opening a call gives its meeting notes; the transcript shows who said what; the Stats tab charts who spoke when; dictation listens while a key is held and types the text; a saved dictation shows its words, pace and time saved.",
+  "viewport": {
+    "width": 1120,
+    "height": 720,
+    "scale": 2
+  },
+  "output": [
+    1600,
+    1000
+  ],
+  "crf": 24,
+  "scenes": [
+    {
+      "id": "notes",
+      "caption": "Notes from every call",
+      "ready": ".home",
+      "camera": ".page",
+      "pad": 0,
+      "cursorStart": "text:Record",
+      "steps": [
+        {
+          "click": ".home-meetings li:nth-child(2) button"
+        },
+        {
+          "wait": 400
+        }
+      ],
+      "hold": 2700
+    },
+    {
+      "id": "transcript",
+      "caption": "Knows who said what",
+      "ready": ".home",
+      "setup": [
+        {
+          "click": ".home-meetings li:nth-child(2) button"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "camera": ".page",
+      "pad": 0,
+      "cursorStart": "text:Summary",
+      "steps": [
+        {
+          "click": "text:Transcript"
+        }
+      ],
+      "hold": 2900
+    },
+    {
+      "id": "stats",
+      "caption": "See how the call went",
+      "ready": ".home",
+      "setup": [
+        {
+          "click": ".home-meetings li:nth-child(2) button"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "camera": ".page",
+      "pad": 0,
+      "cursorStart": "text:Transcript",
+      "steps": [
+        {
+          "click": "text:Stats"
+        },
+        {
+          "wait": 700
+        },
+        {
+          "scroll": ".timeline",
+          "to": 175
+        },
+        {
+          "hover": ".timeline-lane:nth-child(2) .timeline-span:nth-child(14)"
+        }
+      ],
+      "hold": 2600
+    },
+    {
+      "id": "dictate",
+      "caption": "Hold a key and speak",
+      "ready": ".home",
+      "setup": [
+        {
+          "click": ".sidebar-nav button:nth-child(2)"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "camera": ".hero",
+      "pad": 24,
+      "steps": [
+        {
+          "cursor": "hide"
+        },
+        {
+          "wait": 700
+        },
+        {
+          "emit": {
+            "event": "dictation-state",
+            "payload": {
+              "phase": "listening",
+              "error": null
+            }
+          }
+        },
+        {
+          "wait": 1900
+        },
+        {
+          "emit": {
+            "event": "dictation-state",
+            "payload": {
+              "phase": "processing",
+              "error": null
+            }
+          }
+        },
+        {
+          "wait": 700
+        },
+        {
+          "emit": {
+            "event": "dictation-state",
+            "payload": {
+              "phase": "idle",
+              "error": null
+            }
+          }
+        }
+      ],
+      "hold": 1500
+    },
+    {
+      "id": "history",
+      "caption": "Every dictation, kept close",
+      "ready": ".home",
+      "setup": [
+        {
+          "click": "text:For the launch"
+        },
+        {
+          "wait": 600
+        }
+      ],
+      "camera": ".page",
+      "pad": 0,
+      "cursorStart": ".history-text",
+      "steps": [
+        {
+          "wait": 400
+        },
+        {
+          "click": "text:Copy"
+        }
+      ],
+      "hold": 2900
+    }
+  ]
+}

@@ -274,6 +274,18 @@ decision someone might otherwise undo.
   (a private repository's release files only download for its members);
   source links appear once it's public. So the site catches up on its own
   when either changes, at the next CI run on `main`.
+- The header video is recorded from the app's browser preview, not drawn
+  or generated, so it can only show what the app really does, and it can
+  be re-rendered whenever the app changes (`site/video/render.mjs`, planned
+  by the `site-video` skill). It drives headless Chrome over the DevTools
+  protocol with Node's built-in WebSocket and assembles with ffmpeg, so it
+  adds no npm packages. The screencast only records at the device scale
+  Chrome itself runs at, hence `--force-device-scale-factor`.
+- Captions sit on a scrim in the app's background colour, present from a
+  scene's first frame so crossfades don't flash text through it. Light and
+  dark videos are separate files (about 1.2 MB each); `main.js` picks one
+  by `prefers-color-scheme` and leaves the poster with controls under
+  `prefers-reduced-motion`.
 - CI builds the site on every run, but only deploys when the repository
   variable `SITE_DEPLOY` is `true`, so CI stays green before Pages is
   enabled.
