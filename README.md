@@ -39,7 +39,7 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 - **Two tracks, real speaker labels.** Your microphone is recorded as **You** and the call audio separately, so your words are never mixed up with anyone else's.
 - **Tells the other people apart.** Voices on the call are separated into **Speaker 1**, **Speaker 2**… on your computer ([pyannote](https://github.com/pyannote/pyannote-audio) segmentation and voice fingerprints via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)). Rename them in the transcript (typing an existing name merges two), or say how many people were on the call to split them again instantly. The notes use the names.
 - **Echo cancellation.** If you use speakers instead of headphones, a WebRTC echo canceller removes the call's audio from your microphone track before transcription.
-- **Local transcription** with [Whisper](https://github.com/openai/whisper) through [whisper.cpp](https://github.com/ggerganov/whisper.cpp), GPU-accelerated on Apple Silicon. Silence is skipped first, so Whisper doesn't invent text in quiet stretches.
+- **Local transcription** with [Whisper](https://github.com/openai/whisper) through [whisper.cpp](https://github.com/ggerganov/whisper.cpp), GPU-accelerated: Metal on Apple Silicon, Vulkan on Windows (Nvidia, AMD and Intel graphics). Silence is skipped first, so Whisper doesn't invent text in quiet stretches.
 - **Structured notes** written by a model you choose: TL;DR, decisions, action items with owners, discussion by topic and open questions. Long meetings are summarized in parts and combined.
 - **A searchable library.** Full-text search across every transcript, click-to-rename titles, export to Markdown, all stored in a local SQLite database.
 - **Compact storage.** Recordings are kept as 16 kHz FLAC once transcribed, about 70 MB per hour.
@@ -80,7 +80,7 @@ For dictation, Quill reads the *name* of the frontmost app (for per-app style an
 | | macOS | Windows |
 |---|---|---|
 | Minimum OS | macOS 14.6 (system-audio capture uses Core Audio process taps) | Windows 10 / 11 |
-| Transcription | Metal GPU on Apple Silicon | CPU; CUDA or Vulkan available in the CLI with a build flag |
+| Transcription | Metal GPU on Apple Silicon | Vulkan GPU (Nvidia, AMD, Intel), or the CPU without one; CUDA in the CLI with a build flag |
 | Meeting notes | ✅ | ✅ |
 | Dictation | ✅ (<kbd>fn</kbd> key or a shortcut) | ✅ (a shortcut) |
 | Installers | `.dmg`, Apple Silicon, not yet notarized | `.exe` / `.msi`, not yet signed |
@@ -114,6 +114,7 @@ Quill looks for a new version once a day. When there is one, Home, **Settings �
 - **CMake and a C/C++ compiler**, to build whisper.cpp:
   - macOS: `xcode-select --install` (the Command Line Tools are enough; full Xcode isn't needed) and `brew install cmake`.
   - Windows: [Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the *Desktop development with C++* workload, which includes CMake.
+- **Windows: the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows)**, for whisper.cpp's GPU backend. Install it yourself (it sets `VULKAN_SDK`), or from Git Bash run `export VULKAN_SDK="$(scripts/install-vulkan-sdk.sh)"`, which installs the version CI uses after checking its hash.
 
 ### Build and run
 
@@ -350,7 +351,7 @@ Ideas being considered: live captions during meetings, asking questions across p
 ## Known limitations
 
 - **Builds aren't code-signed or notarized yet,** so the first launch needs one extra approval (see [Installing](#installing)). Updates after that install without it.
-- **Windows** has had less real-world use than macOS, and transcription runs on the CPU there.
+- **Windows** has had less real-world use than macOS. Its GPU transcription (Vulkan) is new and so far measured on few machines. On a PC with both integrated and dedicated graphics, whisper.cpp uses the first GPU Vulkan lists, which may not be the faster one.
 - **People who barely speak** on a large call may be merged into someone else, and two similar voices are sometimes treated as one. Fix either in the transcript. Voices aren't remembered between meetings yet.
 - **Several people in one room on one microphone** are all "You".
 - **Language:** Whisper supports about 100 languages, but the summary prompts and the dictation tests are English-first.

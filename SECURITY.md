@@ -78,6 +78,12 @@ For dictation, Quill reads the frontmost app's identifier and name, never its
 windows or contents. Dictated text passes through the clipboard: it's marked
 so clipboard managers don't record it, and your previous clipboard is put back.
 
+**GPU (Windows).** Transcription runs on the GPU through Vulkan. The
+installer ships the Khronos Vulkan loader (`vulkan-1.dll`) next to Quill, so
+it starts on PCs without one. As in any Vulkan app, the loader loads your
+graphics driver and any Vulkan layers other software has registered
+system-wide (overlays, for example) into Quill's process.
+
 **Desktop app hardening.**
 
 - The web interface runs under a strict Content Security Policy and can only

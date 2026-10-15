@@ -8,7 +8,7 @@ pub mod models;
 mod vad;
 mod whisper;
 
-pub use whisper::{WhisperConfig, WhisperTranscriber};
+pub use whisper::{WhisperConfig, WhisperTranscriber, gpu_backend};
 
 use serde::{Deserialize, Serialize};
 

@@ -13,7 +13,8 @@ use crate::{Segment, SttError, TranscribeOptions, Transcriber, vad};
 /// Load-time settings for a Whisper model.
 #[derive(Debug, Clone)]
 pub struct WhisperConfig {
-    /// Run on the GPU (Metal on macOS) when the build includes a GPU backend.
+    /// Run on the GPU (Metal on macOS, Vulkan on Windows) when the build
+    /// includes a GPU backend; see [`gpu_backend`].
     /// Set to `false` to force CPU, e.g. for benchmarking.
     pub use_gpu: bool,
     /// CPU threads for the parts that run on the CPU.
@@ -37,6 +38,20 @@ impl Default for WhisperConfig {
     }
 }
 
+/// The GPU backend whisper.cpp was built with, if any: Metal on macOS and
+/// Vulkan on Windows always; CUDA or Vulkan elsewhere when the feature is on.
+pub fn gpu_backend() -> Option<&'static str> {
+    if cfg!(target_os = "macos") {
+        Some("Metal")
+    } else if cfg!(feature = "cuda") {
+        Some("CUDA")
+    } else if cfg!(any(windows, feature = "vulkan")) {
+        Some("Vulkan")
+    } else {
+        None
+    }
+}
+
 /// A loaded Whisper model. Load once and reuse; loading takes seconds.
 pub struct WhisperTranscriber {
     ctx: WhisperContext,
@@ -56,10 +71,16 @@ impl WhisperTranscriber {
         // straight to stderr. Safe to call repeatedly.
         whisper_rs::install_logging_hooks();
 
+        let backend = gpu_backend().filter(|_| config.use_gpu);
+        let use_gpu = backend.is_some();
+        // whisper.cpp names the device it picks only in its own (filtered)
+        // log; run with RUST_LOG=info,whisper_rs=info to see it. Without a
+        // usable GPU it falls back to the CPU on its own.
+        tracing::info!(backend = backend.unwrap_or("CPU"), "loading whisper model");
         let mut params = WhisperContextParameters::default();
-        params.use_gpu(config.use_gpu);
+        params.use_gpu(use_gpu);
         // Flash attention is a faster attention kernel; a clear win on Metal.
-        params.flash_attn(config.use_gpu);
+        params.flash_attn(use_gpu);
         let ctx = WhisperContext::new_with_params(model_path, params)?;
 
         let threads = config.threads.max(1);

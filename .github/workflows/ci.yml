@@ -45,6 +45,16 @@ jobs:
         shell: bash
         run: echo "SHERPA_ONNX_LIB_DIR=$(scripts/fetch-sherpa-onnx.sh "$RUNNER_TEMP/sherpa-onnx")" >> "$GITHUB_ENV"
 
+      # whisper.cpp's Vulkan backend (Windows) builds against the Vulkan SDK,
+      # hash-checked. Bin/ holds glslc, which compiles its shaders.
+      - name: Vulkan SDK
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          sdk=$(scripts/install-vulkan-sdk.sh)
+          echo "VULKAN_SDK=$sdk" >> "$GITHUB_ENV"
+          echo "$sdk\Bin" >> "$GITHUB_PATH"
+
       # The Tauri app embeds the built frontend (app/dist) at compile time,
       # so it must exist before any cargo step that compiles quill-app.
       - uses: actions/setup-node@v7

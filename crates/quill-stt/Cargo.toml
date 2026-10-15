@@ -22,8 +22,16 @@ tracing.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { workspace = true, features = ["metal"] }
 
-# GPU backends for Windows/Linux are opt-in because they need an SDK installed
-# (CUDA Toolkit or Vulkan SDK). Example: `cargo build -p quill-cli --features cuda`.
+# On Windows, always build it with Vulkan, which runs on Nvidia, AMD and Intel
+# GPUs alike. Building needs the Vulkan SDK (scripts/install-vulkan-sdk.sh sets
+# it up); running needs only the loader, vulkan-1.dll, which GPU drivers
+# install and the release ships besides. With no usable GPU, whisper.cpp falls
+# back to the CPU.
+[target.'cfg(windows)'.dependencies]
+whisper-rs = { workspace = true, features = ["vulkan"] }
+
+# CUDA (Nvidia only) is opt-in, as is Vulkan elsewhere. Both need their SDK
+# installed. Example: `cargo build -p quill-cli --features cuda`.
 [features]
 cuda = ["whisper-rs/cuda"]
 vulkan = ["whisper-rs/vulkan"]

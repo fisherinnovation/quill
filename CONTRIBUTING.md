@@ -31,6 +31,10 @@ speakers apart) from the project's GitHub release. To use a copy checked
 against pinned hashes instead, as CI does:
 `export SHERPA_ONNX_LIB_DIR="$(scripts/fetch-sherpa-onnx.sh)"`.
 
+On Windows, building needs the Vulkan SDK too, for whisper.cpp's GPU
+backend: `export VULKAN_SDK="$(scripts/install-vulkan-sdk.sh)"` installs
+the hash-checked version CI uses.
+
 On macOS, test dictation with `npm run app:bundle`, which installs a signed
 `Quill.app` (see the tip in the README). Permissions survive rebuilds.
 

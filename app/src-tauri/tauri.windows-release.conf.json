@@ -4,7 +4,8 @@
     "resources": {
       "windows-libs/sherpa-onnx-c-api.dll": "sherpa-onnx-c-api.dll",
       "windows-libs/onnxruntime.dll": "onnxruntime.dll",
-      "windows-libs/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll"
+      "windows-libs/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll",
+      "windows-libs/vulkan-1.dll": "vulkan-1.dll"
     }
   }
 }

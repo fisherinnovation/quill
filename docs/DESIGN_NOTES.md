@@ -39,6 +39,22 @@ decision someone might otherwise undo.
   the heavy lifting anyway. whisper-rs-sys passes `GGML_*` variables to
   CMake but doesn't rebuild when they change, so changing one also needs a
   new release cache key.
+- **Windows uses Vulkan for the GPU** (since 2026-10). It runs on Nvidia,
+  AMD and Intel alike, and its runtime comes with every GPU driver, where
+  CUDA would mean Nvidia only and several hundred MB of CUDA DLLs in the
+  installer. `quill-stt` always enables it on Windows, as it does Metal on
+  macOS. Building needs the Vulkan SDK (`scripts/install-vulkan-sdk.sh`,
+  pinned and hash-checked).
+  - whisper-rs-sys links `vulkan-1.lib`, so `quill-app.exe` imports
+    `vulkan-1.dll` and wouldn't start without it. The installer ships the
+    loader next to the exe. With a loader but no usable GPU, ggml's Vulkan
+    registration catches the error and whisper.cpp uses the CPU.
+  - whisper.cpp takes the first GPU Vulkan lists, integrated or dedicated
+    (`gpu_device` 0). Not yet measured on a PC with both.
+  - Don't call `whisper_rs::vulkan::list_devices()` to show the device: it
+    creates a logical device per GPU, and with no driver ggml's instance
+    setup throws through FFI. whisper.cpp logs the device it picks at info
+    (`RUST_LOG=info,whisper_rs=info`).
 - **whisper.cpp's built-in VAD does nothing through whisper-rs.**
   whisper.cpp only runs it in `whisper_full()`, and whisper-rs calls
   `whisper_full_with_state()`. `quill-stt` therefore runs Silero itself

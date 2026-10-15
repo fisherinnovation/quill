@@ -137,6 +137,11 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   most desktop CPUs. A crash with no `panic:` in the log and exception
   `0xc000001d` in Windows' Application event log is this. whisper-rs-sys
   doesn't rebuild when `GGML_*` changes: change the release cache key too.
+- **Windows GPU:** whisper.cpp uses Vulkan on Windows (always on in
+  `quill-stt`). Building needs the Vulkan SDK
+  (`scripts/install-vulkan-sdk.sh`, pinned with its hash; bump the release
+  cache key with it). The installer ships `vulkan-1.dll`: the exe imports it
+  and won't start without one.
 - **sherpa-onnx:**
   - Its build script downloads prebuilt libraries. CI and release builds
     use the hash-checked copy via `SHERPA_ONNX_LIB_DIR`.

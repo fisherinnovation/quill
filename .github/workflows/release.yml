@@ -46,11 +46,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       # Separate from CI's cache: release builds use another profile. Change
-      # the key whenever a GGML_* setting changes: whisper-rs-sys doesn't
-      # rebuild when they do, so a cached whisper.cpp would be reused.
+      # the key whenever a GGML_* setting or the Vulkan SDK changes:
+      # whisper-rs-sys doesn't rebuild when they do, so a cached whisper.cpp
+      # would be reused.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release-portable-cpu
+          key: release-portable-vulkan-1.4.363.0
 
       - uses: actions/setup-node@v7
         with:
@@ -77,6 +78,16 @@ jobs:
         shell: bash
         run: echo "SHERPA_ONNX_LIB_DIR=$(scripts/fetch-sherpa-onnx.sh "$RUNNER_TEMP/sherpa-onnx")" >> "$GITHUB_ENV"
 
+      # whisper.cpp's Vulkan backend (Windows) builds against the Vulkan SDK,
+      # hash-checked. Bin/ holds glslc, which compiles its shaders.
+      - name: Vulkan SDK
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          sdk=$(scripts/install-vulkan-sdk.sh)
+          echo "VULKAN_SDK=$sdk" >> "$GITHUB_ENV"
+          echo "$sdk\Bin" >> "$GITHUB_PATH"
+
       - name: Build (macOS)
         if: runner.os == 'macOS'
         working-directory: app
@@ -85,7 +96,10 @@ jobs:
           sh scripts/package-macos.sh
 
       # On Windows sherpa-onnx is a set of DLLs; the installer puts them next
-      # to the executable (tauri.windows-release.conf.json).
+      # to the executable (tauri.windows-release.conf.json). So is the Vulkan
+      # loader: quill-app.exe links vulkan-1.dll, and without one (no GPU
+      # driver, some VMs) it wouldn't start. With it, Vulkan finds no GPU and
+      # whisper.cpp uses the CPU.
       - name: Build (Windows)
         if: runner.os == 'Windows'
         working-directory: app
@@ -96,6 +110,15 @@ jobs:
           for dll in sherpa-onnx-c-api.dll onnxruntime.dll onnxruntime_providers_shared.dll; do
             cp "$lib/$dll" src-tauri/windows-libs/
           done
+          # The SDK installer puts the 64-bit loader in System32.
+          loader="$(cygpath -u "$SYSTEMROOT")/System32/vulkan-1.dll"
+          [ -f "$loader" ] || loader=$(find "$(cygpath -u "$VULKAN_SDK")" -iname vulkan-1.dll -not -ipath '*32*' | head -n 1)
+          if [ ! -f "$loader" ]; then
+            echo "::error::no Vulkan loader (vulkan-1.dll) found to ship"
+            exit 1
+          fi
+          echo "Vulkan loader: $loader"
+          cp "$loader" src-tauri/windows-libs/vulkan-1.dll
           npx tauri build --bundles nsis,msi --config src-tauri/tauri.windows-release.conf.json
           mkdir -p ../dist-release
           cp ../target/release/bundle/nsis/*.exe ../target/release/bundle/msi/*.msi ../dist-release/

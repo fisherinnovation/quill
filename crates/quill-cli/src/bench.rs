@@ -92,9 +92,5 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn gpu_label() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "Metal"
-    } else {
-        "GPU"
-    }
+    quill_stt::gpu_backend().unwrap_or("GPU")
 }
