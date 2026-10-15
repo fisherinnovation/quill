@@ -23,6 +23,9 @@
   --bg-hover: rgb(108 110 160 / 0.08);
   --bg-active: rgb(108 110 160 / 0.13);
   --selected: #e4e5ef;
+  /* The sidebar's section bands: --bg-active over --bg-sidebar, but solid,
+     so list items don't show through while a band sticks. */
+  --bg-section: #dde0ea;
   --text: #1c1d2b;
   --text-2: #565973;
   --text-3: #858aa0;
@@ -90,6 +93,7 @@
     --bg-hover: rgb(193 202 214 / 0.06);
     --bg-active: rgb(193 202 214 / 0.1);
     --selected: rgb(108 110 160 / 0.3);
+    --bg-section: #2c2d38;
     --text: #eceef4;
     --text-2: #a9aec1;
     --text-3: #727890;
@@ -576,16 +580,20 @@ kbd {
 
 /* "Meetings" and "Dictations": the sidebar's two lists. */
 .list-section {
-  padding: 14px 10px 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-top: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-section);
   font-size: 12px;
   font-weight: 700;
   color: var(--text);
 }
 
 .list-section ~ .list-section {
-  margin-top: 14px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
+  margin-top: 18px;
 }
 
 .list-more {
