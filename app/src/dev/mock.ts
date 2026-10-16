@@ -112,9 +112,12 @@ const settings = {
     vocabulary: ["Quill", "OpenRouter", "Priya"],
     replacements: [{ from: "open router", to: "OpenRouter" }],
     keep_history: true,
+    save_samples: false,
     app_styles: [],
   },
 };
+
+let samples = { count: 23, bytes: 9_400_000 };
 
 let update: UpdateInfo = {
   current_version: "0.1.0",
@@ -456,6 +459,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   clear_dictations: () => {
     dictations = [];
+  },
+  dictation_samples: () => samples,
+  show_dictation_samples: () => {},
+  clear_dictation_samples: () => {
+    samples = { count: 0, bytes: 0 };
   },
   paste_permission: () => !flags.has("nopaste"),
   system_language: () => "en",

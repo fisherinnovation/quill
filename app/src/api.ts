@@ -81,7 +81,15 @@ export interface DictationSettings {
   vocabulary: string[];
   replacements: Replacement[];
   keep_history: boolean;
+  /** Keep each dictation's audio and typed text, to measure accuracy. */
+  save_samples: boolean;
   app_styles: AppStyle[];
+}
+
+/** Saved dictation samples (Dictation → Save samples). */
+export interface SamplesUsage {
+  count: number;
+  bytes: number;
 }
 
 export type Style = "default" | "casual" | "formal" | "technical";
@@ -417,6 +425,10 @@ export const api = {
   dictationStats: (id: number) => invoke<DictationStats>("dictation_stats", { id }),
   deleteDictation: (id: number) => invoke<void>("delete_dictation", { id }),
   clearDictations: () => invoke<void>("clear_dictations"),
+  dictationSamples: () => invoke<SamplesUsage>("dictation_samples"),
+  showDictationSamples: () => invoke<void>("show_dictation_samples"),
+  /** Deletes the samples, and any references written for them. */
+  clearDictationSamples: () => invoke<void>("clear_dictation_samples"),
   /** Saves a fixed version and returns it with all pending and accepted suggestions. */
   correctDictation: (id: number, text: string) =>
     invoke<{ entry: DictationEntry; suggestions: Suggestion[] }>("correct_dictation", { id, text }),
@@ -460,6 +472,9 @@ export const events = {
     listen<DictationState>("dictation-state", (e) => cb(e.payload)),
   onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
+  /** A dictation sample was saved. */
+  onDictationSamples: (cb: (usage: SamplesUsage) => void): Promise<UnlistenFn> =>
+    listen<SamplesUsage>("dictation-samples", (e) => cb(e.payload)),
   onModelDownload: (cb: (p: DownloadProgress) => void): Promise<UnlistenFn> =>
     listen<DownloadProgress>("model-download", (e) => cb(e.payload)),
   /** The meeting list changed outside the meeting view. */

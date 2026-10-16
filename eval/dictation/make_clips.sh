@@ -2,6 +2,8 @@
 # Builds clips/<id>.wav from utterances.txt: macOS text-to-speech with 0.4 s
 # of silence before and 0.8 s after (like pressing the key, speaking, then
 # releasing), or with the end cut off when `cut` > 0. 16 kHz mono 16-bit.
+# Also writes clips/<id>.txt, what should be typed: the reference
+# `quill-cli dictate` scores against.
 # Synthetic speech: good for latency and for catching hallucinations, not
 # for judging accuracy on real voices. macOS only (needs `say`).
 set -eu
@@ -9,8 +11,9 @@ cd "$(dirname "$0")"
 mkdir -p clips
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-grep -v '^#' utterances.txt | while IFS='|' read -r id voice cut text; do
+grep -v '^#' utterances.txt | while IFS='|' read -r id voice cut text expected; do
     [ -n "$id" ] || continue
+    printf '%s\n' "$expected" > "clips/$id.txt"
     say -v "$voice" --file-format=WAVE --data-format=LEI16@16000 -o "$tmp/$id.wav" "$text"
     python3 -I - "$tmp/$id.wav" "clips/$id.wav" "$cut" <<'PY'
 import sys, wave
@@ -28,4 +31,4 @@ with wave.open(dst, "wb") as out:
     out.writeframes(silence(0.4) + data)
 PY
 done
-echo "wrote $(ls clips | wc -l | tr -d ' ') clips to $(pwd)/clips"
+echo "wrote $(ls clips/*.wav | wc -l | tr -d ' ') clips to $(pwd)/clips"

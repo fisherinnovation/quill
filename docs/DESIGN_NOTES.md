@@ -201,6 +201,16 @@ decision someone might otherwise undo.
   right. Nothing is learned until the user accepts it.
 - **About you** goes to the clean-up model (prompt `dictation-v3`). On the
   10 eval clips it changed one word and never leaked into the output.
+- **Measuring accuracy:** the TTS clips are too clean to judge accuracy on
+  real voices, so the app can keep real dictations (opt-in, off by
+  default): the 16 kHz audio Whisper heard, the typed text and the app.
+  A reference (`clip.txt`) is written by hand, and `quill-cli dictate`
+  scores Whisper's text and the typed text by word error rate. Words are
+  compared lowercased, without outer punctuation or list markers, so the
+  score counts wrong words, not formatting; "10:30" vs "10.30" still
+  counts. Where several forms are right ("section 4" or "four"), the
+  reference uses the one Quill produces. Samples are FLAC (about 1 MB per
+  minute) and outside the database, so deleting them is one folder.
 - **Planned:** opt-in learning by watching the inserted text through
   Accessibility for about a minute. First check which apps expose it.
 

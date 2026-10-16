@@ -21,9 +21,9 @@ use std::time::{Duration, Instant};
 use quill_audio::STT_SAMPLE_RATE;
 use quill_audio::cue::{self, Cue};
 use quill_audio::live::MicStream;
-use quill_core::dictation;
 use quill_core::library::{DictationEntry, DictationStat, Suggestion, SuggestionStatus};
 use quill_core::settings::{DictationSettings, FN_HOTKEY, Style};
+use quill_core::{dictation, samples};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
@@ -33,6 +33,8 @@ use crate::{AppState, indicator, pipeline, tray};
 
 pub const STATE_EVENT: &str = "dictation-state";
 pub const ENTRY_EVENT: &str = "dictation-entry";
+/// A sample was saved; carries the new [`samples::Usage`].
+pub const SAMPLES_EVENT: &str = "dictation-samples";
 
 /// Held at least this long, the hotkey is push-to-talk; shorter is a tap
 /// that toggles listening on.
@@ -513,7 +515,8 @@ fn on_main_thread<T: Send + 'static>(
         .map_err(|_| "the main thread didn't run the paste".to_string())
 }
 
-/// Whisper → polish (if useful) → paste → history.
+/// Whisper → polish (if useful) → paste → history (and a sample, if the
+/// user keeps them).
 async fn process(
     app: &AppHandle,
     pcm: Vec<f32>,
@@ -523,6 +526,7 @@ async fn process(
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
     let settings = lock(&state.settings).clone();
+    let sample_pcm = settings.dictation.save_samples.then(|| pcm.clone());
 
     let raw = {
         let app = app.clone();
@@ -607,6 +611,28 @@ async fn process(
         ?inserted,
         "dictation typed"
     );
+
+    if let Some(pcm) = sample_pcm {
+        let dir = samples::dir(&state.data_dir);
+        let meta = samples::Meta {
+            app_id: target.as_ref().map(|a| a.id.clone()),
+            app: target.as_ref().map(|a| a.name.clone()),
+            stt_model: settings.stt_model.clone(),
+            polish_model: polish_model.clone(),
+            whisper: raw.clone(),
+        };
+        let typed = text.clone();
+        let app = app.clone();
+        // In the background: the text is already typed.
+        tauri::async_runtime::spawn_blocking(move || {
+            if let Err(e) = samples::save(&dir, &pcm, &typed, &meta) {
+                tracing::warn!("couldn't save the dictation sample: {e}");
+            }
+            if let Ok(usage) = samples::usage(&dir) {
+                let _ = app.emit(SAMPLES_EVENT, usage);
+            }
+        });
+    }
 
     let pasted = inserted == quill_insert::Inserted::Pasted;
     let entry = DictationEntry {
@@ -732,6 +758,36 @@ pub fn delete_dictation(state: tauri::State<'_, AppState>, id: i64) -> CommandRe
 #[tauri::command]
 pub fn clear_dictations(state: tauri::State<'_, AppState>) -> CommandResult<()> {
     Ok(state.library.clear_dictations()?)
+}
+
+/// How many dictation samples are saved (Dictation → Testing accuracy), and
+/// how much space they take.
+#[tauri::command]
+pub async fn dictation_samples(app: AppHandle) -> CommandResult<samples::Usage> {
+    blocking(move || {
+        let dir = samples::dir(&app.state::<AppState>().data_dir);
+        samples::usage(&dir).map_err(|e| CommandError::Other(e.to_string()))
+    })
+    .await
+}
+
+/// Opens the folder of dictation samples.
+#[tauri::command]
+pub fn show_dictation_samples(state: tauri::State<'_, AppState>) -> CommandResult<()> {
+    let dir = samples::dir(&state.data_dir);
+    std::fs::create_dir_all(&dir).map_err(|e| CommandError::Other(e.to_string()))?;
+    tauri_plugin_opener::open_path(dir, None::<&str>)
+        .map_err(|e| CommandError::Other(e.to_string()))
+}
+
+/// Deletes every dictation sample, with any references written for them.
+#[tauri::command]
+pub async fn clear_dictation_samples(app: AppHandle) -> CommandResult<()> {
+    blocking(move || {
+        let dir = samples::dir(&app.state::<AppState>().data_dir);
+        samples::clear(&dir).map_err(|e| CommandError::Other(e.to_string()))
+    })
+    .await
 }
 
 /// Whether Quill may simulate the paste keystroke (macOS Accessibility).

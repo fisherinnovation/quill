@@ -24,6 +24,7 @@ Thumbs.db
 /app/dist/
 /app/src-tauri/gen/
 /eval/dictation/clips/
+/eval/dictation/private/
 /eval/diarization/data/
 
 # Verified sherpa-onnx libraries (scripts/fetch-sherpa-onnx.sh)

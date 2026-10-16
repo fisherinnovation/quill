@@ -72,6 +72,9 @@ pub struct DictationSettings {
     pub replacements: Vec<Replacement>,
     /// Keep a history of what was dictated (in the local library).
     pub keep_history: bool,
+    /// Keep each dictation's audio and typed text, to measure accuracy
+    /// (`quill_core::samples`). Off unless the user turns it on.
+    pub save_samples: bool,
     /// Styles chosen for particular apps, overriding the built-in ones
     /// (`dictation::style_for`).
     pub app_styles: Vec<AppStyle>,
@@ -112,6 +115,7 @@ impl Default for DictationSettings {
             vocabulary: Vec::new(),
             replacements: Vec::new(),
             keep_history: true,
+            save_samples: false,
             app_styles: Vec::new(),
         }
     }

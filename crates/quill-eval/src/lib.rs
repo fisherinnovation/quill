@@ -3,10 +3,12 @@
 //!
 //! Flow: [`load_cases`] → [`run_summaries`] → [`judge::judge_all`] →
 //! [`store`] (SQLite + CSV) and [`report`] (leaderboard + side-by-side review).
+//! [`wer`] scores dictation against reference text.
 
 pub mod judge;
 pub mod report;
 pub mod store;
+pub mod wer;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

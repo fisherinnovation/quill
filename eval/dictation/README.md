@@ -3,8 +3,8 @@
 Latency and behaviour checks for dictation.
 
 ```sh
-sh eval/dictation/make_clips.sh            # TTS clips from utterances.txt → clips/ (gitignored)
-quill-cli dictate eval/dictation/clips/*.wav                       # Whisper + polish, with timings
+sh eval/dictation/make_clips.sh            # TTS clips and references from utterances.txt → clips/ (gitignored)
+quill-cli dictate eval/dictation/clips/*.wav                       # Whisper + polish, with timings and accuracy
 quill-cli dictate --always-polish --polish-models a,b,c clips/*.wav  # compare polish models
 ```
 
@@ -14,6 +14,49 @@ it), an email, code identifiers, numbers, and a clip whose end is cut off
 (early key release). The voices are macOS text-to-speech: clean, so good for
 latency and for catching hallucinations, not for judging accuracy on real
 voices.
+
+## Accuracy
+
+A clip with a reference beside it (`clip.txt` next to `clip.wav` or
+`clip.flac`: what should have been typed) is scored by word error rate
+(substitutions + deletions + insertions over the reference's words), for
+Whisper's text and for what would be typed with each polish model, then
+totalled over all the clips. Each scored clip lists its mistakes: `quil→quill`
+(typed `quil` for `quill`), `-the` (missing), `+um` (extra).
+
+Words are compared lowercased, without outer punctuation or list markers, so
+formatting doesn't count but wrong words do ("10.30" for "10:30"). Where
+several forms are right ("section 4" or "section four"), a reference uses the
+one Quill produces, so every error is a real one.
+
+`utterances.txt` holds the TTS clips' references in its last column.
+
+### Real dictations
+
+1. In the app, turn on **Dictation → Testing accuracy → Save dictations for
+   testing**, then dictate as usual. Each dictation is saved in the data
+   folder's `dictation-samples/` as `<time>.flac` (the audio Whisper heard),
+   `<time>.typed.txt` (what was typed) and `<time>.json` (the app it went
+   into, Whisper's text and the clean-up model).
+2. Copy the clips worth keeping, with their files, to
+   `eval/dictation/private/` (gitignored: real dictations never go in the
+   repo).
+3. For each one, copy `<time>.typed.txt` to `<time>.txt` and fix it to what
+   you meant to type (listen to the clip if unsure).
+4. Score them:
+
+   ```sh
+   QUILL_OPENROUTER_API_KEY=$(security find-generic-password -s com.fisherinnovation.quill -a openrouter -w) \
+     target/release/quill-cli dictate eval/dictation/private/*.flac
+   ```
+
+   Each clip is cleaned up in the style of the app it was dictated into
+   (from its `.json`); `--app` overrides that. Pass the app's settings that
+   matter: `--vocabulary`, `--about`, `--language`.
+
+Aim for variety: short replies and long paragraphs (30 s+), names and
+jargon, code, numbers, a quiet room and a noisy one, the built-in mic and a
+headset.
 
 ## Results (2026-10-11, MacBook Pro M3 Pro)
 
@@ -49,3 +92,16 @@ call unless there's something to fix (fillers, corrections, lists, stutters,
 60+ words).
 
 **End to end** (before pasting): ~0.3 s without polish, ~0.95 s with.
+
+**Accuracy** (2026-10-15, TTS clips; Whisper `turbo`, polish
+`google/gemini-3.5-flash-lite` when `needs_polish` says so):
+
+| Typed by | WER | Errors (sub / del / ins) |
+|---|---:|---:|
+| Whisper only | 6.5% | 10 (2 / 0 / 8) |
+| With polish when needed | 1.9% | 3 (2 / 0 / 1) |
+
+Polish removed the self-correction ("3, no wait") and the spoken list's
+"first… second… and third". All three remaining errors are in `fillers`:
+Whisper wrote "stand up" for "standup" and "10.30" for "10:30", and dropped
+the "um"s itself, so `needs_polish` didn't send it to the model.

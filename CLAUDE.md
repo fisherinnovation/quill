@@ -177,6 +177,8 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
     `speakers.json`, `summary.md`
   - `models/`
   - `logs/`
+  - `dictation-samples/`: only when the user turns on saving them, for
+    `quill-cli dictate` accuracy runs
 - **Logs** are daily files in `logs/`. Read the newest to see what the app
   did (`dictation typed stt_ms=…`, `told speakers apart`, `downloading`).
 - **Don't modify the user's library** with CLI runs. Copy a recording

@@ -1,20 +1,23 @@
-//! `quill-cli dictate`: run the dictation pipeline on WAV files and show what
-//! each step produced and how long it took, to tune latency and the polish
-//! prompt (see `eval/dictation/`).
+//! `quill-cli dictate`: run the dictation pipeline on WAV or FLAC files and
+//! show what each step produced and how long it took, to tune latency and
+//! the polish prompt (see `eval/dictation/`). A clip with a reference
+//! (`clip.txt`: what should have been typed) is also scored by word error
+//! rate, and a saved sample's `clip.json` supplies the app it went into.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::Context;
 use quill_audio::STT_SAMPLE_RATE;
-use quill_core::dictation;
 use quill_core::settings::{DEFAULT_POLISH_MODEL, DictationSettings, Style};
+use quill_core::{dictation, samples};
+use quill_eval::wer::{self, Tally};
 use quill_llm::Privacy;
 use quill_stt::{WhisperConfig, WhisperTranscriber};
 
 #[derive(Debug, clap::Args)]
 pub struct Args {
-    /// WAV files, each one utterance
+    /// WAV or FLAC files, each one utterance
     #[arg(required = true)]
     files: Vec<PathBuf>,
     /// Whisper model
@@ -41,7 +44,8 @@ pub struct Args {
     #[arg(long, default_value = "")]
     about: String,
     /// Pretend the text is going into this app (by bundle id or .exe), to
-    /// try its style, e.g. com.tinyspeck.slackmacgap
+    /// try its style, e.g. com.tinyspeck.slackmacgap [default: the app in a
+    /// saved sample's clip.json]
     #[arg(long)]
     app: Option<String>,
 }
@@ -79,25 +83,51 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         dictation::transcribe(&transcriber, &pcm, &settings)?;
     }
 
-    let destination = args.app.as_deref().map(|app| dictation::Destination {
-        app,
-        style: dictation::style_for(app, &settings),
-    });
+    let mut whisper_total = Tally::default();
+    let mut typed_totals = vec![Tally::default(); providers.len()];
+    let mut unscored = 0;
     for file in &args.files {
         let pcm = quill_audio::load_for_stt(file)
             .with_context(|| format!("reading {}", file.display()))?;
+        let reference = samples::reference(file)
+            .with_context(|| format!("reading the reference for {}", file.display()))?;
+        let meta = samples::meta(file)
+            .with_context(|| format!("reading {}", file.with_extension("json").display()))?
+            .unwrap_or_default();
+        // The app it was dictated into, unless --app says otherwise.
+        let (app_id, app_name) = match &args.app {
+            Some(app) => (Some(app.clone()), app.clone()),
+            None => (meta.app_id.clone(), meta.app.clone().unwrap_or_default()),
+        };
+        let destination = app_id.as_deref().map(|id| dictation::Destination {
+            app: if app_name.is_empty() { id } else { &app_name },
+            style: dictation::style_for(id, &settings),
+        });
+        let style = destination.map_or(Style::Default, |d| d.style);
+
         let secs = pcm.len() as f64 / f64::from(STT_SAMPLE_RATE);
         let started = Instant::now();
         let raw = dictation::transcribe(&transcriber, &pcm, &settings)?;
         let stt_ms = started.elapsed().as_millis();
         println!("\n## {} ({secs:.1} s)", display_name(file));
         println!("- whisper {stt_ms} ms: {raw}");
+        match &reference {
+            Some(reference) => whisper_total += score(reference, &raw),
+            None => unscored += 1,
+        }
 
         if !args.always_polish && !dictation::needs_polish(&raw) {
             println!("- (nothing to polish)");
+            // What's typed is Whisper's text, for every model.
+            if let Some(reference) = &reference {
+                let tally = wer::align(reference, &dictation::apply_style(&raw, style)).tally();
+                for total in &mut typed_totals {
+                    *total += tally;
+                }
+            }
             continue;
         }
-        for (provider, model) in &providers {
+        for ((provider, model), total) in providers.iter().zip(&mut typed_totals) {
             let result = runtime.block_on(dictation::polish(
                 provider.as_ref(),
                 model,
@@ -106,15 +136,10 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
                 &settings,
                 destination,
             ));
-            match result {
+            // The app types the transcript when polishing fails.
+            let typed = match result {
                 Ok(p) => {
-                    let p = dictation::Polish {
-                        text: dictation::apply_style(
-                            &p.text,
-                            destination.map_or(Style::Default, |d| d.style),
-                        ),
-                        ..p
-                    };
+                    let text = dictation::apply_style(&p.text, style);
                     let cost = p.cost_usd.map_or(String::new(), |c| format!(", ${c:.5}"));
                     let rejected = p
                         .rejected
@@ -122,14 +147,70 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
                     println!(
                         "- {model} {} ms{cost}{rejected}:\n\n{}\n",
                         p.latency_ms,
-                        indent(&p.text)
+                        indent(&text)
                     );
+                    text
                 }
-                Err(e) => println!("- {model}: error: {e}"),
+                Err(e) => {
+                    println!("- {model}: error: {e}");
+                    dictation::apply_style(&raw, style)
+                }
+            };
+            if let Some(reference) = &reference {
+                *total += score(reference, &typed);
             }
         }
     }
+
+    let scored = args.files.len() - unscored;
+    if scored > 0 {
+        println!(
+            "\n## Accuracy: {scored} clips, {} reference words",
+            whisper_total.reference_words
+        );
+        println!("\n| Typed by | WER | Errors (sub / del / ins) |\n|---|---:|---:|");
+        print_row("whisper only", whisper_total);
+        for ((_, model), total) in providers.iter().zip(&typed_totals) {
+            print_row(&format!("{model} when needed"), *total);
+        }
+    }
+    if unscored > 0 {
+        println!(
+            "\n{unscored} of {} clips have no reference (clip.txt beside clip.wav), so weren't scored.",
+            args.files.len()
+        );
+    }
     Ok(())
+}
+
+/// Prints how far `text` is from `reference` under the step it scores.
+fn score(reference: &str, text: &str) -> Tally {
+    let alignment = wer::align(reference, text);
+    let tally = alignment.tally();
+    if tally.errors() == 0 {
+        println!("  - matches the reference");
+    } else {
+        let errors = tally.errors();
+        println!(
+            "  - {errors} error{} in {} words ({:.0}%): {}",
+            if errors == 1 { "" } else { "s" },
+            tally.reference_words,
+            tally.wer() * 100.0,
+            alignment.errors().join(" ")
+        );
+    }
+    tally
+}
+
+fn print_row(step: &str, t: Tally) {
+    println!(
+        "| {step} | {:.1}% | {} ({} / {} / {}) |",
+        t.wer() * 100.0,
+        t.errors(),
+        t.substitutions,
+        t.deletions,
+        t.insertions
+    );
 }
 
 fn display_name(path: &Path) -> String {

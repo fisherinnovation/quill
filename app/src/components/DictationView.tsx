@@ -2,6 +2,9 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import {
   api,
   errorText,
+  events,
+  fileManager,
+  fileSize,
   FN_HOTKEY,
   hotkeyLabel,
   isMac,
@@ -10,6 +13,7 @@ import {
   type Style,
   type DictationState,
   type Replacement,
+  type SamplesUsage,
   type Suggestion,
 } from "../api";
 import { Icon } from "./Icon";
@@ -225,7 +229,63 @@ export function DictationView({ state, onCleared }: { state: DictationState; onC
           )}
         </Row>
       </Group>
+
+      <Samples
+        enabled={settings.save_samples}
+        onChange={(save_samples) => update({ save_samples })}
+      />
     </div>
+  );
+}
+
+/**
+ * Keeping dictations' audio to measure accuracy with `quill-cli dictate`
+ * (eval/dictation/README.md).
+ */
+function Samples({ enabled, onChange }: { enabled: boolean; onChange: (on: boolean) => void }) {
+  const [usage, setUsage] = useState<SamplesUsage | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => {
+    void api.dictationSamples().then(setUsage);
+    const unlisten = events.onDictationSamples(setUsage);
+    return () => void unlisten.then((f) => f());
+  }, []);
+
+  return (
+    <Group title="Testing accuracy">
+      <Row
+        label="Save dictations for testing"
+        hint="Keeps the audio of each dictation and what was typed, only on this computer, to measure accuracy with quill-cli. About 1 MB per minute of speech."
+      >
+        <Switch label="Save dictations for testing" checked={enabled} onChange={onChange} />
+      </Row>
+      {usage && usage.count > 0 && (
+        <Row
+          label={`${usage.count} saved`}
+          hint={`${fileSize(usage.bytes)}. Deleting them also deletes any reference text you wrote beside them.`}
+        >
+          <button onClick={() => void api.showDictationSamples()}>Show in {fileManager}</button>
+          {confirmClear ? (
+            <div className="confirm">
+              Delete all?
+              <button
+                className="danger"
+                onClick={async () => {
+                  await api.clearDictationSamples();
+                  setConfirmClear(false);
+                  setUsage(await api.dictationSamples());
+                }}
+              >
+                Delete
+              </button>
+              <button onClick={() => setConfirmClear(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmClear(true)}>Delete…</button>
+          )}
+        </Row>
+      )}
+    </Group>
   );
 }
 

@@ -187,6 +187,8 @@ On the **Dictation** page you can change the shortcut, choose the language (your
 
 Nothing is learned until you click **Add**, and learned rules can be removed. Ordinary word changes ("their" → "there") aren't learned, because as a rule for every dictation they'd be wrong as often as right. With clean-up on, **About you** tells the clean-up model about you (your role, names you use, spelling preferences) so it gets them right. It's never added to your text.
 
+**Testing accuracy.** **Dictation → Save dictations for testing** (off by default) keeps the audio of each dictation and what was typed, on your computer only, so you can measure how often Quill gets your words right with `quill-cli dictate`; see [`eval/dictation/README.md`](eval/dictation/README.md). It takes about 1 MB per minute of speech, and the same section shows how many are saved and deletes them.
+
 ### Per-app styles
 
 | Style | Built in for | Effect |
@@ -233,7 +235,7 @@ cargo run --release -p quill-cli -- --help
 | `transcribe <file or dir>` | Transcribe a WAV/FLAC file or a recording folder (echo cancellation and VAD on by default; `--diarize [--speakers N]` tells the people on the call apart). |
 | `diarize <file or dir>` | Who spoke when, optionally scored against a reference RTTM (see [`eval/diarization`](eval/diarization)). |
 | `summarize <dir or transcript.json>` | Write meeting notes (`-m` picks the model, e.g. `-m ollama:qwen3:8b`). |
-| `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models. |
+| `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models. Clips with a reference (`clip.txt`, what should have been typed) are scored by word error rate. |
 | `models list` / `models download <name>` | Manage models: Whisper (`tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`), VAD and the diarization models. |
 | `bench <file>` | Compare transcription speed across models (`--short-clip` for dictation settings). |
 | `eval` | Compare summary models on cost, latency and quality judged by an LLM. |
@@ -258,8 +260,9 @@ Inside it:
 - `models/`: downloaded Whisper, VAD and speaker models.
 - `settings.toml`: settings (safe to edit while Quill isn't running).
 - `logs/`: daily log files, kept for two weeks.
+- `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`) and the app it went into (`.json`).
 
-Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately.
+Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately. Saved dictation samples are deleted from **Dictation → Testing accuracy**.
 
 ## How it works
 
