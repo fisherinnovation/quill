@@ -12,11 +12,13 @@ export function Switch({
   onChange: (checked: boolean) => void;
   label: string;
 }) {
+  // A label, so a click on the track (drawn over the hidden checkbox)
+  // toggles it.
   return (
-    <span className="switch">
+    <label className="switch">
       <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="switch-track" />
-    </span>
+    </label>
   );
 }
 
