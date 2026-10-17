@@ -11,6 +11,7 @@ mod eval;
 mod import;
 mod keys;
 mod library;
+mod mic_users;
 mod models;
 mod record;
 mod summarize;
@@ -66,6 +67,8 @@ enum Command {
     /// Store or remove LLM API keys in the OS keychain
     #[command(subcommand)]
     Keys(keys::Command),
+    /// List the apps using a microphone (macOS), e.g. to see how a call shows up
+    MicUsers(mic_users::Args),
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -93,6 +96,7 @@ fn main() -> anyhow::Result<()> {
         Command::Eval(args) => eval::run(args),
         Command::Import(args) => import::run(args),
         Command::Compact(args) => compact::run(args),
+        Command::MicUsers(args) => mic_users::run(args),
     }
 }
 

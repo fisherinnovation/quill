@@ -37,6 +37,10 @@ rubato = "5"
 cpal = "0.18"
 # Lock-free single-producer/single-consumer ring buffer for audio callbacks.
 rtrb = "0.4"
+# macOS: which apps are using the microphone (Core Audio process objects),
+# to notice calls starting. The versions cpal already uses.
+objc2-core-audio = { version = "0.3.2", default-features = false, features = ["std", "AudioHardware"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFString"] }
 # Pure-Rust port of WebRTC audio processing; we use its echo canceller (AEC3)
 # to remove speaker sound picked up by the mic.
 sonora = "0.2"

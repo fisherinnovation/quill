@@ -4127,6 +4127,8 @@ dependencies = [
  "cpal",
  "flacenc",
  "hound",
+ "objc2-core-audio",
+ "objc2-core-foundation",
  "rtrb",
  "rubato",
  "sonora",

@@ -18,6 +18,10 @@ rubato.workspace = true
 sonora.workspace = true
 thiserror.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-audio.workspace = true
+objc2-core-foundation.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 

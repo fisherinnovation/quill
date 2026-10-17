@@ -242,6 +242,7 @@ cargo run --release -p quill-cli -- --help
 | `import <dir>` | Add a recording folder made elsewhere to the library. |
 | `compact [dirs…]` | Convert recordings' WAVs to FLAC (the app does this automatically). |
 | `keys set\|delete openrouter` | Manage the API key in the OS keychain. |
+| `mic-users [--watch]` | List the apps using a microphone (macOS), e.g. to see how a call shows up: Zoom as `us.zoom.xos`, a Meet tab as `com.google.Chrome.helper`. Reads only which apps, never audio. |
 
 The CLI and the app share one library, so meetings recorded or imported in either appear in both.
 

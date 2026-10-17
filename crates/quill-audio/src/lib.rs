@@ -8,6 +8,7 @@
 //! - [`load_for_stt`]: read a WAV or FLAC, downmix to mono and resample to
 //!   the 16 kHz that Whisper expects.
 //! - [`write_flac`]: store a finished recording compactly.
+//! - [`mic_users`]: which apps are using a microphone right now.
 //!
 //! Audio callbacks must never block or allocate heavily; they hand samples to
 //! a worker thread through a lock-free ring buffer.
@@ -18,6 +19,7 @@ pub mod check;
 pub mod cue;
 mod flac;
 pub mod live;
+pub mod mic_users;
 mod resample;
 mod wav;
 
@@ -56,6 +58,10 @@ pub enum AudioError {
     Flac(String),
     #[error("WAV writer thread panicked")]
     WriterPanicked,
+    #[error("Core Audio couldn't {what} (OSStatus {status})")]
+    CoreAudio { what: &'static str, status: i32 },
+    #[error("{0} isn't supported on this platform yet")]
+    Unsupported(&'static str),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
