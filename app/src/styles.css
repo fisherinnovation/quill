@@ -70,6 +70,8 @@
   /* Height of the area the macOS window buttons sit in (0 elsewhere). */
   --titlebar: 0px;
   --sidebar-width: 212px;
+  /* Collapsed: icons only, but on macOS still clear of the window buttons. */
+  --sidebar-collapsed: 60px;
 
   font-family: var(--font);
   font-size: 13.5px;
@@ -540,8 +542,17 @@ kbd {
    ========================================================================== */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   height: 100vh;
+  transition: grid-template-columns 0.18s ease;
+}
+
+:root[data-platform="mac"] {
+  --sidebar-collapsed: 78px;
+}
+
+.app.sidebar-collapsed {
+  --sidebar-width: var(--sidebar-collapsed);
 }
 
 .drag {
@@ -550,11 +561,15 @@ kbd {
 }
 
 .sidebar {
+  /* Above the main area, so tooltips can reach over it. */
+  position: relative;
+  z-index: 3;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 .sidebar-head {
@@ -571,13 +586,21 @@ kbd {
   padding: 8px;
 }
 
-/* Settings, at the bottom. */
+/* Settings and the collapse button, at the bottom. */
 .sidebar-foot {
   margin-top: auto;
   border-top: 1px solid var(--border);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.sidebar-toggle {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
 }
 
 .nav-item {
+  position: relative;
   justify-content: flex-start;
   gap: 9px;
   width: 100%;
@@ -605,6 +628,94 @@ kbd {
 
 .nav-item .badge {
   margin-left: auto;
+}
+
+.nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Collapsed: icons only. Labels move into tooltips, badges become dots. */
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .record-label {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-head {
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar.collapsed .record {
+  width: 40px;
+  padding: 0;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar.collapsed .sidebar-foot {
+  grid-template-columns: 1fr;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  width: 100%;
+}
+
+.nav-dot {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 4px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-sidebar);
+}
+
+.nav-dot.red {
+  background: var(--red);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.nav-dot.accent {
+  background: var(--grape-text);
+}
+
+/* Tooltips for the sidebar's icon-only buttons: to the right, after a
+   moment's hover, or at once on keyboard focus. */
+.sidebar [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translate(-3px, -50%);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.sidebar [data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+  transition-delay: 0.35s;
+}
+
+.sidebar [data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
 }
 
 .search {
@@ -790,6 +901,7 @@ mark {
    text: dark in light mode, light in dark mode), with the stop square in
    the accent colour. */
 .record {
+  position: relative;
   width: 100%;
   height: 36px;
   gap: 8px;

@@ -4,10 +4,12 @@ import { api, clock, errorText, type RecordingState } from "../api";
 interface Props {
   state: RecordingState;
   onError: (message: string) => void;
+  /** Icon only (the collapsed sidebar), named by a tooltip. */
+  compact?: boolean;
 }
 
 /** Record / Stop with a live timer. */
-export function RecordButton({ state, onError }: Props) {
+export function RecordButton({ state, onError, compact = false }: Props) {
   const [busy, setBusy] = useState(false);
   const elapsed = useElapsed(state);
 
@@ -23,21 +25,31 @@ export function RecordButton({ state, onError }: Props) {
     }
   }
 
+  const label = state.recording ? `Stop recording · ${clock(elapsed)}` : busy ? "Starting…" : "Record meeting";
   return (
-    <button className={`record${state.recording ? " active" : ""}`} onClick={toggle} disabled={busy}>
+    <button
+      className={`record${state.recording ? " active" : ""}`}
+      onClick={toggle}
+      disabled={busy}
+      aria-label={compact ? label : undefined}
+      data-tooltip={compact ? label : undefined}
+    >
       {state.recording ? (
         <>
-          <span className="stop-square" /> Stop recording
-          <span className="spacer" />
-          {clock(elapsed)}
+          <span className="stop-square" />
+          <span className="record-label">Stop recording</span>
+          <span className="spacer record-label" />
+          <span className="record-label">{clock(elapsed)}</span>
         </>
       ) : busy ? (
         <>
-          <span className="spinner" /> Starting…
+          <span className="spinner" />
+          <span className="record-label">Starting…</span>
         </>
       ) : (
         <>
-          <span className="rec-dot" /> Record meeting
+          <span className="rec-dot" />
+          <span className="record-label">Record meeting</span>
         </>
       )}
     </button>

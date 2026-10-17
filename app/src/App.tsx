@@ -28,6 +28,17 @@ type View =
   | { kind: "dictation-entry"; id: number }
   | { kind: "settings"; tab?: SettingsTab };
 
+/** Where the sidebar's collapsed state is remembered, on this computer. */
+const COLLAPSED_KEY = "quill.sidebarCollapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** The sidebar item a view belongs to. */
 function section(view: View): Section {
   switch (view.kind) {
@@ -54,6 +65,7 @@ export function App() {
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // Bumped when a meeting's data changes on the Rust side, so views refetch.
   const [version, setVersion] = useState(0);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   // null until settings load; false shows the first-run screen.
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
@@ -117,18 +129,42 @@ export function App() {
     };
   }, [refresh]);
 
+  // Collapse or expand the sidebar: ⌘\ (Ctrl+\ on Windows), remembered.
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((was) => {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, was ? "0" : "1");
+      } catch {
+        // Not remembered, but still toggled.
+      }
+      return !was;
+    });
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === "\\") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleSidebar]);
+
   if (onboarded === null) return null;
   if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />;
 
   return (
-    <div className="app">
+    <div className={`app${collapsed ? " sidebar-collapsed" : ""}`}>
       <Sidebar
         current={section(view)}
         onNavigate={(kind) => setView({ kind })}
         recording={recording.recording}
         working={Object.values(progress).filter((p) => p.stage !== "done" && p.stage !== "failed").length}
         dictation={dictation.phase}
-        header={<RecordButton state={recording} onError={setError} />}
+        collapsed={collapsed}
+        onToggle={toggleSidebar}
+        header={<RecordButton state={recording} onError={setError} compact={collapsed} />}
       />
       <main className="main">
         <div className="drag" data-tauri-drag-region />

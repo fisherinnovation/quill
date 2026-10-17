@@ -244,6 +244,11 @@ decision someone might otherwise undo.
   dictation, which grew without end and was more noise than use: meetings
   are looked back on, dictations rarely. Each now has its own page, grouped
   by day, with a back link from an opened item.
+- **Collapsing the sidebar** leaves icons only (78 px on macOS, to stay
+  clear of the window buttons; 60 px on Windows), each named by a tooltip
+  that includes its status ("Meetings · Recording"); badges become dots.
+  ⌘\ or Ctrl+\ toggles it. The choice is kept in the webview's
+  localStorage: a per-computer view preference, not a setting.
 - **Insights are part of Home**, not a page of their own: the four usage
   tiles under the quick actions, the details below the recent meetings.
   Two pages of numbers about the same use were one too many.
