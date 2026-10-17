@@ -149,7 +149,7 @@ Quill opens on **Home**: a line about your day (how many meetings, how long on c
 
 ### Recording a meeting
 
-Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. On macOS Quill also notices calls: when Zoom, Teams, Webex, FaceTime, Slack, Discord or a browser (for Google Meet and other web calls) has been using your microphone for a few seconds, a small prompt at the top right asks whether to record, and when the call lets go of the mic, whether to stop. It sees only *which app* is using the microphone, so a browser call shows as "Google Chrome is using your microphone". Turn it off in **Settings → Meetings → Offer to record calls**. Quill then:
+Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. On macOS Quill also notices calls: when Zoom, Teams, Webex, FaceTime, Slack, Discord or a browser (for Google Meet and other web calls) has been using your microphone for a few seconds, a small prompt at the bottom of the screen asks whether to record, and when the call lets go of the mic, whether to stop. It sees only *which app* is using the microphone, so a browser call shows as "Google Chrome is using your microphone". Turn it off in **Settings → Meetings → Offer to record calls**. Quill then:
 
 1. Cleans speaker echo out of your microphone track.
 2. Transcribes both tracks locally and merges them into one transcript, with your lines labelled **You**.

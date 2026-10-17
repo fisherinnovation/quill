@@ -3,9 +3,9 @@
 //! `quill_core::calls::Detector`. When a call starts, a small prompt offers
 //! to record it; when it ends while Quill is recording, to stop.
 //!
-//! The prompt is its own window at the top right of the screen. It never
-//! takes focus, so it doesn't pull the user out of their call, but it does
-//! take clicks.
+//! The prompt is its own window at the bottom centre of the screen, where
+//! it's hard to miss. It never takes focus, so it doesn't pull the user out
+//! of their call, but it does take clicks.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -21,11 +21,12 @@ pub const LABEL: &str = "prompt";
 /// Sent to the prompt window with what to show ([`Prompt`]).
 pub const EVENT: &str = "call-prompt";
 
-/// Logical size; the page draws the card inside it.
-const WIDTH: f64 = 380.0;
-const HEIGHT: f64 = 104.0;
-/// Gap from the top-right corner of the usable screen area.
-const MARGIN: f64 = 12.0;
+/// Logical size; the page draws the card at the bottom of it, with room
+/// above for its shadow and its rise as it appears.
+const WIDTH: f64 = 400.0;
+const HEIGHT: f64 = 160.0;
+/// Gap above the bottom of the usable screen area (above the Dock).
+const MARGIN: f64 = 16.0;
 
 /// What the prompt is asking.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -160,7 +161,7 @@ fn hide(app: &AppHandle) {
     }
 }
 
-/// Top right of the screen the mouse is on, below the menu bar.
+/// Bottom centre of the screen the mouse is on, above the Dock.
 fn place(app: &AppHandle, window: &tauri::WebviewWindow) {
     let monitor = app
         .cursor_position()
@@ -172,10 +173,12 @@ fn place(app: &AppHandle, window: &tauri::WebviewWindow) {
     };
     let area = monitor.work_area();
     let margin = (MARGIN * monitor.scale_factor()) as i32;
-    let x = area.position.x + i32::try_from(area.size.width).unwrap_or(0)
-        - i32::try_from(size.width).unwrap_or(0)
+    let x = area.position.x
+        + (i32::try_from(area.size.width).unwrap_or(0) - i32::try_from(size.width).unwrap_or(0))
+            / 2;
+    let y = area.position.y + i32::try_from(area.size.height).unwrap_or(0)
+        - i32::try_from(size.height).unwrap_or(0)
         - margin;
-    let y = area.position.y + margin;
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 

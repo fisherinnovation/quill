@@ -254,8 +254,10 @@ decision someone might otherwise undo.
 - **Browsers** show as the browser, not the site: telling Meet from any
   other tab would mean reading tabs or window titles (Screen Recording or
   Accessibility), against the promise to read only app names.
-- **Prompt:** its own always-on-top window at the top right that takes
-  clicks but never focus, so it doesn't pull you out of the call. Unanswered,
+- **Prompt:** its own always-on-top window at the bottom centre (above the
+  Dock, where it's hard to miss) that takes clicks but never focus, so it
+  doesn't pull you out of the call. It rises and fades in, and fades out
+  when answered. Unanswered,
   it goes after 30 s (60 s for "Stop recording?"). Not shown while
   recording, before onboarding, or with the setting off. Windows support is
   planned (the microphone ConsentStore in the registry).
