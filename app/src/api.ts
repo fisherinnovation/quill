@@ -60,7 +60,22 @@ export interface Settings {
   onboarded: boolean;
   /** Look for a new version once a day (installing is always the user's call). */
   check_for_updates: boolean;
+  theme: Theme;
   dictation: DictationSettings;
+}
+
+/** "system" follows the OS, including when it switches. */
+export type Theme = "system" | "light" | "dark";
+
+/**
+ * Shows this window's page in `theme`: styles.css keys the colours off
+ * `data-theme`, and without it follows the OS. (Rust sets the native window
+ * chrome to match; see theme.rs.)
+ */
+export function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === "system") delete root.dataset.theme;
+  else root.dataset.theme = theme;
 }
 
 export interface Replacement {
@@ -472,6 +487,8 @@ export const events = {
     listen<DictationState>("dictation-state", (e) => cb(e.payload)),
   onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
+  /** The theme setting changed (in any window). */
+  onTheme: (cb: (theme: Theme) => void): Promise<UnlistenFn> => listen<Theme>("theme", (e) => cb(e.payload)),
   /** A dictation sample was saved. */
   onDictationSamples: (cb: (usage: SamplesUsage) => void): Promise<UnlistenFn> =>
     listen<SamplesUsage>("dictation-samples", (e) => cb(e.payload)),

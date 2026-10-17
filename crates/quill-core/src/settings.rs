@@ -40,8 +40,21 @@ pub struct Settings {
     /// Look for a new version of Quill on GitHub once a day. Updates are
     /// only installed when the user asks.
     pub check_for_updates: bool,
+    /// Light or dark, or whatever the OS uses.
+    pub theme: Theme,
     // Tables must come after plain values in TOML, so keep this last.
     pub dictation: DictationSettings,
+}
+
+/// The app's colours.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    /// Follow the OS, including when it switches between light and dark.
+    #[default]
+    System,
+    Light,
+    Dark,
 }
 
 /// `DictationSettings::hotkey` value meaning the fn (🌐) key on its own
@@ -140,6 +153,7 @@ impl Default for Settings {
             recordings_dir: None,
             onboarded: false,
             check_for_updates: true,
+            theme: Theme::System,
             dictation: DictationSettings::default(),
         }
     }
@@ -195,6 +209,7 @@ mod tests {
             language: Some("en".into()),
             summary_model: "ollama:qwen3:8b".into(),
             recordings_dir: Some("/Volumes/Archive/Quill".into()),
+            theme: Theme::Dark,
             dictation: DictationSettings {
                 vocabulary: vec!["Quill".into(), "OpenRouter".into()],
                 replacements: vec![Replacement {

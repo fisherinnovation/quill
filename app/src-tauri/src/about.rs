@@ -21,7 +21,9 @@ pub fn show(app: &AppHandle) {
         let _ = window.set_focus();
         return;
     }
+    let theme = crate::commands::lock(&app.state::<crate::AppState>().settings).theme;
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
+        .theme(crate::theme::native(theme))
         .title("About Quill")
         .inner_size(460.0, 700.0)
         .resizable(false)

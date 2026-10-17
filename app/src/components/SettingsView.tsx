@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ModelsGroup } from "./Models";
 import {
   api,
+  applyTheme,
   type DictationSettings,
   errorText,
   events,
@@ -13,6 +14,7 @@ import {
   keyStore,
   type Settings,
   type StorageInfo,
+  type Theme,
 } from "../api";
 import { AccessCheck } from "./AccessCheck";
 import { DictationSettingsTab } from "./DictationSettings";
@@ -21,6 +23,12 @@ import { Group, LANGUAGES, Row, SaveIndicator, type SaveState, Switch, useAutosa
 import { UpdateRows } from "./Updates";
 
 export type SettingsTab = "general" | "meetings" | "dictation" | "models" | "storage";
+
+const THEMES: [Theme, string][] = [
+  ["system", "System"],
+  ["light", "Light"],
+  ["dark", "Dark"],
+];
 
 const TABS: [SettingsTab, string][] = [
   ["general", "General"],
@@ -85,6 +93,35 @@ export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTa
 
       {tab === "general" && (
         <>
+          <Group title="Appearance">
+            <Row
+              label="Theme"
+              hint={
+                settings.theme === "system"
+                  ? "Matches your computer, and switches when it does."
+                  : `Always ${settings.theme}, whatever your computer uses.`
+              }
+            >
+              <div className="segmented" role="radiogroup" aria-label="Theme">
+                {THEMES.map(([theme, label]) => (
+                  <button
+                    key={theme}
+                    role="radio"
+                    aria-checked={settings.theme === theme}
+                    onClick={() => {
+                      // Now, not after the autosave: the other windows follow
+                      // once it's saved.
+                      applyTheme(theme);
+                      update({ theme });
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Row>
+          </Group>
+
           <Group title="OpenRouter">
             <Row
               label="Used for"

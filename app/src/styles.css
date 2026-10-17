@@ -84,6 +84,8 @@
   --titlebar: 40px;
 }
 
+/* Dark: when the OS is dark (unless light was chosen in Settings), or when
+   dark was chosen. The two blocks hold the same tokens; keep them in step. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #14141c;
@@ -114,6 +116,37 @@
     --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow-lg: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.4);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14141c;
+  --bg-sidebar: #1b1b26;
+  --bg-elevated: #1f1f2b;
+  --bg-subtle: #232331;
+  --bg-hover: rgb(193 202 214 / 0.06);
+  --bg-active: rgb(193 202 214 / 0.1);
+  --selected: rgb(108 110 160 / 0.3);
+  --bg-section: #2c2d38;
+  --text: #eceef4;
+  --text-2: #a9aec1;
+  --text-3: #727890;
+  --border: rgb(193 202 214 / 0.1);
+  --border-strong: rgb(193 202 214 / 0.2);
+
+  --accent: #e40c4a;
+  --accent-hover: #ff1053;
+  --accent-text: #ff5c88;
+  --accent-soft: rgb(255 16 83 / 0.16);
+  --grape-text: #a6a8d8;
+  --sky-text: #66c7f4;
+  --sky-soft: rgb(102 199 244 / 0.15);
+  --amber: #f2a93b;
+  --amber-soft: rgb(242 169 59 / 0.14);
+  --mark: rgb(102 199 244 / 0.3);
+
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.4);
 }
 
 /* ==========================================================================
@@ -1770,7 +1803,7 @@ button.hotkey.capturing {
   margin-top: 24px;
 }
 
-/* Browser preview only (dev/mock.ts ?light): light theme on a dark OS. */
+/* Light chosen in Settings (or ?light in the browser preview) on a dark OS. */
 :root[data-theme="light"] {
   color-scheme: light;
 }
@@ -1922,7 +1955,8 @@ html.indicator-window #root {
   color: var(--text);
 }
 
-.segmented button[aria-selected="true"] {
+.segmented button[aria-selected="true"],
+.segmented button[aria-checked="true"] {
   background: var(--bg-elevated);
   color: var(--text);
   box-shadow: var(--shadow-md);

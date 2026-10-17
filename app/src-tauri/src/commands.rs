@@ -92,15 +92,24 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 /// dictation settings have their own commands, so the stored values win over
 /// whatever the form sent.
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, mut settings: Settings) -> CommandResult<()> {
-    {
+pub fn save_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    mut settings: Settings,
+) -> CommandResult<()> {
+    let theme_was = {
         let current = lock(&state.settings);
         settings.recordings_dir.clone_from(&current.recordings_dir);
         settings.onboarded = current.onboarded;
         settings.dictation.clone_from(&current.dictation);
-    }
+        current.theme
+    };
     settings.save(&state.data_dir)?;
+    let theme = settings.theme;
     *lock(&state.settings) = settings;
+    if theme != theme_was {
+        crate::theme::apply(&app, theme);
+    }
     Ok(())
 }
 

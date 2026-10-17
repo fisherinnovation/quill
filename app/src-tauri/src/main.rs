@@ -19,6 +19,7 @@ mod onboarding;
 mod pipeline;
 mod recorder;
 mod storage;
+mod theme;
 mod tray;
 mod updates;
 
@@ -118,6 +119,8 @@ fn main() {
             if let Err(e) = indicator::create(app.handle()) {
                 tracing::warn!("no dictation indicator: {e}");
             }
+            let theme = commands::lock(&app.state::<AppState>().settings).theme;
+            theme::apply(app.handle(), theme);
             app.manage(dictation::Dictation::spawn(app.handle().clone()));
             // Binding the hotkey waits on the main thread, which is busy
             // running this setup, so do it (and the model preload) from

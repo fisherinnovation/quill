@@ -251,6 +251,12 @@ decision someone might otherwise undo.
   dictation's settings could move there from the Dictations page without
   making one endless page. The Dictations page keeps what isn't a setting:
   whether dictation is ready, the history, and fixes waiting for an OK.
+- **Theme:** System (the default: follows the OS, live), Light or Dark,
+  under Settings → General. Each window's page sets `data-theme` from the
+  setting before its first render, so there's no flash of the OS theme,
+  and follows the `theme` event; the CSS holds the dark tokens twice (the
+  OS media query, and `[data-theme="dark"]`). Rust sets the native window
+  theme too (`theme.rs`), so the title bar, scrollbars and menus match.
 - Dictation settings are saved on their own (`save_dictation_settings`
   rebinds the shortcut, and `save_settings` ignores them), so the Settings
   page keeps them in separate state with their own autosave.

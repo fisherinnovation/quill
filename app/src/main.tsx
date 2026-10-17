@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { api, applyTheme, events } from "./api";
 import { App } from "./App";
 import { About } from "./components/About";
 import { Indicator } from "./components/Indicator";
@@ -15,6 +16,13 @@ async function start() {
   }
   // Lets CSS adapt to the platform (e.g. room for the macOS window buttons).
   document.documentElement.dataset.platform = navigator.userAgent.includes("Mac") ? "mac" : "other";
+  // The theme before the first render, so the page doesn't flash the OS's
+  // one first; then follow changes made in any window.
+  await api
+    .getSettings()
+    .then((s) => applyTheme(s.theme))
+    .catch(() => {});
+  void events.onTheme(applyTheme);
 
   const root = document.getElementById("root");
   if (root) {

@@ -3,7 +3,7 @@
 // main.tsx loads this only in dev builds and only outside Tauri.
 //
 // URL flags pick a state: ?onboarding, ?recording, ?listening, ?processing,
-// ?failed, ?nopaste, ?empty, ?light to force the light theme, ?indicator
+// ?failed, ?nopaste, ?empty, ?light or ?dark to pick the theme, ?indicator
 // for the dictation pill (with ?listening or ?processing), ?others for a
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
 // fn as the dictation key, ?about for the About window, ?update for a
@@ -102,6 +102,7 @@ const settings = {
   recordings_dir: null,
   onboarded: !flags.has("onboarding"),
   check_for_updates: true,
+  theme: flags.has("light") ? "light" : flags.has("dark") ? "dark" : "system",
   dictation: {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
@@ -510,7 +511,6 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
 };
 
 export function installMocks() {
-  if (flags.has("light")) document.documentElement.dataset.theme = "light";
   mockWindows(flags.has("indicator") ? "indicator" : flags.has("about") ? "about" : "main");
   mockIPC(
     (cmd, args) => {
