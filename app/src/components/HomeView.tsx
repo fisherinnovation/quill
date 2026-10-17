@@ -6,11 +6,11 @@ import {
   type DictationPhase,
   type Insights,
   type Meeting,
-  minutes,
   type Progress,
   type RecordingState,
 } from "../api";
 import { Icon } from "./Icon";
+import { InsightDetails, InsightTiles } from "./Insights";
 import { MeetingRow, NoMeetings } from "./MeetingsView";
 import { ModelDownload } from "./Models";
 import { useElapsed } from "./RecordButton";
@@ -26,9 +26,8 @@ function greeting(now: Date): string {
 }
 
 /**
- * Where Quill opens, and where it goes when there's nothing else to show
- * (after deleting a meeting): quick actions, the week at a glance and the
- * latest meetings.
+ * Where Quill opens: quick actions, usage at a glance, the latest meetings,
+ * then the usage numbers in detail.
  */
 export function HomeView({
   meetings,
@@ -38,7 +37,6 @@ export function HomeView({
   onSelect,
   onMeetings,
   onDictationSettings,
-  onInsights,
 }: {
   meetings: Meeting[];
   progress: Record<string, Progress>;
@@ -47,7 +45,6 @@ export function HomeView({
   onSelect: (id: string) => void;
   onMeetings: () => void;
   onDictationSettings: () => void;
-  onInsights: () => void;
 }) {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,9 +53,8 @@ export function HomeView({
   const [shortcut, setShortcut] = useState<{ hotkey: string; enabled: boolean } | null>(null);
   const elapsed = useElapsed(recording);
 
-  useEffect(() => {
-    void api.getInsights().then(setInsights).catch(() => setInsights(null));
-  }, [meetings.length]);
+  const loadInsights = () => void api.getInsights().then(setInsights).catch(() => setInsights(null));
+  useEffect(loadInsights, [meetings.length]);
   useEffect(() => {
     void api.getSettings().then((s) => setShortcut({ hotkey: s.dictation.hotkey, enabled: s.dictation.enabled }));
   }, []);
@@ -79,11 +75,8 @@ export function HomeView({
 
   const now = new Date();
   const recent = meetings.slice(0, RECENT);
-  const week = insights && {
-    meetings: insights.meetings.count_last_7_days,
-    meetingMs: insights.meetings.ms_last_7_days,
-    words: insights.dictation.words_last_7_days,
-  };
+  // Usage numbers once there's something to count.
+  const used = insights && (insights.dictation.count > 0 || insights.meetings.count > 0) ? insights : null;
 
   return (
     <div className="page home">
@@ -146,31 +139,7 @@ export function HomeView({
         </div>
       </div>
 
-      {week && (week.meetings > 0 || week.words > 0) && (
-        <section className="group">
-          <div className="row-gap home-section-head">
-            <h2 className="group-title">This week</h2>
-            <span className="spacer" />
-            <button className="link-button" onClick={onInsights}>
-              More insights
-            </button>
-          </div>
-          <div className="home-stats">
-            <div className="home-stat">
-              <span className="home-stat-value">{week.meetings}</span>
-              <span className="home-stat-label">{week.meetings === 1 ? "meeting" : "meetings"}</span>
-            </div>
-            <div className="home-stat">
-              <span className="home-stat-value">{minutes(week.meetingMs)}</span>
-              <span className="home-stat-label">in meetings</span>
-            </div>
-            <div className="home-stat">
-              <span className="home-stat-value">{week.words.toLocaleString()}</span>
-              <span className="home-stat-label">words dictated</span>
-            </div>
-          </div>
-        </section>
-      )}
+      {used && <InsightTiles insights={used} />}
 
       <section className="group">
         <div className="row-gap home-section-head">
@@ -199,6 +168,8 @@ export function HomeView({
           </ul>
         )}
       </section>
+
+      {used && <InsightDetails insights={used} onReset={loadInsights} />}
     </div>
   );
 }

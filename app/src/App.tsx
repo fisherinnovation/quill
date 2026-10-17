@@ -16,7 +16,6 @@ import { RecordButton } from "./components/RecordButton";
 import { Onboarding } from "./components/Onboarding";
 import { DictationsView } from "./components/DictationsView";
 import { HomeView } from "./components/HomeView";
-import { InsightsView } from "./components/InsightsView";
 import { DictationEntryView } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
 
@@ -27,7 +26,6 @@ type View =
   /** The Dictations page ("dictation", as the backend's navigate event names it). */
   | { kind: "dictation" }
   | { kind: "dictation-entry"; id: number }
-  | { kind: "insights" }
   | { kind: "settings"; tab?: SettingsTab };
 
 /** The sidebar item a view belongs to. */
@@ -106,8 +104,11 @@ export function App() {
         setView((v) => (v.kind === "meeting" && !list.some((m) => m.id === v.id) ? { kind: "meetings" } : v));
       }),
       events.onNavigate((view) => {
-        if (view === "home" || view === "dictation" || view === "settings" || view === "insights") {
+        if (view === "home" || view === "dictation" || view === "settings") {
           setView({ kind: view });
+        } else if (view === "insights") {
+          // Insights are part of Home now.
+          setView({ kind: "home" });
         }
       }),
     ];
@@ -172,7 +173,6 @@ export function App() {
             />
           )}
           {view.kind === "settings" && <SettingsView key={view.tab ?? "general"} tab={view.tab} />}
-          {view.kind === "insights" && <InsightsView />}
           {view.kind === "dictation" && (
             <DictationsView
               state={dictation}
@@ -197,7 +197,6 @@ export function App() {
               onSelect={(id) => setView({ kind: "meeting", id })}
               onMeetings={() => setView({ kind: "meetings" })}
               onDictationSettings={() => setView({ kind: "settings", tab: "dictation" })}
-              onInsights={() => setView({ kind: "insights" })}
             />
           )}
         </div>

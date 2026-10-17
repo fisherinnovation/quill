@@ -54,7 +54,7 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 - **A floating indicator** with a live level meter, start and stop sounds, and a menu-bar status.
 - **Your clipboard is preserved.** Text is inserted by pasting; whatever you had copied is put back, and the dictated text is hidden from clipboard managers.
 
-### Insights
+### Insights (on Home)
 
 - Words dictated, time saved compared with typing, speaking speed, streaks, a 30-day activity chart, time of day and top apps.
 - Meeting count and hours, and your share of the talking.
@@ -145,7 +145,7 @@ The first build compiles whisper.cpp and takes several minutes; later builds are
 
 ## Using Quill
 
-Quill opens on **Home**: buttons to record a meeting or set up dictation, your week at a glance (meetings, time in meetings, words dictated) and your latest meetings. The sidebar leads to **Home**, **Meetings**, **Dictations**, **Insights** and **Settings**; **Meetings** lists every meeting by day and searches their transcripts, and **Dictations** lists what you've dictated. Settings has tabs: **General** (OpenRouter, audio access, updates, logs), **Meetings**, **Dictation**, **Models** and **Storage**.
+Quill opens on **Home**: buttons to record a meeting or set up dictation, your usage at a glance (words dictated, time saved, speaking speed, streak), your latest meetings, and below them the rest of your usage: the last 30 days, meetings and dictation in detail, and top apps. The sidebar leads to **Home**, **Meetings**, **Dictations** and **Settings**; **Meetings** lists every meeting by day and searches their transcripts, and **Dictations** lists what you've dictated. Settings has tabs: **General** (OpenRouter, audio access, updates, logs), **Meetings**, **Dictation**, **Models** and **Storage**.
 
 ### Recording a meeting
 
@@ -262,7 +262,7 @@ Inside it:
 - `logs/`: daily log files, kept for two weeks.
 - `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`) and the app it went into (`.json`).
 
-Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately. Saved dictation samples are deleted from **Settings → Dictation → Testing accuracy**.
+Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately (**Reset** at the bottom of Home). Saved dictation samples are deleted from **Settings → Dictation → Testing accuracy**.
 
 ## How it works
 

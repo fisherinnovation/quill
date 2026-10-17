@@ -239,11 +239,14 @@ decision someone might otherwise undo.
 
 ## App layout
 
-- **The sidebar is navigation only** (Home, Meetings, Dictations, Insights,
-  Settings, and the record button). It used to list every meeting and
+- **The sidebar is navigation only** (Home, Meetings, Dictations, Settings,
+  and the record button). It used to list every meeting and
   dictation, which grew without end and was more noise than use: meetings
   are looked back on, dictations rarely. Each now has its own page, grouped
-  by day, with a back link from an opened item; Home keeps the summary.
+  by day, with a back link from an opened item.
+- **Insights are part of Home**, not a page of their own: the four usage
+  tiles under the quick actions, the details below the recent meetings.
+  Two pages of numbers about the same use were one too many.
 - **Settings has tabs** (General, Meetings, Dictation, Models, Storage), so
   dictation's settings could move there from the Dictations page without
   making one endless page. The Dictations page keeps what isn't a setting:

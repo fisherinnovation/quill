@@ -3,7 +3,7 @@ import { type DictationPhase } from "../api";
 import { Icon, type IconName } from "./Icon";
 
 /** The pages the sidebar leads to. */
-export type Section = "home" | "meetings" | "dictation" | "insights" | "settings";
+export type Section = "home" | "meetings" | "dictation" | "settings";
 
 interface Props {
   /** The page showing (or the list the open item belongs to), to highlight it. */
@@ -66,7 +66,6 @@ export function Sidebar({ current, onNavigate, recording, working, dictation, he
             </span>
           ) : undefined,
         )}
-        {item("insights", "chart", "Insights")}
       </nav>
 
       <nav className="sidebar-nav sidebar-foot">{item("settings", "settings", "Settings")}</nav>

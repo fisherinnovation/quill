@@ -1,69 +1,47 @@
-import { useEffect, useState } from "react";
-import { api, errorText, type Insights } from "../api";
-import { Logo } from "./Icon";
+// Usage numbers, shown on Home below the recent meetings.
+import { useState } from "react";
+import { api, type Insights } from "../api";
 import { Stat } from "./ui";
 
 const number = new Intl.NumberFormat();
 
-export function InsightsView() {
-  const [insights, setInsights] = useState<Insights | null>(null);
-  const [error, setError] = useState<string | null>(null);
+/** All-time dictation numbers and the streak, as four tiles. */
+export function InsightTiles({ insights }: { insights: Insights }) {
+  const d = insights.dictation;
+  const speedup = d.speaking_wpm ? d.speaking_wpm / insights.typing_wpm : null;
+  return (
+    <div className="stat-grid">
+      <Stat
+        label="Words dictated"
+        value={number.format(d.words)}
+        note={d.words_last_7_days > 0 ? `${number.format(d.words_last_7_days)} in the last 7 days` : "None this week"}
+      />
+      <Stat label="Time saved" value={duration(d.minutes_saved * 60_000)} note="Compared with typing" accent />
+      <Stat
+        label="Speaking speed"
+        value={d.speaking_wpm ? `${Math.round(d.speaking_wpm)} wpm` : "–"}
+        note={speedup ? `${speedup.toFixed(1)}× faster than typing` : "After a minute of dictation"}
+      />
+      <Stat
+        label="Streak"
+        value={`${insights.streak_days} ${insights.streak_days === 1 ? "day" : "days"}`}
+        note={insights.streak_days > 0 ? "In a row, and counting" : "Use Quill today to start one"}
+      />
+    </div>
+  );
+}
+
+/**
+ * The rest of the usage numbers: the last 30 days, meetings and dictation
+ * in detail, top apps, and resetting the dictation numbers.
+ */
+export function InsightDetails({ insights, onReset }: { insights: Insights; onReset: () => void }) {
   const [chart, setChart] = useState<"dictation" | "meetings">("dictation");
   const [confirmReset, setConfirmReset] = useState(false);
-
-  const load = () =>
-    api
-      .getInsights()
-      .then(setInsights)
-      .catch((e) => setError(errorText(e)));
-  useEffect(() => {
-    void load();
-  }, []);
-
-  if (error) return <div className="page error-text">{error}</div>;
-  if (!insights) return null;
   const { dictation: d, meetings: m } = insights;
 
-  if (d.count === 0 && m.count === 0) {
-    return (
-      <div className="empty">
-        <Logo size={64} />
-        <h2>Nothing to show yet</h2>
-        <p>Dictate something or record a meeting, and your usage shows up here.</p>
-      </div>
-    );
-  }
-
-  const speedup = d.speaking_wpm ? d.speaking_wpm / insights.typing_wpm : null;
-
   return (
-    <div className="page insights">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Insights</h1>
-          <p className="page-subtitle">How you've been using Quill.</p>
-        </div>
-      </div>
-
-      <div className="stat-grid">
-        <Stat
-          label="Words dictated"
-          value={number.format(d.words)}
-          note={d.words_last_7_days > 0 ? `${number.format(d.words_last_7_days)} in the last 7 days` : "None this week"}
-        />
-        <Stat label="Time saved" value={duration(d.minutes_saved * 60_000)} note="Compared with typing" accent />
-        <Stat
-          label="Speaking speed"
-          value={d.speaking_wpm ? `${Math.round(d.speaking_wpm)} wpm` : "–"}
-          note={speedup ? `${speedup.toFixed(1)}× faster than typing` : "After a minute of dictation"}
-        />
-        <Stat
-          label="Streak"
-          value={`${insights.streak_days} ${insights.streak_days === 1 ? "day" : "days"}`}
-          note={insights.streak_days > 0 ? "In a row, and counting" : "Use Quill today to start one"}
-        />
-      </div>
-
+    <>
       <section className="group">
         <div className="row-gap" style={{ marginBottom: 8 }}>
           <h2 className="group-title" style={{ margin: "0 0 0 2px" }}>
@@ -146,7 +124,7 @@ export function InsightsView() {
                 onClick={async () => {
                   await api.resetDictationStats();
                   setConfirmReset(false);
-                  await load();
+                  onReset();
                 }}
               >
                 Reset
@@ -159,7 +137,7 @@ export function InsightsView() {
             </button>
           ))}
       </footer>
-    </div>
+    </>
   );
 }
 
