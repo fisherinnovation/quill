@@ -42,6 +42,9 @@ pub struct Settings {
     pub check_for_updates: bool,
     /// Light or dark, or whatever the OS uses.
     pub theme: Theme,
+    /// When a call app starts using the microphone, offer to record it
+    /// (`quill_core::calls`); when it stops, offer to stop.
+    pub offer_to_record_calls: bool,
     // Tables must come after plain values in TOML, so keep this last.
     pub dictation: DictationSettings,
 }
@@ -154,6 +157,7 @@ impl Default for Settings {
             onboarded: false,
             check_for_updates: true,
             theme: Theme::System,
+            offer_to_record_calls: true,
             dictation: DictationSettings::default(),
         }
     }

@@ -6,7 +6,8 @@
 // ?failed, ?nopaste, ?empty, ?light or ?dark to pick the theme, ?indicator
 // for the dictation pill (with ?listening or ?processing), ?others for a
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
-// fn as the dictation key, ?about for the About window, ?update for a
+// fn as the dictation key, ?about for the About window, ?prompt (or
+// ?prompt=stop) for the call prompt, ?update for a
 // new version waiting to be installed, and ?backlog for enough older
 // meetings and dictations to need "Show more".
 import { emit } from "@tauri-apps/api/event";
@@ -135,6 +136,7 @@ const settings = {
   onboarded: !flags.has("onboarding"),
   check_for_updates: true,
   theme: flags.has("light") ? "light" : flags.has("dark") ? "dark" : "system",
+  offer_to_record_calls: true,
   dictation: {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
@@ -322,6 +324,9 @@ function meetingStats() {
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_meetings: () => meetings,
   meeting_overviews: () => meetings.map(mockOverview),
+  call_prompt: () =>
+    flags.get("prompt") === "stop" ? { kind: "stop", app: "Zoom" } : { kind: "record", app: "Google Chrome" },
+  answer_call_prompt: () => {},
   meeting_stats: ({ id }) =>
     meetings.find((m) => m.id === id)?.has_transcript ? meetingStats() : { ...meetingStats(), speakers: [], stretches: [] },
   dictation_stats: ({ id }) => {
@@ -544,7 +549,9 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
 };
 
 export function installMocks() {
-  mockWindows(flags.has("indicator") ? "indicator" : flags.has("about") ? "about" : "main");
+  mockWindows(
+    flags.has("indicator") ? "indicator" : flags.has("prompt") ? "prompt" : flags.has("about") ? "about" : "main",
+  );
   mockIPC(
     (cmd, args) => {
       const handler = handlers[cmd];

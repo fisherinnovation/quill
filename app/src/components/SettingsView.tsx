@@ -188,6 +188,23 @@ export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTa
         </Row>
       </Group>
 
+      <Group title="Calls">
+        <Row
+          label="Offer to record calls"
+          hint={
+            isMac
+              ? "When Zoom, Teams, FaceTime, Slack, Discord or a browser starts using your microphone, Quill asks whether to record, and offers to stop when the call ends. It sees only which app is using the mic."
+              : "Coming to Windows."
+          }
+        >
+          <Switch
+            label="Offer to record calls"
+            checked={settings.offer_to_record_calls}
+            onChange={(offer_to_record_calls) => update({ offer_to_record_calls })}
+          />
+        </Row>
+      </Group>
+
       <Group title="Summaries">
         <Row label="Summarize automatically" hint="Write the notes as soon as a recording is transcribed.">
           <Switch

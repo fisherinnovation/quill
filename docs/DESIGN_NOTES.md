@@ -237,6 +237,29 @@ decision someone might otherwise undo.
   avatars) fails the colour-vision checks for charts; re-stepping it would
   recolour the transcript too, so that's left as a separate change.
 
+## Noticing calls
+
+- **Signal:** which apps are recording from a microphone, from Core Audio's
+  process objects (macOS 14.2+: PID, bundle id, `IsRunningInput`). No
+  permission needed, and no audio, windows or tabs read. Checked once a
+  second (`calls.rs`), turned into starts and ends by
+  `quill_core::calls::Detector`.
+- **Measured** with `quill-cli mic-users --watch` (2026-10-17): Zoom shows
+  as `us.zoom.xos`; a Google Meet tab as `com.google.Chrome.helper` (so
+  call apps match by bundle-id prefix); Quill's dictation as its own id,
+  which is excluded. Safari and Firefox not yet checked.
+- **Timing:** a call app must hold the mic for 5 s before Quill asks (a
+  voice search or mic test doesn't), and release it for 15 s before the
+  call counts as over (rejoining or switching devices doesn't end it).
+- **Browsers** show as the browser, not the site: telling Meet from any
+  other tab would mean reading tabs or window titles (Screen Recording or
+  Accessibility), against the promise to read only app names.
+- **Prompt:** its own always-on-top window at the top right that takes
+  clicks but never focus, so it doesn't pull you out of the call. Unanswered,
+  it goes after 30 s (60 s for "Stop recording?"). Not shown while
+  recording, before onboarding, or with the setting off. Windows support is
+  planned (the microphone ConsentStore in the registry).
+
 ## App layout
 
 - **The sidebar is navigation only** (Home, Meetings, Dictations, Settings,

@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, applyTheme, events } from "./api";
 import { App } from "./App";
 import { About } from "./components/About";
+import { CallPromptCard } from "./components/CallPrompt";
 import { Indicator } from "./components/Indicator";
 import "./styles.css";
 
@@ -26,10 +27,19 @@ async function start() {
 
   const root = document.getElementById("root");
   if (root) {
-    // The same page runs in every window: main, the dictation indicator and
-    // About.
+    // The same page runs in every window: main, the dictation indicator,
+    // the call prompt and About.
     const label = getCurrentWindow().label;
-    const page = label === "indicator" ? <Indicator /> : label === "about" ? <About /> : <App />;
+    const page =
+      label === "indicator" ? (
+        <Indicator />
+      ) : label === "prompt" ? (
+        <CallPromptCard />
+      ) : label === "about" ? (
+        <About />
+      ) : (
+        <App />
+      );
     createRoot(root).render(<StrictMode>{page}</StrictMode>);
   }
 }

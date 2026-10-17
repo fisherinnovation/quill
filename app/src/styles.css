@@ -2060,8 +2060,72 @@ button.hotkey.capturing {
 }
 
 /* ==========================================================================
-   Dictation indicator (its own transparent window; see Indicator.tsx)
+   Call prompt (its own transparent window; see CallPrompt.tsx)
    ========================================================================== */
+html.prompt-window,
+html.prompt-window body,
+html.prompt-window #root {
+  background: transparent;
+}
+
+.prompt-stage {
+  height: 100vh;
+  padding: 4px 6px 10px;
+}
+
+.call-prompt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 10px;
+  height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.18s cubic-bezier(0.3, 0.7, 0.4, 1.3);
+}
+
+.call-prompt .logo {
+  grid-row: 1 / 3;
+  border-radius: 8px;
+}
+
+.call-prompt-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.call-prompt-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.call-prompt-text span {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.call-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.call-prompt-actions .rec-dot {
+  width: 7px;
+  height: 7px;
+}
+
+/* ==========================================================================
+   Dictation indicator (its own transparent window; see Indicator.tsx)
+   ==========================================================================
 html.indicator-window,
 html.indicator-window body,
 html.indicator-window #root {

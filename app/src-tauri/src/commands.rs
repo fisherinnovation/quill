@@ -332,6 +332,7 @@ fn current(state: &AppState) -> RecordingState {
 fn notify(app: &AppHandle) {
     let state = current(&app.state::<AppState>());
     tray::set_recording(app, state.recording);
+    crate::calls::recording_changed(app, state.recording);
     let _ = app.emit(RECORDING_EVENT, state);
 }
 

@@ -80,8 +80,13 @@ export interface Settings {
   /** Look for a new version once a day (installing is always the user's call). */
   check_for_updates: boolean;
   theme: Theme;
+  /** Offer to record when a call app starts using the mic (macOS for now). */
+  offer_to_record_calls: boolean;
   dictation: DictationSettings;
 }
+
+/** What the call prompt asks (src-tauri/src/calls.rs). */
+export type CallPrompt = { kind: "record"; app: string } | { kind: "stop"; app: string };
 
 /** "system" follows the OS, including when it switches. */
 export type Theme = "system" | "light" | "dark";
@@ -392,6 +397,8 @@ export interface DownloadProgress {
 export const api = {
   listMeetings: () => invoke<Meeting[]>("list_meetings"),
   meetingOverviews: () => invoke<MeetingOverview[]>("meeting_overviews"),
+  callPrompt: () => invoke<CallPrompt | null>("call_prompt"),
+  answerCallPrompt: (answer: "record" | "stop" | "dismiss") => invoke<void>("answer_call_prompt", { answer }),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),
@@ -507,6 +514,9 @@ export const events = {
     listen<DictationState>("dictation-state", (e) => cb(e.payload)),
   onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
+  /** The call prompt's question, or null when it hides. */
+  onCallPrompt: (cb: (prompt: CallPrompt | null) => void): Promise<UnlistenFn> =>
+    listen<CallPrompt | null>("call-prompt", (e) => cb(e.payload)),
   /** The theme setting changed (in any window). */
   onTheme: (cb: (theme: Theme) => void): Promise<UnlistenFn> => listen<Theme>("theme", (e) => cb(e.payload)),
   /** A dictation sample was saved. */

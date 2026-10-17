@@ -9,6 +9,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod about;
+mod calls;
 mod commands;
 mod dictation;
 mod indicator;
@@ -119,6 +120,10 @@ fn main() {
             if let Err(e) = indicator::create(app.handle()) {
                 tracing::warn!("no dictation indicator: {e}");
             }
+            if let Err(e) = calls::create(app.handle()) {
+                tracing::warn!("no call prompt: {e}");
+            }
+            calls::spawn(app.handle().clone());
             let theme = commands::lock(&app.state::<AppState>().settings).theme;
             theme::apply(app.handle(), theme);
             app.manage(dictation::Dictation::spawn(app.handle().clone()));
@@ -150,6 +155,8 @@ fn main() {
             about::open_link,
             commands::list_meetings,
             commands::meeting_overviews,
+            calls::call_prompt,
+            calls::answer_call_prompt,
             commands::get_meeting,
             commands::meeting_stats,
             commands::search_transcripts,

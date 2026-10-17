@@ -75,7 +75,11 @@ never transcripts, notes, dictated text or keys.
 | Accessibility (macOS) | Simulating ⌘V to paste dictated text. Without it, text is left on the clipboard. With fn as the dictation key, also watching for fn being pressed: Quill looks only at whether fn is down and whether another key was pressed with it, never at which keys or what's typed. |
 
 For dictation, Quill reads the frontmost app's identifier and name, never its
-windows or contents. Dictated text passes through the clipboard: it's marked
+windows or contents. To offer to record calls (macOS, on by default, Settings →
+Meetings), it checks once a second which apps are using a microphone: their
+process id and bundle identifier, from Core Audio, which needs no permission.
+It never reads their audio, windows, tabs or contents, and logs only the call
+app's name ("Zoom") when a call starts or ends. Dictated text passes through the clipboard: it's marked
 so clipboard managers don't record it, and your previous clipboard is put back.
 
 **GPU (Windows).** Transcription runs on the GPU through Vulkan. The
