@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ModelsGroup } from "./Models";
 import {
   api,
+  type DictationSettings,
   errorText,
   events,
   type Footprint,
@@ -14,32 +15,57 @@ import {
   type StorageInfo,
 } from "../api";
 import { AccessCheck } from "./AccessCheck";
+import { DictationSettingsTab } from "./DictationSettings";
 import { Icon } from "./Icon";
-import { Group, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
+import { Group, LANGUAGES, Row, SaveIndicator, type SaveState, Switch, useAutosave } from "./ui";
 import { UpdateRows } from "./Updates";
 
+export type SettingsTab = "general" | "meetings" | "dictation" | "models" | "storage";
 
-export function SettingsView() {
+const TABS: [SettingsTab, string][] = [
+  ["general", "General"],
+  ["meetings", "Meetings"],
+  ["dictation", "Dictation"],
+  ["models", "Models"],
+  ["storage", "Storage"],
+];
+
+export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTab }) {
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [settings, setSettings] = useState<Settings | null>(null);
+  // Saved on their own (save_dictation_settings rebinds the shortcut;
+  // save_settings leaves dictation alone).
+  const [dictation, setDictation] = useState<DictationSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Bumped when models are deleted, so the disk footprint updates.
   const [diskVersion, setDiskVersion] = useState(0);
-  const saveState = useAutosave(settings, api.saveSettings);
+  const saveState = combined(
+    useAutosave(settings, api.saveSettings),
+    useAutosave(dictation, api.saveDictationSettings),
+  );
 
   useEffect(() => {
     api
       .getSettings()
-      .then(setSettings)
+      .then((s) => {
+        setSettings(s);
+        setDictation(s.dictation);
+      })
       .catch((e) => setError(errorText(e)));
   }, []);
 
-  if (!settings) return error ? <div className="page error-text">{error}</div> : null;
+  if (!settings || !dictation) return error ? <div className="page error-text">{error}</div> : null;
 
-  const update = (patch: Partial<Settings>) => setSettings({ ...settings, ...patch });
+  const update = (patch: Partial<Settings>) => {
+    const { dictation: d, ...rest } = patch;
+    if (d) setDictation(d);
+    if (Object.keys(rest).length > 0) setSettings({ ...settings, ...rest });
+  };
+  const current = { ...settings, dictation };
   // What sends text to OpenRouter right now (the rest runs on Ollama).
   const viaOpenRouter = [
     !settings.summary_model.startsWith("ollama:") && "meeting notes",
-    settings.dictation.polish && !settings.dictation.polish_model.startsWith("ollama:") && "dictation clean-up",
+    dictation.polish && !dictation.polish_model.startsWith("ollama:") && "dictation clean-up",
   ].filter((x): x is string => typeof x === "string");
 
   return (
@@ -49,7 +75,56 @@ export function SettingsView() {
         <span className="spacer" />
         <SaveIndicator state={saveState} />
       </div>
+      <div className="tabs settings-tabs" role="tablist">
+        {TABS.map(([key, label]) => (
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
 
+      {tab === "general" && (
+        <>
+          <Group title="OpenRouter">
+            <Row
+              label="Used for"
+              hint={
+                viaOpenRouter.length > 0
+                  ? `${viaOpenRouter.join(" and ").replace(/^./, (c) => c.toUpperCase())}, as set under Models. Only text is sent, never audio, and only to providers that don't store or train on it.`
+                  : "Nothing right now: meeting notes and dictation clean-up both run on this computer with Ollama."
+              }
+            />
+            <ApiKey />
+            <Row
+              label="Zero data retention only"
+              hint="Stricter than the default (providers that don't store or train on data); fewer models qualify."
+            >
+              <Switch label="Zero data retention only" checked={settings.zdr} onChange={(zdr) => update({ zdr })} />
+            </Row>
+          </Group>
+
+          <section className="group">
+            <h2 className="group-title">Audio access</h2>
+            <AccessCheck framed />
+          </section>
+
+          <Group title="Updates">
+            <UpdateRows settings={settings} update={update} />
+          </Group>
+
+          <Group title="Troubleshooting">
+            <Row
+              label="Log files"
+              hint="What Quill did and any errors, kept for two weeks. Never includes transcripts, notes or dictated text."
+            >
+              <button onClick={() => void api.showLogs()}>Show in {fileManager}</button>
+            </Row>
+          </Group>
+        </>
+      )}
+
+      {tab === "meetings" && (
+        <>
       <Group title="Transcription">
         <Row label="Meeting language">
           <select value={settings.language ?? ""} onChange={(e) => update({ language: e.target.value || null })}>
@@ -86,47 +161,29 @@ export function SettingsView() {
         </Row>
       </Group>
 
-      <Group title="OpenRouter">
-        <Row
-          label="Used for"
-          hint={
-            viaOpenRouter.length > 0
-              ? `${viaOpenRouter.join(" and ").replace(/^./, (c) => c.toUpperCase())}, as set under Models below. Only text is sent, never audio, and only to providers that don't store or train on it.`
-              : "Nothing right now: meeting notes and dictation clean-up both run on this computer with Ollama."
-          }
-        />
-        <ApiKey />
-        <Row
-          label="Zero data retention only"
-          hint="Stricter than the default (providers that don't store or train on data); fewer models qualify."
-        >
-          <Switch label="Zero data retention only" checked={settings.zdr} onChange={(zdr) => update({ zdr })} />
-        </Row>
-      </Group>
+        </>
+      )}
 
-      <ModelsGroup settings={settings} update={update} onChanged={() => setDiskVersion((v) => v + 1)} />
+      {tab === "dictation" && (
+        <DictationSettingsTab settings={dictation} update={(patch) => setDictation({ ...dictation, ...patch })} />
+      )}
 
-      <Storage version={diskVersion} />
+      {tab === "models" && (
+        <ModelsGroup settings={current} update={update} onChanged={() => setDiskVersion((v) => v + 1)} />
+      )}
 
-      <section className="group">
-        <h2 className="group-title">Audio access</h2>
-        <AccessCheck framed />
-      </section>
-
-      <Group title="Updates">
-        <UpdateRows settings={settings} update={update} />
-      </Group>
-
-      <Group title="Troubleshooting">
-        <Row
-          label="Log files"
-          hint="What Quill did and any errors, kept for two weeks. Never includes transcripts, notes or dictated text."
-        >
-          <button onClick={() => void api.showLogs()}>Show in {fileManager}</button>
-        </Row>
-      </Group>
+      {tab === "storage" && <Storage version={diskVersion} />}
     </div>
   );
+}
+
+/** One indicator for two autosaves: an error first, then saving, then saved. */
+function combined(a: SaveState, b: SaveState): SaveState {
+  for (const kind of ["error", "saving", "saved"] as const) {
+    if (a.kind === kind) return a;
+    if (b.kind === kind) return b;
+  }
+  return a;
 }
 
 /** Where meeting audio lives. Changes apply immediately. */

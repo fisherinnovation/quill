@@ -33,8 +33,8 @@ one Quill produces, so every error is a real one.
 
 ### Real dictations
 
-1. In the app, turn on **Dictation → Testing accuracy → Save dictations for
-   testing**, then dictate as usual. Each dictation is saved in the data
+1. In the app, turn on **Settings → Dictation → Testing accuracy → Save
+   dictations for testing**, then dictate as usual. Each dictation is saved in the data
    folder's `dictation-samples/` as `<time>.flac` (the audio Whisper heard),
    `<time>.typed.txt` (what was typed) and `<time>.json` (the app it went
    into, Whisper's text and the clean-up model).

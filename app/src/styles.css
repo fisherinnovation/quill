@@ -69,7 +69,7 @@
   --radius-lg: 8px;
   /* Height of the area the macOS window buttons sit in (0 elsewhere). */
   --titlebar: 0px;
-  --sidebar-width: 268px;
+  --sidebar-width: 212px;
 
   font-family: var(--font);
   font-size: 13.5px;
@@ -525,195 +525,22 @@ kbd {
 }
 
 .sidebar-head {
-  padding: 10px 12px 8px;
-  display: grid;
-  gap: 10px;
+  padding: 10px 12px 4px;
 }
 
 :root:not([data-platform="mac"]) .sidebar-head {
   padding-top: 14px;
 }
 
-.search {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.search .icon {
-  position: absolute;
-  left: 9px;
-  color: var(--text-3);
-  pointer-events: none;
-}
-
-.search input {
-  width: 100%;
-  padding-left: 29px;
-  background: var(--bg-active);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.search input:focus {
-  background: var(--bg-elevated);
-}
-
-.search input::-webkit-search-cancel-button {
-  filter: grayscale(1);
-}
-
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0 8px 12px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.list-group {
-  padding: 14px 10px 4px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-3);
-}
-
-/* "Meetings" and "Dictations": the sidebar's two lists. */
-.list-section {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin-top: 6px;
-  padding: 5px 10px;
-  border-radius: var(--radius);
-  background: var(--bg-section);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.list-section ~ .list-section {
-  margin-top: 18px;
-}
-
-.list-more {
-  width: 100%;
-  height: auto;
-  margin-top: 4px;
-  padding: 6px 10px;
-  border: none;
-  border-radius: var(--radius);
-  background: none;
-  box-shadow: none;
-  font-size: 12.5px;
-  color: var(--text-2);
-  text-align: left;
-  justify-content: flex-start;
-}
-
-.list-more:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.list-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 1px;
-  width: 100%;
-  height: auto;
-  padding: 7px 10px;
-  border: none;
-  border-radius: var(--radius);
-  background: none;
-  box-shadow: none;
-  text-align: left;
-  font-weight: 400;
-}
-
-.list-item:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-
-.list-item.selected,
-.list-item.selected:hover:not(:disabled) {
-  background: var(--selected);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.list-title {
-  font-weight: 600;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.list-title.dictation {
-  font-weight: 500;
-}
-
-.list-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-2);
-  min-width: 0;
-}
-
-.list-meta .status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-}
-
-.status.recording {
-  color: var(--red);
-}
-
-.status.working {
-  color: var(--grape-text);
-}
-
-.status.failed {
-  color: var(--red);
-}
-
-.status.pending {
-  color: var(--text-3);
-}
-
-.list-empty {
-  padding: 24px 12px;
-  text-align: center;
-  color: var(--text-3);
-  font-size: 12.5px;
-}
-
-.snippet {
-  font-size: 12px;
-  color: var(--text-2);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  white-space: normal;
-}
-
-mark {
-  background: var(--mark);
-  color: inherit;
-  border-radius: 3px;
-  padding: 0 1px;
-}
-
 .sidebar-nav {
   display: grid;
   gap: 2px;
   padding: 8px;
+}
+
+/* Settings, at the bottom. */
+.sidebar-foot {
+  margin-top: auto;
   border-top: 1px solid var(--border);
 }
 
@@ -745,6 +572,184 @@ mark {
 
 .nav-item .badge {
   margin-left: auto;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search .icon {
+  position: absolute;
+  left: 9px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.search input {
+  width: 100%;
+  padding-left: 29px;
+}
+
+.search input::-webkit-search-cancel-button {
+  filter: grayscale(1);
+}
+
+/* The Meetings page's transcript search. */
+.page-search {
+  margin-top: 18px;
+}
+
+/* "← Meetings" above a meeting or dictation. */
+.back-link {
+  height: auto;
+  margin: 0 0 10px -6px;
+  padding: 3px 6px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  gap: 5px;
+}
+
+.back-link:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Lists of meetings and dictations: rows in a card, opening on click. */
+.item-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 2px;
+  width: 100%;
+  height: auto;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.item-row:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.item-row > :not(.icon) {
+  grid-column: 1;
+}
+
+.item-list li:first-child .item-row {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.item-list li:last-child .item-row {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.item-list li:only-child .item-row {
+  border-radius: var(--radius-lg);
+}
+
+.item-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A dictation's text: up to two lines. */
+.item-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.item-meta .status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.item-row > .icon {
+  grid-row: 1 / -1;
+  grid-column: 2;
+  align-self: center;
+  color: var(--text-3);
+  opacity: 0;
+}
+
+.item-row:hover > .icon {
+  opacity: 1;
+}
+
+.status.recording {
+  color: var(--red);
+}
+
+.status.working {
+  color: var(--grape-text);
+}
+
+.status.failed {
+  color: var(--red);
+}
+
+.status.pending {
+  color: var(--text-3);
+}
+
+.snippet {
+  font-size: 12.5px;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
+mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.show-more {
+  margin-top: 12px;
+}
+
+.settings-tabs {
+  margin: 10px 0 4px;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Record button: the app's main action, so it gets the accent. While
@@ -2672,62 +2677,6 @@ html.indicator-window #root {
   color: var(--text-3);
 }
 
-.home-meetings {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.home-meetings li + li {
-  border-top: 1px solid var(--border);
-}
-
-.home-meeting {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  column-gap: 12px;
-  width: 100%;
-  height: auto;
-  padding: 11px 16px;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  text-align: left;
-  color: var(--text);
-}
-
-.home-meeting:hover {
-  background: var(--bg-hover);
-}
-
-.home-meeting-title {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-meeting-meta {
-  grid-row: 2;
-  display: flex;
-  align-items: center;
-  font-size: 12.5px;
-  color: var(--text-3);
-}
-
-.home-meeting > .icon {
-  grid-row: 1 / 3;
-  grid-column: 2;
-  align-self: center;
-  color: var(--text-3);
-  opacity: 0;
-}
-
-.home-meeting:hover > .icon {
-  opacity: 1;
-}
-
 .home-empty {
   display: flex;
   align-items: center;
@@ -2745,7 +2694,7 @@ html.indicator-window #root {
   }
 }
 
-/* One dictation, opened from the sidebar */
+/* One dictation, opened from the Dictations page */
 .dictation-entry .page-head {
   margin-bottom: 18px;
 }

@@ -10,10 +10,10 @@ import {
   type Progress,
   type RecordingState,
 } from "../api";
-import { Icon, Logo } from "./Icon";
+import { Icon } from "./Icon";
+import { MeetingRow, NoMeetings } from "./MeetingsView";
 import { ModelDownload } from "./Models";
 import { useElapsed } from "./RecordButton";
-import { Status } from "./Sidebar";
 import { Banner, Keys } from "./ui";
 import { UpdateBanner } from "./Updates";
 
@@ -23,14 +23,6 @@ const RECENT = 6;
 function greeting(now: Date): string {
   const h = now.getHours();
   return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
-
-/** "Mon, Oct 12 · 2:15 PM" in the user's locale. */
-function shortWhen(rfc3339: string): string {
-  const d = new Date(rfc3339);
-  const day = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return `${day} · ${time}`;
 }
 
 /**
@@ -44,7 +36,8 @@ export function HomeView({
   recording,
   dictation,
   onSelect,
-  onDictation,
+  onMeetings,
+  onDictationSettings,
   onInsights,
 }: {
   meetings: Meeting[];
@@ -52,13 +45,14 @@ export function HomeView({
   recording: RecordingState;
   dictation: DictationPhase;
   onSelect: (id: string) => void;
-  onDictation: () => void;
+  onMeetings: () => void;
+  onDictationSettings: () => void;
   onInsights: () => void;
 }) {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  // Read fresh each visit: they can change on the Dictation page.
+  // Read fresh each visit: they can change in Settings → Dictation.
   const [shortcut, setShortcut] = useState<{ hotkey: string; enabled: boolean } | null>(null);
   const elapsed = useElapsed(recording);
 
@@ -148,7 +142,7 @@ export function HomeView({
               )}
             </p>
           </div>
-          <button onClick={onDictation}>{dictationEnabled ? "Settings" : "Turn on"}</button>
+          <button onClick={onDictationSettings}>{dictationEnabled ? "Settings" : "Turn on"}</button>
         </div>
       </div>
 
@@ -179,31 +173,27 @@ export function HomeView({
       )}
 
       <section className="group">
-        <h2 className="group-title">Recent meetings</h2>
+        <div className="row-gap home-section-head">
+          <h2 className="group-title">Recent meetings</h2>
+          <span className="spacer" />
+          {meetings.length > recent.length && (
+            <button className="link-button" onClick={onMeetings}>
+              All meetings
+            </button>
+          )}
+        </div>
         {recent.length === 0 ? (
-          <div className="card home-empty">
-            <Logo size={40} />
-            <div>
-              <strong>Your meetings will appear here</strong>
-              <p className="muted small">
-                Press Record when a call starts, here, in the sidebar or from the menu-bar icon. Works with Zoom,
-                Meet, Teams or any other call.
-              </p>
-            </div>
-          </div>
+          <NoMeetings />
         ) : (
-          <ul className="card home-meetings">
+          <ul className="card item-list">
             {recent.map((m) => (
               <li key={m.id}>
-                <button className="home-meeting" onClick={() => onSelect(m.id)}>
-                  <span className="home-meeting-title">{m.title}</span>
-                  <span className="home-meeting-meta">
-                    {shortWhen(m.started_at)}
-                    {m.duration_ms > 0 && <span className="dot-sep">{minutes(m.duration_ms)}</span>}
-                    <Status meeting={m} progress={progress[m.id]} recording={recording.meeting_id === m.id} />
-                  </span>
-                  <Icon name="external" size={13} />
-                </button>
+                <MeetingRow
+                  meeting={m}
+                  progress={progress[m.id]}
+                  recording={recording.meeting_id === m.id}
+                  onClick={() => onSelect(m.id)}
+                />
               </li>
             ))}
           </ul>

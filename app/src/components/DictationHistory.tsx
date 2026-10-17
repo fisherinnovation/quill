@@ -1,26 +1,21 @@
-// The dictation history: listed in the sidebar under the meetings, a page
-// at a time, and opened one entry at a time in the main pane.
+// The dictation history: listed on the Dictations page a page at a time,
+// and opened one entry at a time.
 import { useCallback, useEffect, useState } from "react";
 import { api, errorText, events, shortDate, type DictationEntry, type DictationStats } from "../api";
 import { Icon } from "./Icon";
-import { Stat } from "./ui";
+import { BackLink, Stat } from "./ui";
 
 /** Dictations loaded per page ("Show more" loads another). */
-export const DICTATION_PAGE = 10;
+export const DICTATION_PAGE = 30;
 
 export interface DictationHistory {
   entries: DictationEntry[];
   /** There are older entries to load. */
   more: boolean;
   loadMore: () => void;
-  /** After a correction. */
-  replace: (entry: DictationEntry) => void;
-  remove: (id: number) => void;
-  /** After "Delete all history". */
-  clear: () => void;
 }
 
-/** The history as the sidebar shows it, kept current by `dictation-entry` events. */
+/** The history as the Dictations page shows it, kept current by `dictation-entry` events. */
 export function useDictationHistory(): DictationHistory {
   const [entries, setEntries] = useState<DictationEntry[]>([]);
   const [more, setMore] = useState(false);
@@ -48,17 +43,7 @@ export function useDictationHistory(): DictationHistory {
       .finally(() => setLoading(false));
   }, [entries, loading]);
 
-  return {
-    entries,
-    more,
-    loadMore,
-    replace: (entry) => setEntries((all) => all.map((e) => (e.id === entry.id ? entry : e))),
-    remove: (id) => setEntries((all) => all.filter((e) => e.id !== id)),
-    clear: () => {
-      setEntries([]);
-      setMore(false);
-    },
-  };
+  return { entries, more, loadMore };
 }
 
 /** A dictation's text for a one-line list title. */
@@ -66,18 +51,16 @@ export function dictationTitle(entry: DictationEntry): string {
   return (entry.corrected ?? entry.text).replace(/\s+/g, " ").trim() || "(empty)";
 }
 
-/** One dictation, opened from the sidebar: the text, Correct, Copy and Delete. */
+/** One dictation, opened from the Dictations page: the text, Correct, Copy and Delete. */
 export function DictationEntryView({
   id,
-  onChanged,
   onDeleted,
-  onOpenDictation,
+  onBack,
 }: {
   id: number;
-  onChanged: (entry: DictationEntry) => void;
-  onDeleted: (id: number) => void;
-  /** Shows the Dictation page, where suggestions from corrections are. */
-  onOpenDictation: () => void;
+  onDeleted: () => void;
+  /** Back to the Dictations page, where suggestions from corrections are. */
+  onBack: () => void;
 }) {
   const [entry, setEntry] = useState<DictationEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +87,6 @@ export function DictationEntryView({
       const before = new Set((await api.listSuggestions()).map((s) => s.id));
       const { entry: saved, suggestions } = await api.correctDictation(id, editing);
       setEntry(saved);
-      onChanged(saved);
       setLearned(suggestions.filter((s) => s.status === "pending" && !before.has(s.id)).length);
       setEditing(null);
       setError(null);
@@ -121,6 +103,7 @@ export function DictationEntryView({
 
   return (
     <article className="page dictation-entry">
+      <BackLink label="Dictations" onClick={onBack} />
       <header className="page-head">
         <div>
           <h1 className="page-title">Dictation</h1>
@@ -137,7 +120,7 @@ export function DictationEntryView({
               className="danger"
               onClick={async () => {
                 await api.deleteDictation(id);
-                onDeleted(id);
+                onDeleted();
               }}
             >
               Delete
@@ -201,9 +184,9 @@ export function DictationEntryView({
             <Icon name="check" size={12} />{" "}
             {learned > 0 ? (
               <>
-                Saved. {learned === 1 ? "1 suggestion" : `${learned} suggestions`} to review under{" "}
-                <button className="link" onClick={onOpenDictation}>
-                  Dictation → Learn from your fixes
+                Saved. {learned === 1 ? "1 suggestion" : `${learned} suggestions`} to review on the{" "}
+                <button className="link" onClick={onBack}>
+                  Dictations page
                 </button>
                 .
               </>

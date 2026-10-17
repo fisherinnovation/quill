@@ -14,7 +14,7 @@ import {
 } from "../api";
 import { useElapsed } from "./RecordButton";
 import { Icon } from "./Icon";
-import { Banner } from "./ui";
+import { BackLink, Banner } from "./ui";
 import { MeetingStatsView } from "./MeetingStats";
 
 interface Props {
@@ -28,9 +28,11 @@ interface Props {
   progress?: Progress;
   onChanged: () => void;
   onDeleted: () => void;
+  /** Back to the Meetings page. */
+  onBack: () => void;
 }
 
-export function MeetingView({ id, jumpTo, version, recording, progress, onChanged, onDeleted }: Props) {
+export function MeetingView({ id, jumpTo, version, recording, progress, onChanged, onDeleted, onBack }: Props) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"summary" | "transcript" | "stats">(jumpTo !== undefined ? "transcript" : "summary");
@@ -97,6 +99,7 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
 
   return (
     <article className="page meeting">
+      <BackLink label="Meetings" onClick={onBack} />
       <header className="meeting-header">
         <div className="meeting-title-row">
           <Title

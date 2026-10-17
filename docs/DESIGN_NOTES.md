@@ -237,6 +237,21 @@ decision someone might otherwise undo.
   avatars) fails the colour-vision checks for charts; re-stepping it would
   recolour the transcript too, so that's left as a separate change.
 
+## App layout
+
+- **The sidebar is navigation only** (Home, Meetings, Dictations, Insights,
+  Settings, and the record button). It used to list every meeting and
+  dictation, which grew without end and was more noise than use: meetings
+  are looked back on, dictations rarely. Each now has its own page, grouped
+  by day, with a back link from an opened item; Home keeps the summary.
+- **Settings has tabs** (General, Meetings, Dictation, Models, Storage), so
+  dictation's settings could move there from the Dictations page without
+  making one endless page. The Dictations page keeps what isn't a setting:
+  whether dictation is ready, the history, and fixes waiting for an OK.
+- Dictation settings are saved on their own (`save_dictation_settings`
+  rebinds the shortcut, and `save_settings` ignores them), so the Settings
+  page keeps them in separate state with their own autosave.
+
 ## macOS signing and the keychain
 
 - TCC and the keychain remember apps by designated requirement.

@@ -1,7 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
 import {
   api,
-  errorText,
   events,
   fileManager,
   fileSize,
@@ -11,7 +10,6 @@ import {
   type AppStyleInfo,
   type DictationSettings,
   type Style,
-  type DictationState,
   type Replacement,
   type SamplesUsage,
   type Suggestion,
@@ -19,74 +17,42 @@ import {
 import { Icon } from "./Icon";
 import { ModelPicker } from "./ModelPicker";
 import { ModelDownload } from "./Models";
-import { Banner, Group, Keys, LANGUAGES, Row, SaveIndicator, Switch, useAutosave } from "./ui";
+import { Banner, Group, Keys, LANGUAGES, Row, Switch } from "./ui";
 
-export function DictationView({ state, onCleared }: { state: DictationState; onCleared: () => void }) {
-  const [settings, setSettings] = useState<DictationSettings | null>(null);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Settings → Dictation: the shortcut, clean-up, styles, words, history and
+ * samples. The dictations themselves are on the Dictations page.
+ */
+export function DictationSettingsTab({
+  settings,
+  update,
+}: {
+  settings: DictationSettings;
+  update: (patch: Partial<DictationSettings>) => void;
+}) {
   const [systemLanguage, setSystemLanguage] = useState<string | null>(null);
-  const saveState = useAutosave(settings, api.saveDictationSettings);
-
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
-  // Bumped when a suggestion changes the vocabulary or replacements, so
-  // their text boxes show it.
+  const [cleared, setCleared] = useState(false);
+  // Bumped when removing a learned rule changes the vocabulary or
+  // replacements, so their text boxes show it.
   const [wordsRevision, setWordsRevision] = useState(0);
 
   useEffect(() => {
-    api
-      .getSettings()
-      .then((s) => setSettings(s.dictation))
-      .catch((e) => setError(errorText(e)));
     void api.systemLanguage().then(setSystemLanguage);
     void api.listSuggestions().then(setSuggestions);
   }, []);
 
-  if (!settings) return error ? <div className="page error-text">{error}</div> : null;
-  const update = (patch: Partial<DictationSettings>) => setSettings({ ...settings, ...patch });
-
-  /** Adds an accepted suggestion's rule to the settings, or takes it out. */
-  function applyRule(s: Suggestion, add: boolean) {
-    if (!settings) return;
-    if (s.kind === "vocabulary") {
-      const rest = settings.vocabulary.filter((v) => v !== s.to);
-      update({ vocabulary: add ? [...rest, s.to] : rest });
-    } else {
-      const rest = settings.replacements.filter((r) => !(r.from.toLowerCase() === s.from.toLowerCase() && r.to === s.to));
-      update({ replacements: add ? [...rest, { from: s.from, to: s.to }] : rest });
-    }
-    setWordsRevision((n) => n + 1);
-  }
-
-  async function decide(s: Suggestion, accept: boolean) {
-    setSuggestions(await api.setSuggestionStatus(s.id, accept ? "accepted" : "dismissed"));
-    if (accept) applyRule(s, true);
-  }
-
   async function undo(s: Suggestion) {
     setSuggestions(await api.setSuggestionStatus(s.id, "dismissed"));
-    applyRule(s, false);
+    update(withRule(settings, s, false));
+    setWordsRevision((n) => n + 1);
   }
   const languageName = (code: string | null) => LANGUAGES.find(([c]) => c === code)?.[1] ?? code ?? "unknown";
 
   return (
-    <div className="page dictation">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Dictation</h1>
-          <p className="page-subtitle">Speak instead of typing, in any app.</p>
-        </div>
-        <span className="spacer" />
-        <SaveIndicator state={saveState} />
-      </div>
-
-      <Hero state={state} hotkey={settings.hotkey} enabled={settings.enabled} />
+    <>
       <ModelDownload variant="banner" />
-      {state.error && (
-        <Banner kind="error" icon="alert">
-          {state.error}
-        </Banner>
-      )}
       <PastePermission />
 
       <Group title="Shortcut">
@@ -166,8 +132,6 @@ export function DictationView({ state, onCleared }: { state: DictationState; onC
 
       <AppStyles settings={settings} onChange={(app_styles) => update({ app_styles })} />
 
-      <Suggestions suggestions={suggestions} settings={settings} onDecide={decide} onUndo={undo} />
-
       <Group title="Words">
         <div className="row stack">
           <div className="row-label">
@@ -195,12 +159,13 @@ export function DictationView({ state, onCleared }: { state: DictationState; onC
             onChange={(text) => update({ replacements: parseReplacements(text) })}
           />
         </div>
+        <Learned suggestions={suggestions} settings={settings} onUndo={undo} />
       </Group>
 
       <Group title="History">
         <Row
           label="Keep a history"
-          hint="Stored only on this computer and listed in the sidebar, so you can copy or correct something later."
+          hint="Stored only on this computer and listed under Dictations, so you can copy or correct something later."
         >
           <Switch
             label="Keep a history"
@@ -208,7 +173,10 @@ export function DictationView({ state, onCleared }: { state: DictationState; onC
             onChange={(keep_history) => update({ keep_history })}
           />
         </Row>
-        <Row label="Delete all history" hint="Removes every dictation listed in the sidebar. Learned words stay.">
+        <Row
+          label="Delete all history"
+          hint={cleared ? "Deleted." : "Removes every dictation listed under Dictations. Learned words stay."}
+        >
           {confirmClear ? (
             <div className="confirm">
               Delete all?
@@ -217,7 +185,7 @@ export function DictationView({ state, onCleared }: { state: DictationState; onC
                 onClick={async () => {
                   await api.clearDictations();
                   setConfirmClear(false);
-                  onCleared();
+                  setCleared(true);
                 }}
               >
                 Delete
@@ -234,6 +202,85 @@ export function DictationView({ state, onCleared }: { state: DictationState; onC
         enabled={settings.save_samples}
         onChange={(save_samples) => update({ save_samples })}
       />
+    </>
+  );
+}
+
+/** Accessibility (macOS) lets Quill press ⌘V for you. */
+export function PastePermission() {
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const check = () => void api.pastePermission().then(setAllowed);
+    check();
+    // Re-check when coming back from System Settings.
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, []);
+
+  if (allowed !== false) return null;
+  return (
+    <Banner
+      kind="warning"
+      icon="keyboard"
+      action={
+        <button className="primary" onClick={() => void api.requestPastePermission().then(setAllowed)}>
+          Allow…
+        </button>
+      }
+    >
+      <strong>Let Quill type for you.</strong>{" "}
+      {isMac ? "Allow it under Privacy & Security → Accessibility." : "Allow it to send keystrokes."} Until then,
+      dictated text is left on the clipboard.
+    </Banner>
+  );
+}
+
+/** `settings` with a suggestion's rule added (or taken out). */
+export function withRule(settings: DictationSettings, s: Suggestion, add: boolean): DictationSettings {
+  if (s.kind === "vocabulary") {
+    const rest = settings.vocabulary.filter((v) => v !== s.to);
+    return { ...settings, vocabulary: add ? [...rest, s.to] : rest };
+  }
+  const rest = settings.replacements.filter((r) => !(r.from.toLowerCase() === s.from.toLowerCase() && r.to === s.to));
+  return { ...settings, replacements: add ? [...rest, { from: s.from, to: s.to }] : rest };
+}
+
+/** Rules learned from corrections that are still in use, to undo. */
+function Learned({
+  suggestions,
+  settings,
+  onUndo,
+}: {
+  suggestions: Suggestion[];
+  settings: DictationSettings;
+  onUndo: (s: Suggestion) => void;
+}) {
+  // Accepted rules still in the settings (the user may have deleted them by hand).
+  const learned = suggestions.filter(
+    (s) =>
+      s.status === "accepted" &&
+      (s.kind === "vocabulary"
+        ? settings.vocabulary.includes(s.to)
+        : settings.replacements.some((r) => r.from.toLowerCase() === s.from.toLowerCase() && r.to === s.to)),
+  );
+  if (learned.length === 0) return null;
+  return (
+    <div className="row stack">
+      <div className="row-label">
+        <span>Learned from your fixes</span>
+        <p className="row-hint">Remove one to stop using it.</p>
+      </div>
+      <div className="learned-list">
+        {learned.map((s) => (
+          <span key={s.id} className="learned-chip">
+            {s.kind === "vocabulary" ? s.to : `${s.from} → ${s.to}`}
+            <button className="ghost icon-btn" aria-label={`Remove ${s.to}`} title="Remove" onClick={() => onUndo(s)}>
+              <Icon name="x" size={12} />
+            </button>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -284,172 +331,6 @@ function Samples({ enabled, onChange }: { enabled: boolean; onChange: (on: boole
             <button onClick={() => setConfirmClear(true)}>Delete…</button>
           )}
         </Row>
-      )}
-    </Group>
-  );
-}
-
-function Hero({ state, hotkey, enabled }: { state: DictationState; hotkey: string; enabled: boolean }) {
-  const phase = enabled ? state.phase : "off";
-  return (
-    <div className={`hero ${phase}`}>
-      <div className="hero-mark">
-        {phase === "listening" ? (
-          <div className="bars live">
-            <span />
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : phase === "processing" ? (
-          <span className="spinner" style={{ width: 22, height: 22, borderWidth: 2.5 }} />
-        ) : (
-          <Icon name="mic" size={26} />
-        )}
-      </div>
-      <div className="hero-body">
-        <div className="hero-title">
-          {phase === "listening" ? (
-            <>Listening…</>
-          ) : phase === "processing" ? (
-            <>Typing it out…</>
-          ) : phase === "off" ? (
-            <>Dictation is off</>
-          ) : (
-            <>
-              Hold <Keys hotkey={hotkey} /> and speak
-            </>
-          )}
-        </div>
-        <p>
-          {phase === "listening"
-            ? "Let go (or tap the shortcut again) to type it. Esc cancels."
-            : phase === "processing"
-              ? "The text goes wherever your cursor is."
-              : phase === "off"
-                ? "Turn it on below to dictate in any app."
-                : "Let go and the text is typed where your cursor is. Or tap to start and tap again to stop."}
-        </p>
-      </div>
-      {phase === "idle" && (
-        <span className="pill green">
-          <span className="rec-dot" style={{ width: 7, height: 7 }} /> Ready
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** Accessibility (macOS) lets Quill press ⌘V for you. */
-function PastePermission() {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const check = () => void api.pastePermission().then(setAllowed);
-    check();
-    // Re-check when coming back from System Settings.
-    window.addEventListener("focus", check);
-    return () => window.removeEventListener("focus", check);
-  }, []);
-
-  if (allowed !== false) return null;
-  return (
-    <Banner
-      kind="warning"
-      icon="keyboard"
-      action={
-        <button className="primary" onClick={() => void api.requestPastePermission().then(setAllowed)}>
-          Allow…
-        </button>
-      }
-    >
-      <strong>Let Quill type for you.</strong>{" "}
-      {isMac ? "Allow it under Privacy & Security → Accessibility." : "Allow it to send keystrokes."} Until then,
-      dictated text is left on the clipboard.
-    </Banner>
-  );
-}
-
-/**
- * Rules suggested by corrections, to add or dismiss, and the ones already
- * learned, to undo. Nothing is learned without the user's OK.
- */
-function Suggestions({
-  suggestions,
-  settings,
-  onDecide,
-  onUndo,
-}: {
-  suggestions: Suggestion[];
-  settings: DictationSettings;
-  onDecide: (s: Suggestion, accept: boolean) => void;
-  onUndo: (s: Suggestion) => void;
-}) {
-  const pending = suggestions.filter((s) => s.status === "pending");
-  // Accepted rules still in the settings (the user may have deleted them by hand).
-  const learned = suggestions.filter(
-    (s) =>
-      s.status === "accepted" &&
-      (s.kind === "vocabulary"
-        ? settings.vocabulary.includes(s.to)
-        : settings.replacements.some((r) => r.from.toLowerCase() === s.from.toLowerCase() && r.to === s.to)),
-  );
-  return (
-    <Group title="Learn from your fixes">
-      {pending.map((s) => (
-        <Row
-          key={s.id}
-          label={
-            s.kind === "vocabulary" ? (
-              <>
-                Always spell <strong>{s.to}</strong> this way
-              </>
-            ) : (
-              <>
-                Type <strong>{s.to}</strong> when you say “{s.from}”
-              </>
-            )
-          }
-          hint={`${s.kind === "vocabulary" ? "Adds it to your vocabulary" : "Adds a replacement"}. From your fix${s.app ? ` in ${s.app}` : ""}${s.seen > 1 ? `, seen ${s.seen} times` : ""}.`}
-        >
-          <span className="row-gap">
-            <button className="ghost" onClick={() => onDecide(s, false)}>
-              Dismiss
-            </button>
-            <button className="primary" onClick={() => onDecide(s, true)}>
-              Add
-            </button>
-          </span>
-        </Row>
-      ))}
-      {learned.length > 0 && (
-        <div className="row stack">
-          <div className="row-label">
-            <span>Learned</span>
-            <p className="row-hint">From your fixes. Remove one to stop using it.</p>
-          </div>
-          <div className="learned-list">
-            {learned.map((s) => (
-              <span key={s.id} className="learned-chip">
-                {s.kind === "vocabulary" ? s.to : `${s.from} → ${s.to}`}
-                <button className="ghost icon-btn" aria-label={`Remove ${s.to}`} title="Remove" onClick={() => onUndo(s)}>
-                  <Icon name="x" size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-      {pending.length === 0 && learned.length === 0 && (
-        <Row
-          label="Nothing to learn yet"
-          hint={
-            settings.keep_history
-              ? "When Quill gets a name or term wrong, open that dictation in the sidebar and click Correct. Quill suggests what to learn from your fix."
-              : "Turn on history below, then open a dictation Quill got wrong in the sidebar and click Correct. Quill suggests what to learn from your fix."
-          }
-        />
       )}
     </Group>
   );

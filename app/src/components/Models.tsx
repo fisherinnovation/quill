@@ -304,18 +304,14 @@ export function ModelsGroup({
           <p className="row-hint">
             {settings.dictation.polish
               ? "Tidies dictated text when it needs it. Only the text is sent, never audio."
-              : "Clean-up is off. Turn it on on the Dictation page."}
+              : "Clean-up is off. Turn it on under Settings → Dictation."}
           </p>
         </div>
         <div className="model-job-body">
           <ModelPicker
             purpose="cleanup"
             value={settings.dictation.polish_model}
-            onChange={(polish_model) => {
-              const dictation = { ...settings.dictation, polish_model };
-              update({ dictation });
-              void api.saveDictationSettings(dictation).catch((e) => setError(errorText(e)));
-            }}
+            onChange={(polish_model) => update({ dictation: { ...settings.dictation, polish_model } })}
           />
         </div>
       </div>

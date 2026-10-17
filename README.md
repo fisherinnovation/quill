@@ -139,17 +139,17 @@ The first build compiles whisper.cpp and takes several minutes; later builds are
 ### First run
 
 1. A welcome screen explains what Quill records, then runs an **access check**: a few seconds of recording plus a short chime, which also brings up the permission prompts. Allow **Microphone** and **System Audio Recording**.
-2. For dictation, open **Dictation** and click **Allow…** to grant **Accessibility**, which Quill needs to paste for you. Without it, dictated text is left on your clipboard.
+2. For dictation, open **Dictations** and click **Allow…** to grant **Accessibility**, which Quill needs to paste for you. Without it, dictated text is left on your clipboard.
 3. The welcome screen also offers to download the models (about 1.7 GB): Whisper `turbo` (1.5 GB), the Silero VAD model (1 MB), and the speaker models (46 MB). They come from Hugging Face, and each is checked against its SHA-256 hash. If you skip that, they download the first time they're needed; pressing the dictation shortcut before then opens the Dictation page with the download's progress. **Settings → Models** lists each job that needs a model (speech recognition, silence detection, telling speakers apart, meeting notes and dictation clean-up), which model does it, and whether it's downloaded. Pick another Whisper size and it downloads straight away. Each local model can be re-downloaded (a fresh copy, checked against its hash again) or deleted; a deleted one downloads again when next needed. Downloads that no job uses are gathered at the end to delete in one go. Models live outside the app, so updates don't download them again.
 4. Meeting notes and dictation clean-up use OpenRouter models by default, which need an API key. The welcome screen has a place to paste one, with a link to create it, or add it later in **Settings → OpenRouter**. To keep everything local, choose an Ollama model instead (see below).
 
 ## Using Quill
 
-Quill opens on **Home**: buttons to record a meeting or set up dictation, your week at a glance (meetings, time in meetings, words dictated) and your latest meetings. It's also where you land after deleting a meeting.
+Quill opens on **Home**: buttons to record a meeting or set up dictation, your week at a glance (meetings, time in meetings, words dictated) and your latest meetings. The sidebar leads to **Home**, **Meetings**, **Dictations**, **Insights** and **Settings**; **Meetings** lists every meeting by day and searches their transcripts, and **Dictations** lists what you've dictated. Settings has tabs: **General** (OpenRouter, audio access, updates, logs), **Meetings**, **Dictation**, **Models** and **Storage**.
 
 ### Recording a meeting
 
-Click **Record meeting** in the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. Quill then:
+Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. Quill then:
 
 1. Cleans speaker echo out of your microphone track.
 2. Transcribes both tracks locally and merges them into one transcript, with your lines labelled **You**.
@@ -157,11 +157,11 @@ Click **Record meeting** in the sidebar, or use the menu-bar (tray) icon, when t
 4. Writes the notes, if *Summarize automatically* is on (Settings).
 5. Compacts the audio to FLAC.
 
-Progress shows in the meeting view and the sidebar. In the **Transcript** tab, click a speaker to name them. With 10 people on a call, Quill reliably separates everyone who talks for more than a minute or so, but people who say only a sentence or two may be merged into someone else; choosing the number of people under **People on the call** helps most. Telling speakers apart adds about 2 minutes per hour of audio, and the voice models (46 MB) download the first time. From a meeting you can re-summarize, copy the notes as Markdown, export them to a `.md` file, search its transcript, or delete it along with its audio.
+Progress shows in the meeting view and on the **Meetings** page. In the **Transcript** tab, click a speaker to name them. With 10 people on a call, Quill reliably separates everyone who talks for more than a minute or so, but people who say only a sentence or two may be merged into someone else; choosing the number of people under **People on the call** helps most. Telling speakers apart adds about 2 minutes per hour of audio, and the voice models (46 MB) download the first time. From a meeting you can re-summarize, copy the notes as Markdown, export them to a `.md` file, search its transcript, or delete it along with its audio.
 
 The **Stats** tab shows how the conversation went: who talked and for how long, each person's pace, turns and questions, a timeline of who spoke when (click a stretch to read it in the transcript), moments like the longest monologue, the longest silence and the two people who went back and forth most, and the words and phrases that came up most. It's worked out on your computer from the transcript, and nothing extra is stored. Each dictation shows its own: words, pace against your usual, time saved compared with typing, and what clean-up took out. Word lists are English-first, so in other languages the most-used words can include common words.
 
-If a recording turns out to have nothing said in it, it's marked **Nothing said** in the sidebar, and opening it offers **Delete recording** or **Keep**. **Settings → Storage** lists how many such recordings there are and deletes them all at once, after you confirm. Quill never deletes them on its own.
+If a recording turns out to have nothing said in it, it's marked **Nothing said** in the list of meetings, and opening it offers **Delete recording** or **Keep**. **Settings → Storage** lists how many such recordings there are and deletes them all at once, after you confirm. Quill never deletes them on its own.
 
 Closing the window keeps Quill running in the menu bar, so a recording isn't cut off. Quit from the menu-bar icon.
 
@@ -174,20 +174,20 @@ Put your cursor in any text field, then:
 - **Hold** <kbd>⌥ Option</kbd> + <kbd>Space</kbd> while you speak and let go to type, or
 - **Tap** it, speak, and tap again.
 
-On macOS you can use <kbd>fn</kbd> (🌐) on its own instead: choose **fn** under **Dictation → Shortcut**. fn with another key (fn+Delete, fn+arrows, fn+F-keys) keeps working as usual. If macOS's own **Press 🌐 key to** setting isn't **Do Nothing**, pressing fn also opens the emoji picker or switches the input source; the Dictation page links to that setting. Using fn needs the same Accessibility permission as pasting.
+On macOS you can use <kbd>fn</kbd> (🌐) on its own instead: choose **fn** under **Settings → Dictation → Shortcut**. fn with another key (fn+Delete, fn+arrows, fn+F-keys) keeps working as usual. If macOS's own **Press 🌐 key to** setting isn't **Do Nothing**, pressing fn also opens the emoji picker or switches the input source; the Dictation page links to that setting. Using fn needs the same Accessibility permission as pasting.
 
 Press <kbd>Esc</kbd> to cancel. A pill near the bottom of the screen shows the mic level while listening and "Typing…" while processing.
 
-On the **Dictation** page you can change the shortcut, choose the language (your system language by default; auto-detection is available but about 0.5 s slower), turn clean-up on or off, set a style per app, and add vocabulary and replacements. Your dictations are listed in the sidebar under your meetings, newest first, with **Show more** for older ones. Open one to **Copy** it (in case text didn't land where you meant it to), correct it or delete it.
+In **Settings → Dictation** you can change the shortcut, choose the language (your system language by default; auto-detection is available but about 0.5 s slower), turn clean-up on or off, set a style per app, and add vocabulary and replacements. The **Dictations** page shows whether dictation is ready and lists your dictations by day, newest first, with **Show more** for older ones. Open one to **Copy** it (in case text didn't land where you meant it to), correct it or delete it.
 
-**Teaching Quill.** When Quill gets a name or term wrong, open that dictation from the sidebar, click **Correct** and fix the text. Quill compares your fix with what it typed and suggests what to learn, under **Learn from your fixes**:
+**Teaching Quill.** When Quill gets a name or term wrong, open that dictation from **Dictations**, click **Correct** and fix the text. Quill compares your fix with what it typed and suggests what to learn, under **Learn from your fixes** at the top of the **Dictations** page:
 
 - A misspelled name or term ("Quil" → "Quill") becomes a vocabulary word, which steers both the speech model and the clean-up.
 - Words typed apart ("open router" → "OpenRouter") become a replacement.
 
-Nothing is learned until you click **Add**, and learned rules can be removed. Ordinary word changes ("their" → "there") aren't learned, because as a rule for every dictation they'd be wrong as often as right. With clean-up on, **About you** tells the clean-up model about you (your role, names you use, spelling preferences) so it gets them right. It's never added to your text.
+Nothing is learned until you click **Add**, and learned rules can be removed under **Settings → Dictation → Words**. Ordinary word changes ("their" → "there") aren't learned, because as a rule for every dictation they'd be wrong as often as right. With clean-up on, **About you** tells the clean-up model about you (your role, names you use, spelling preferences) so it gets them right. It's never added to your text.
 
-**Testing accuracy.** **Dictation → Save dictations for testing** (off by default) keeps the audio of each dictation and what was typed, on your computer only, so you can measure how often Quill gets your words right with `quill-cli dictate`; see [`eval/dictation/README.md`](eval/dictation/README.md). It takes about 1 MB per minute of speech, and the same section shows how many are saved and deletes them.
+**Testing accuracy.** **Settings → Dictation → Save dictations for testing** (off by default) keeps the audio of each dictation and what was typed, on your computer only, so you can measure how often Quill gets your words right with `quill-cli dictate`; see [`eval/dictation/README.md`](eval/dictation/README.md). It takes about 1 MB per minute of speech, and the same section shows how many are saved and deletes them.
 
 ### Per-app styles
 
@@ -209,7 +209,7 @@ Quill talks to models through [OpenRouter](https://openrouter.ai) (one API key, 
 | Meeting notes | `anthropic/claude-haiku-5.5` | Accurate and cheap: a one-hour meeting costs well under a cent. |
 | Dictation clean-up | `google/gemini-3.5-flash-lite` | The fastest consistent model in our comparison (0.66 s median); see [`eval/dictation/README.md`](eval/dictation/README.md). |
 
-Choose them in **Settings → Models** (clean-up also on the **Dictation** page). Each picker offers:
+Choose them in **Settings → Models** (clean-up also in **Settings → Dictation**). Each picker offers:
 
 - a few recommended models, with what each is good at and, for notes, the rough cost of an hour-long meeting from OpenRouter's current prices;
 - the models installed in Ollama, to stay fully local;
@@ -262,7 +262,7 @@ Inside it:
 - `logs/`: daily log files, kept for two weeks.
 - `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`) and the app it went into (`.json`).
 
-Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately. Saved dictation samples are deleted from **Dictation → Testing accuracy**.
+Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately. Saved dictation samples are deleted from **Settings → Dictation → Testing accuracy**.
 
 ## How it works
 

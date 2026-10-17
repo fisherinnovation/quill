@@ -8,24 +8,39 @@ import {
   type Progress,
   type RecordingState,
 } from "./api";
-import { Sidebar } from "./components/Sidebar";
+import { type Section, Sidebar } from "./components/Sidebar";
 import { MeetingView } from "./components/MeetingView";
-import { SettingsView } from "./components/SettingsView";
+import { MeetingsView } from "./components/MeetingsView";
+import { type SettingsTab, SettingsView } from "./components/SettingsView";
 import { RecordButton } from "./components/RecordButton";
 import { Onboarding } from "./components/Onboarding";
-import { DictationView } from "./components/DictationView";
+import { DictationsView } from "./components/DictationsView";
 import { HomeView } from "./components/HomeView";
 import { InsightsView } from "./components/InsightsView";
-import { DictationEntryView, useDictationHistory } from "./components/DictationHistory";
+import { DictationEntryView } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
 
 type View =
+  | { kind: "home" }
+  | { kind: "meetings" }
   | { kind: "meeting"; id: string; at?: number }
-  | { kind: "dictation-entry"; id: number }
-  | { kind: "settings" }
+  /** The Dictations page ("dictation", as the backend's navigate event names it). */
   | { kind: "dictation" }
+  | { kind: "dictation-entry"; id: number }
   | { kind: "insights" }
-  | { kind: "home" };
+  | { kind: "settings"; tab?: SettingsTab };
+
+/** The sidebar item a view belongs to. */
+function section(view: View): Section {
+  switch (view.kind) {
+    case "meeting":
+      return "meetings";
+    case "dictation-entry":
+      return "dictation";
+    default:
+      return view.kind;
+  }
+}
 
 export function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -41,8 +56,6 @@ export function App() {
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // Bumped when a meeting's data changes on the Rust side, so views refetch.
   const [version, setVersion] = useState(0);
-  // The dictation history listed in the sidebar.
-  const dictations = useDictationHistory();
   // null until settings load; false shows the first-run screen.
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
@@ -90,7 +103,7 @@ export function App() {
       events.onLibraryChanged(async () => {
         const list = await api.listMeetings();
         setMeetings(list);
-        setView((v) => (v.kind === "meeting" && !list.some((m) => m.id === v.id) ? { kind: "home" } : v));
+        setView((v) => (v.kind === "meeting" && !list.some((m) => m.id === v.id) ? { kind: "meetings" } : v));
       }),
       events.onNavigate((view) => {
         if (view === "home" || view === "dictation" || view === "settings" || view === "insights") {
@@ -109,20 +122,11 @@ export function App() {
   return (
     <div className="app">
       <Sidebar
-        meetings={meetings}
-        selectedId={view.kind === "meeting" ? view.id : null}
-        dictations={dictations}
-        selectedDictation={view.kind === "dictation-entry" ? view.id : null}
-        onSelectDictation={(id) => setView({ kind: "dictation-entry", id })}
-        progress={progress}
-        recordingId={recording.meeting_id}
+        current={section(view)}
+        onNavigate={(kind) => setView({ kind })}
+        recording={recording.recording}
+        working={Object.values(progress).filter((p) => p.stage !== "done" && p.stage !== "failed").length}
         dictation={dictation.phase}
-        onSelect={(id, at) => setView({ kind: "meeting", id, at })}
-        onSettings={() => setView({ kind: "settings" })}
-        onHome={() => setView({ kind: "home" })}
-        onDictation={() => setView({ kind: "dictation" })}
-        onInsights={() => setView({ kind: "insights" })}
-        current={view.kind}
         header={<RecordButton state={recording} onError={setError} />}
       />
       <main className="main">
@@ -153,24 +157,35 @@ export function App() {
               progress={progress[view.id]}
               onChanged={refresh}
               onDeleted={async () => {
-                setView({ kind: "home" });
+                setView({ kind: "meetings" });
                 await refresh();
               }}
+              onBack={() => setView({ kind: "meetings" })}
             />
           )}
-          {view.kind === "settings" && <SettingsView />}
+          {view.kind === "meetings" && (
+            <MeetingsView
+              meetings={meetings}
+              progress={progress}
+              recordingId={recording.meeting_id}
+              onSelect={(id, at) => setView({ kind: "meeting", id, at })}
+            />
+          )}
+          {view.kind === "settings" && <SettingsView key={view.tab ?? "general"} tab={view.tab} />}
           {view.kind === "insights" && <InsightsView />}
-          {view.kind === "dictation" && <DictationView state={dictation} onCleared={dictations.clear} />}
+          {view.kind === "dictation" && (
+            <DictationsView
+              state={dictation}
+              onOpen={(id) => setView({ kind: "dictation-entry", id })}
+              onSettings={() => setView({ kind: "settings", tab: "dictation" })}
+            />
+          )}
           {view.kind === "dictation-entry" && (
             <DictationEntryView
               key={view.id}
               id={view.id}
-              onChanged={dictations.replace}
-              onDeleted={(id) => {
-                dictations.remove(id);
-                setView({ kind: "home" });
-              }}
-              onOpenDictation={() => setView({ kind: "dictation" })}
+              onDeleted={() => setView({ kind: "dictation" })}
+              onBack={() => setView({ kind: "dictation" })}
             />
           )}
           {view.kind === "home" && (
@@ -180,7 +195,8 @@ export function App() {
               recording={recording}
               dictation={dictation.phase}
               onSelect={(id) => setView({ kind: "meeting", id })}
-              onDictation={() => setView({ kind: "dictation" })}
+              onMeetings={() => setView({ kind: "meetings" })}
+              onDictationSettings={() => setView({ kind: "settings", tab: "dictation" })}
               onInsights={() => setView({ kind: "insights" })}
             />
           )}

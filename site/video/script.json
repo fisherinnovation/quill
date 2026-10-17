@@ -21,7 +21,7 @@
       "cursorStart": "text:Record",
       "steps": [
         {
-          "click": ".home-meetings li:nth-child(2) button"
+          "click": ".item-list li:nth-child(2) button"
         },
         {
           "wait": 400
@@ -35,7 +35,7 @@
       "ready": ".home",
       "setup": [
         {
-          "click": ".home-meetings li:nth-child(2) button"
+          "click": ".item-list li:nth-child(2) button"
         },
         {
           "wait": 500
@@ -57,7 +57,7 @@
       "ready": ".home",
       "setup": [
         {
-          "click": ".home-meetings li:nth-child(2) button"
+          "click": ".item-list li:nth-child(2) button"
         },
         {
           "wait": 500
@@ -89,7 +89,7 @@
       "ready": ".home",
       "setup": [
         {
-          "click": ".sidebar-nav button:nth-child(2)"
+          "click": ".sidebar-nav button:nth-child(3)"
         },
         {
           "wait": 500
@@ -145,6 +145,12 @@
       "caption": "Every dictation, kept close",
       "ready": ".home",
       "setup": [
+        {
+          "click": ".sidebar-nav button:nth-child(3)"
+        },
+        {
+          "wait": 500
+        },
         {
           "click": "text:For the launch"
         },

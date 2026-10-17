@@ -182,3 +182,46 @@ export function Stat({
     </div>
   );
 }
+
+/** A link back to the list a page was opened from: "← Meetings". */
+export function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="back-link" onClick={onClick}>
+      <Icon name="back" size={14} /> {label}
+    </button>
+  );
+}
+
+/**
+ * "Today", "Yesterday", weekday names this week, then "October 2026". The
+ * third element says whether the group is a single day (so its items need
+ * only a time).
+ */
+export function groupByDay<T>(items: T[], when: (item: T) => string): [string, T[], boolean][] {
+  const groups = new Map<string, [T[], boolean]>();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const day = 86_400_000;
+  for (const m of items) {
+    const date = new Date(when(m));
+    const ago = startOfToday.getTime() - date.getTime();
+    const oneDay = ago <= 6 * day;
+    const label =
+      ago <= 0
+        ? "Today"
+        : ago <= day
+          ? "Yesterday"
+          : oneDay
+            ? date.toLocaleDateString(undefined, { weekday: "long" })
+            : date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const group = groups.get(label) ?? [[], oneDay];
+    group[0].push(m);
+    groups.set(label, group);
+  }
+  return [...groups].map(([label, [group, oneDay]]) => [label, group, oneDay]);
+}
+
+/** "2:15 PM" in the user's locale. */
+export function timeOfDay(rfc3339: string): string {
+  return new Date(rfc3339).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
