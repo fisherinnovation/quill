@@ -830,6 +830,7 @@ kbd {
 .item-meta {
   display: flex;
   align-items: center;
+  gap: 6px;
   min-width: 0;
   font-size: 12.5px;
   color: var(--text-3);
@@ -2676,29 +2677,329 @@ html.indicator-window #root {
 }
 
 /* Home */
+/* Home: a line about the day, the latest notes as the one card, then quiet
+   lists. Hierarchy from type and space rather than boxes. */
 .home-head {
-  margin-bottom: 18px;
+  margin: 6px 0 26px;
 }
 
-.home-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 26px;
+.home-date {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
 }
 
-.home-card {
+.home-title {
+  margin: 4px 0 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.home-sub {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.home-sub .keys {
+  vertical-align: 1px;
+}
+
+/* A meeting being recorded, at the top while it lasts. */
+.home-live {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
+  gap: 10px;
+  width: 100%;
+  height: auto;
+  margin-bottom: 22px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: var(--radius-lg);
-  background: var(--bg);
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--text);
+  text-align: left;
 }
 
-.home-card.live {
-  border-color: var(--accent);
+.home-live:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--accent) 12%);
+}
+
+.home-live .rec-dot {
+  color: var(--accent);
+}
+
+.home-live-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.home-live-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.home-live-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+/* The latest meeting's notes. */
+.latest {
+  padding: 20px 22px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+
+.latest-label {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.latest-title {
+  height: auto;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-align: left;
+}
+
+.latest-title:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.latest-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.latest-body {
+  margin-top: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.latest-body p {
+  margin: 0.4em 0;
+}
+
+.latest-body ul {
+  margin: 0;
+  padding-left: 1.15em;
+}
+
+.latest-body li {
+  margin: 0.3em 0;
+}
+
+.latest-body li::marker {
+  color: var(--text-3);
+}
+
+.latest-body strong {
+  font-weight: 650;
+}
+
+.latest-body code {
+  font-size: 0.92em;
+}
+
+.latest-actions h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.latest-body li > p {
+  margin: 0;
+}
+
+/* Task lists ("- [ ] …"): a quiet open box, not a checkbox that can't be
+   ticked here. */
+.latest-actions .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.latest-actions .task-list-item {
+  position: relative;
+  padding-left: 22px;
+}
+
+.latest-actions .task-list-item input {
+  display: none;
+}
+
+.latest-actions .task-list-item::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 0.42em;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 3px;
+}
+
+.latest-open {
+  height: auto;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--accent-text);
+}
+
+.latest-open:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+.home-section {
+  margin-top: 34px;
+}
+
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.home-section-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* Meetings as a plain list: title on the left, length and day on the right. */
+.quiet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quiet-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.quiet-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 84px;
+  align-items: baseline;
+  gap: 16px;
+  height: auto;
+  margin: 0 -8px;
+  width: calc(100% + 16px);
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.quiet-list button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.quiet-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.quiet-title .status {
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.quiet-length,
+.quiet-when {
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet-when {
+  text-align: right;
+}
+
+/* On Home the usage details sit on the page, not in boxes: only the latest
+   notes are a card. */
+.home .chart-card,
+.home .insight-card {
+  padding: 2px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.home .insight-columns,
+.home .home-section .group {
+  margin-top: 26px;
+}
+
+.home .insight-columns {
+  column-gap: 40px;
+}
+
+.home .home-section .group-title {
+  margin-left: 0;
+}
+
+/* Usage in one line: numbers in the text's own colour, words quieter. */
+.usage-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 2px 0 18px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.usage-facts strong {
+  font-weight: 650;
+  color: var(--text);
 }
 
 .home-card-icon {
@@ -2710,36 +3011,6 @@ html.indicator-window #root {
   place-items: center;
   background: var(--bg-subtle);
   color: var(--text-2);
-}
-
-.home-card-icon.record .rec-dot {
-  width: 12px;
-  height: 12px;
-  color: var(--accent);
-}
-
-.home-card-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.home-card-body strong {
-  display: block;
-  font-size: 14px;
-}
-
-.home-card-body p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-
-.home-section-head {
-  margin-bottom: 8px;
-}
-
-.home-section-head .group-title {
-  margin: 0;
 }
 
 .link-button {

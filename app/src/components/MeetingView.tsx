@@ -432,13 +432,13 @@ function Transcript({
 const ME = "Me";
 const OTHERS = "Others";
 
-interface CallSpeaker {
+export interface CallSpeaker {
   name: string;
   talkMs: number;
 }
 
 /** Everyone but "Me", in order of first appearance, with how long they talk. */
-function callSpeakers(segments: MeetingDetail["segments"]): CallSpeaker[] {
+export function callSpeakers(segments: MeetingDetail["segments"]): CallSpeaker[] {
   const byName = new Map<string, CallSpeaker>();
   for (const s of segments) {
     if (!s.speaker || s.speaker === ME) continue;
@@ -450,7 +450,7 @@ function callSpeakers(segments: MeetingDetail["segments"]): CallSpeaker[] {
 }
 
 /** "You and 3 others", or "You and others" when they weren't told apart. */
-function peopleText(people: CallSpeaker[]): string {
+export function peopleText(people: CallSpeaker[]): string {
   if (people.length === 1 && people[0].name === OTHERS) return "You and others";
   if (people.length === 1) return `You and ${people[0].name.startsWith("Speaker ") ? "1 other" : people[0].name}`;
   return `You and ${people.length} others`;

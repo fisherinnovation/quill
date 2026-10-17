@@ -21,7 +21,7 @@
       "cursorStart": "text:Record",
       "steps": [
         {
-          "click": ".item-list li:nth-child(2) button"
+          "click": ".latest-title"
         },
         {
           "wait": 400
@@ -35,7 +35,7 @@
       "ready": ".home",
       "setup": [
         {
-          "click": ".item-list li:nth-child(2) button"
+          "click": ".latest-title"
         },
         {
           "wait": 500
@@ -57,7 +57,7 @@
       "ready": ".home",
       "setup": [
         {
-          "click": ".item-list li:nth-child(2) button"
+          "click": ".latest-title"
         },
         {
           "wait": 500

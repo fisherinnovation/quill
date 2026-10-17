@@ -249,9 +249,16 @@ decision someone might otherwise undo.
   that includes its status ("Meetings · Recording"); badges become dots.
   ⌘\ or Ctrl+\ toggles it. The choice is kept in the webview's
   localStorage: a per-computer view preference, not a setting.
-- **Insights are part of Home**, not a page of their own: the four usage
-  tiles under the quick actions, the details below the recent meetings.
-  Two pages of numbers about the same use were one too many.
+- **Insights are part of Home**, not a page of their own, under the
+  meetings. Two pages of numbers about the same use were one too many.
+- **Home leads with content, not chrome.** A generated-dashboard look
+  (greeting, equal cards, a row of KPI tiles, explanatory copy) read as
+  robotic. Home now opens with a plain sentence about the day, then the
+  latest meeting's TL;DR and action items (read from the summary's
+  `## TL;DR` and `## Action items`) as the page's only card, then the
+  meetings before it as a plain list, then usage as one line of facts and
+  unboxed details. Record lives in the sidebar, not in a second button on
+  Home. Keep it that way: hierarchy from type and space, not more boxes.
 - **Settings has tabs** (General, Meetings, Dictation, Models, Storage), so
   dictation's settings could move there from the Dictations page without
   making one endless page. The Dictations page keeps what isn't a setting:

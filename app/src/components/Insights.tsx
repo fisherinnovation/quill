@@ -1,33 +1,26 @@
-// Usage numbers, shown on Home below the recent meetings.
+// Usage numbers, shown on Home below the meetings.
 import { useState } from "react";
 import { api, type Insights } from "../api";
-import { Stat } from "./ui";
 
 const number = new Intl.NumberFormat();
 
-/** All-time dictation numbers and the streak, as four tiles. */
-export function InsightTiles({ insights }: { insights: Insights }) {
+/** All-time dictation numbers and the streak, as one line of facts. */
+export function UsageFacts({ insights }: { insights: Insights }) {
   const d = insights.dictation;
-  const speedup = d.speaking_wpm ? d.speaking_wpm / insights.typing_wpm : null;
+  const facts: [string, string][] = [];
+  if (d.words > 0) facts.push([number.format(d.words), "words dictated"]);
+  if (d.minutes_saved > 0) facts.push([duration(d.minutes_saved * 60_000), "saved over typing"]);
+  if (d.speaking_wpm) facts.push([`${Math.round(d.speaking_wpm)} wpm`, "when you speak"]);
+  if (insights.streak_days > 1) facts.push([`${insights.streak_days} days`, "in a row"]);
+  if (facts.length === 0) return null;
   return (
-    <div className="stat-grid">
-      <Stat
-        label="Words dictated"
-        value={number.format(d.words)}
-        note={d.words_last_7_days > 0 ? `${number.format(d.words_last_7_days)} in the last 7 days` : "None this week"}
-      />
-      <Stat label="Time saved" value={duration(d.minutes_saved * 60_000)} note="Compared with typing" accent />
-      <Stat
-        label="Speaking speed"
-        value={d.speaking_wpm ? `${Math.round(d.speaking_wpm)} wpm` : "–"}
-        note={speedup ? `${speedup.toFixed(1)}× faster than typing` : "After a minute of dictation"}
-      />
-      <Stat
-        label="Streak"
-        value={`${insights.streak_days} ${insights.streak_days === 1 ? "day" : "days"}`}
-        note={insights.streak_days > 0 ? "In a row, and counting" : "Use Quill today to start one"}
-      />
-    </div>
+    <p className="usage-facts">
+      {facts.map(([value, label]) => (
+        <span key={label}>
+          <strong>{value}</strong> {label}
+        </span>
+      ))}
+    </p>
   );
 }
 
@@ -44,7 +37,7 @@ export function InsightDetails({ insights, onReset }: { insights: Insights; onRe
     <>
       <section className="group">
         <div className="row-gap" style={{ marginBottom: 8 }}>
-          <h2 className="group-title" style={{ margin: "0 0 0 2px" }}>
+          <h2 className="group-title" style={{ margin: 0 }}>
             Last 30 days
           </h2>
           <span className="spacer" />
