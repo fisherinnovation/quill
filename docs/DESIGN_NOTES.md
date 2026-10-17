@@ -254,6 +254,12 @@ decision someone might otherwise undo.
   (speaker turns without text, latest summaries), cut into 96 slices; a
   bar per slice sized by speech looked like a barcode, because nearly
   every slice of a meeting has speech.
+- **Tray icon:** the logo's feather and pulse line, drawn by
+  `app/scripts/tray_icon.py` from the same paths as the app's `Logo`. On
+  macOS it's a template image (black on transparent; macOS tints it), with
+  the pulse line kept clear of the feather so they don't merge at 22 pt.
+  On Windows it's the full-colour logo, since a black glyph disappears on
+  a dark taskbar.
 - **Collapsing the sidebar** leaves icons only (78 px on macOS, to stay
   clear of the window buttons; 60 px on Windows), each named by a tooltip
   that includes its status ("Meetings · Recording"); badges become dots.

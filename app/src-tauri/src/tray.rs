@@ -16,6 +16,14 @@ const OPEN: &str = "open";
 const ABOUT: &str = "tray-about";
 const QUIT: &str = "quit";
 
+/// The logo's feather and pulse line (app/scripts/tray_icon.py): black on
+/// transparent for a macOS template icon; on Windows, where a black glyph
+/// would vanish on a dark taskbar, the full-colour logo.
+#[cfg(target_os = "macos")]
+const ICON: &[u8] = include_bytes!("../icons/tray.png");
+#[cfg(not(target_os = "macos"))]
+const ICON: &[u8] = include_bytes!("../icons/tray-windows.png");
+
 /// Handles to update when recording starts or stops.
 pub struct Tray {
     icon: TrayIcon,
@@ -39,10 +47,10 @@ pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
     )?;
 
     let icon = TrayIconBuilder::with_id("main")
-        .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
+        .icon(Image::from_bytes(ICON)?)
         // A template icon is drawn by macOS in the menu bar's colour, so it
-        // fits light and dark menu bars.
-        .icon_as_template(true)
+        // fits light and dark menu bars. (Ignored elsewhere.)
+        .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Quill")
         .menu(&menu)
         .show_menu_on_left_click(true)
