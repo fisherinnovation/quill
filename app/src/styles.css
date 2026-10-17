@@ -783,10 +783,11 @@ kbd {
   z-index: -1;
   width: 100%;
   height: 100%;
-  --pattern: 0.55;
+  --pattern: 0.5;
   opacity: var(--pattern);
-  /* Clear behind the title and gist, building towards the right. */
-  mask-image: linear-gradient(90deg, transparent 30%, rgb(0 0 0 / 0.5) 58%, #000 88%);
+  /* Clear behind the text (the gist wraps before 56%), building only
+     towards the right edge. */
+  mask-image: linear-gradient(90deg, transparent 56%, rgb(0 0 0 / 0.35) 74%, #000 97%);
   transition: opacity 0.2s ease;
 }
 
@@ -828,7 +829,8 @@ kbd {
 }
 
 .tile-gist {
-  max-width: 62ch;
+  /* Short of where the conversation pattern fades in. */
+  max-width: min(62ch, 56%);
   font-size: 13.5px;
   line-height: 1.45;
   color: var(--text-2);

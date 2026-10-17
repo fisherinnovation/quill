@@ -248,8 +248,9 @@ decision someone might otherwise undo.
   TL;DR point, who was there (dots in the transcript's speaker colours),
   length, action items and your share of the talking, over a faint
   two-lane thread of the conversation: your turns on one lane, the call's
-  on the other, so the back and forth reads as a zig-zag. It fades out
-  behind the text. `quill_core::overview` computes it all in two queries
+  on the other, so the back and forth reads as a zig-zag. It's clear for
+  the left 56% of the tile, where the gist wraps, and fades in towards the
+  right edge, so it never runs under text. `quill_core::overview` computes it all in two queries
   (speaker turns without text, latest summaries), cut into 96 slices; a
   bar per slice sized by speech looked like a barcode, because nearly
   every slice of a meeting has speech.
