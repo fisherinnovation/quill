@@ -740,6 +740,142 @@ kbd {
   filter: grayscale(1);
 }
 
+/* Meetings page: each meeting a tile, with the conversation's back and
+   forth drawn faintly behind it (see MeetingsView's Conversation). */
+.meeting-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.meeting-tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  /* Undo the base button's centred, single-line content. */
+  justify-content: stretch;
+  align-items: start;
+  white-space: normal;
+  gap: 4px;
+  width: 100%;
+  height: auto;
+  padding: 13px 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: none;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.meeting-tile:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+.tile-pattern {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  --pattern: 0.55;
+  opacity: var(--pattern);
+  /* Clear behind the title and gist, building towards the right. */
+  mask-image: linear-gradient(90deg, transparent 30%, rgb(0 0 0 / 0.5) 58%, #000 88%);
+  transition: opacity 0.2s ease;
+}
+
+.meeting-tile:hover .tile-pattern {
+  opacity: min(1, calc(var(--pattern) * 1.5));
+}
+
+.tile-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tile-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.tile-top .status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.tile-when {
+  margin-left: auto;
+  padding-left: 12px;
+  flex: none;
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-gist {
+  max-width: 62ch;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+/* No separator before whatever comes first. */
+.tile-meta > .dot-sep:first-child::before {
+  display: none;
+}
+
+.tile-people {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-2);
+}
+
+.people-dots {
+  display: inline-flex;
+}
+
+.people-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+}
+
+.people-dots span + span {
+  margin-left: -3px;
+}
+
 /* The Meetings page's transcript search. */
 .page-search {
   margin-top: 18px;

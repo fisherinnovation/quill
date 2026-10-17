@@ -149,6 +149,7 @@ fn main() {
             about::about_info,
             about::open_link,
             commands::list_meetings,
+            commands::meeting_overviews,
             commands::get_meeting,
             commands::meeting_stats,
             commands::search_transcripts,

@@ -14,6 +14,25 @@ export interface Meeting {
   empty: boolean;
 }
 
+/** What the Meetings page shows about a meeting beyond its title. */
+export interface MeetingOverview {
+  id: string;
+  /**
+   * Who spoke most in each slice of the meeting: 0 nobody, 1 you, 2 and up
+   * the people in `people` (2 is people[0]). Empty without a transcript.
+   */
+  speaker: number[];
+  /** How much of each slice had speech, 0–100. */
+  level: number[];
+  /** The people on the call, in order of first appearance (not you). */
+  people: string[];
+  /** Your share of the speaking time, 0–1. */
+  my_share: number | null;
+  /** The summary's first TL;DR point, as plain text. */
+  gist: string | null;
+  action_items: number;
+}
+
 export interface Segment {
   start_ms: number;
   end_ms: number;
@@ -372,6 +391,7 @@ export interface DownloadProgress {
 
 export const api = {
   listMeetings: () => invoke<Meeting[]>("list_meetings"),
+  meetingOverviews: () => invoke<MeetingOverview[]>("meeting_overviews"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),

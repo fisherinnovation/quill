@@ -589,6 +589,54 @@ impl Library {
         Ok(())
     }
 
+    /// An [`Overview`](crate::overview::Overview) of every meeting, for the
+    /// list of meetings: two queries (speaker turns without their text, and
+    /// each meeting's latest summary), however many meetings there are.
+    pub fn overviews(&self) -> Result<Vec<crate::overview::Overview>, LibraryError> {
+        use std::collections::HashMap;
+        let conn = self.conn();
+        let mut turns: HashMap<String, Vec<crate::overview::Turn>> = HashMap::new();
+        let mut stmt = conn.prepare(
+            "SELECT meeting_id, start_ms, end_ms, speaker FROM segments
+             WHERE TRIM(text) != '' ORDER BY meeting_id, idx",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                (
+                    from_i64(r.get(1)?),
+                    from_i64(r.get(2)?),
+                    r.get::<_, Option<String>>(3)?,
+                ),
+            ))
+        })?;
+        for row in rows {
+            let (id, turn) = row?;
+            turns.entry(id).or_default().push(turn);
+        }
+        let mut stmt = conn.prepare(
+            "SELECT meeting_id, markdown FROM summaries s
+             WHERE id = (SELECT MAX(id) FROM summaries WHERE meeting_id = s.meeting_id)",
+        )?;
+        let summaries: HashMap<String, String> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<_, _>>()?;
+        let mut stmt = conn.prepare("SELECT id FROM meetings")?;
+        let ids: Vec<String> = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<Result<_, _>>()?;
+        Ok(ids
+            .iter()
+            .map(|id| {
+                crate::overview::overview(
+                    id,
+                    turns.get(id).map_or(&[][..], Vec::as_slice),
+                    summaries.get(id).map(String::as_str),
+                )
+            })
+            .collect())
+    }
+
     /// All meetings, newest first.
     pub fn list(&self) -> Result<Vec<Meeting>, LibraryError> {
         let conn = self.conn();
@@ -1186,6 +1234,40 @@ mod tests {
         assert!(d.meeting.has_transcript && d.meeting.has_summary);
         assert_eq!(d.segments[1].text, "Hi there");
         assert_eq!(d.summaries[0].prompt_version, "summary-v1");
+    }
+
+    #[test]
+    fn overviews_use_the_turns_and_the_latest_summary() {
+        let (lib, _dir) = library();
+        let talked = lib.create_meeting().unwrap();
+        let silent = lib.create_meeting().unwrap();
+        lib.save_transcript(
+            &talked.id,
+            &[
+                seg(0, "Me", "Hello"),
+                seg(5, "Priya", "Hi"),
+                seg(9, "Dan", " "),
+            ],
+        )
+        .unwrap();
+        lib.save_summary(&talked.id, &summary("## TL;DR\n- Old point.\n"))
+            .unwrap();
+        lib.save_summary(
+            &talked.id,
+            &summary("## TL;DR\n- New point.\n\n## Action items\n- **You** — a\n"),
+        )
+        .unwrap();
+
+        let all = lib.overviews().unwrap();
+        assert_eq!(all.len(), 2);
+        let o = all.iter().find(|o| o.id == talked.id).unwrap();
+        // Dan only said a blank, so he isn't counted.
+        assert_eq!(o.people, ["Priya"]);
+        assert_eq!(o.gist.as_deref(), Some("New point."));
+        assert_eq!(o.action_items, 1);
+        assert_eq!(o.my_share, Some(0.5));
+        let o = all.iter().find(|o| o.id == silent.id).unwrap();
+        assert!(o.speaker.is_empty() && o.gist.is_none());
     }
 
     #[test]

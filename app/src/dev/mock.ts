@@ -88,6 +88,38 @@ if (flags.has("backlog")) {
   );
 }
 
+// The Meetings page's overviews: a made-up but steady conversation shape
+// for each meeting (seeded by its id), with people, gist and action items.
+const OVERVIEW_DETAILS: Record<string, [string[], string, number]> = {
+  m1: [["Speaker 1", "Speaker 2", "Speaker 3"], "Ship the onboarding redesign Friday behind a flag, at 10% of new sign-ups.", 3],
+  m2: [["Priya"], "Priya takes over the analytics pipeline; the SDK retry bug is first.", 2],
+  m4: [["Speaker 1", "Speaker 2"], "Settings get grouped like System Settings, with search at the top.", 4],
+  m5: [["Northwind"], "Northwind wants SSO before rollout; a pilot with 20 seats starts in November.", 1],
+  m6: [["Dan", "Speaker 2", "Speaker 3", "Speaker 4"], "Two finalists for the design role; references this week.", 2],
+};
+
+function mockOverview(m: (typeof meetings)[number]) {
+  const [people, gist, actions] = OVERVIEW_DETAILS[m.id] ?? [["Speaker 1", "Speaker 2"], "Agreed the plan for the next two weeks.", 2];
+  if (!m.has_transcript) return { id: m.id, speaker: [], level: [], people: [], my_share: null, gist: null, action_items: 0 };
+  let seed = [...m.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+  const speaker: number[] = [];
+  const level: number[] = [];
+  let who = 1;
+  for (let i = 0; i < 96; ) {
+    const run = 1 + Math.floor(random() * 7);
+    const quiet = random() < 0.12;
+    for (let j = 0; j < run && i < 96; j++, i++) {
+      speaker.push(quiet ? 0 : who);
+      level.push(quiet ? 0 : Math.round(45 + random() * 55));
+    }
+    // Back and forth: often you, otherwise someone on the call.
+    who = who !== 1 && random() < 0.55 ? 1 : 2 + Math.floor(random() * people.length);
+  }
+  const mine = speaker.filter((s) => s === 1).length / Math.max(1, speaker.filter((s) => s > 0).length);
+  return { id: m.id, speaker, level, people, my_share: mine, gist: m.has_summary ? gist : null, action_items: m.has_summary ? actions : 0 };
+}
+
 const recording = flags.has("recording") ? { recording: true, meeting_id: "m1", elapsed_ms: 754_000 } : null;
 const phase = flags.has("listening") ? "listening" : flags.has("processing") ? "processing" : "idle";
 
@@ -289,6 +321,7 @@ function meetingStats() {
 
 const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   list_meetings: () => meetings,
+  meeting_overviews: () => meetings.map(mockOverview),
   meeting_stats: ({ id }) =>
     meetings.find((m) => m.id === id)?.has_transcript ? meetingStats() : { ...meetingStats(), speakers: [], stretches: [] },
   dictation_stats: ({ id }) => {

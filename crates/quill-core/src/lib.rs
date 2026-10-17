@@ -10,6 +10,7 @@ pub mod insights;
 pub mod library;
 pub mod llm_choices;
 pub mod meeting;
+pub mod overview;
 pub mod paths;
 pub mod samples;
 pub mod settings;

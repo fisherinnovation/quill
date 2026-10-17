@@ -46,6 +46,15 @@ pub fn list_meetings(state: State<'_, AppState>) -> CommandResult<Vec<Meeting>> 
     Ok(state.library.list()?)
 }
 
+/// What the Meetings page shows about each meeting beyond its title: the
+/// conversation's shape, who was there, the gist and its action items.
+#[tauri::command]
+pub async fn meeting_overviews(
+    app: AppHandle,
+) -> CommandResult<Vec<quill_core::overview::Overview>> {
+    blocking(move || Ok(app.state::<AppState>().library.overviews()?)).await
+}
+
 #[tauri::command]
 pub fn get_meeting(state: State<'_, AppState>, id: String) -> CommandResult<MeetingDetail> {
     Ok(state.library.get(&id)?)

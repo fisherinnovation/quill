@@ -244,6 +244,15 @@ decision someone might otherwise undo.
   dictation, which grew without end and was more noise than use: meetings
   are looked back on, dictations rarely. Each now has its own page, grouped
   by day, with a back link from an opened item.
+- **Meeting tiles** on the Meetings page each carry the summary's first
+  TL;DR point, who was there (dots in the transcript's speaker colours),
+  length, action items and your share of the talking, over a faint
+  two-lane thread of the conversation: your turns on one lane, the call's
+  on the other, so the back and forth reads as a zig-zag. It fades out
+  behind the text. `quill_core::overview` computes it all in two queries
+  (speaker turns without text, latest summaries), cut into 96 slices; a
+  bar per slice sized by speech looked like a barcode, because nearly
+  every slice of a meeting has speech.
 - **Collapsing the sidebar** leaves icons only (78 px on macOS, to stay
   clear of the window buttons; 60 px on Windows), each named by a tooltip
   that includes its status ("Meetings · Recording"); badges become dots.
