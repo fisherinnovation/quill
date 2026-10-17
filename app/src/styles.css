@@ -2154,7 +2154,7 @@ html.prompt-window #root {
 
 /* ==========================================================================
    Dictation indicator (its own transparent window; see Indicator.tsx)
-   ==========================================================================
+   ========================================================================== */
 html.indicator-window,
 html.indicator-window body,
 html.indicator-window #root {

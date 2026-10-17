@@ -5,7 +5,9 @@
 //!
 //! The prompt is its own window at the bottom centre of the screen, where
 //! it's hard to miss. It never takes focus, so it doesn't pull the user out
-//! of their call, but it does take clicks.
+//! of their call, but it does take clicks. On macOS a click still activates
+//! Quill (bringing its main window forward), so the prompt notes which app
+//! was in front and hands focus straight back to it.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -38,9 +40,16 @@ pub enum Prompt {
     Stop { app: String },
 }
 
-/// The prompt showing, if any.
+/// The prompt showing, if any, and the app to give focus back to after a
+/// click on it (the call, usually), by process id.
 #[derive(Default)]
-pub struct CallPrompt(Mutex<Option<Prompt>>);
+pub struct CallPrompt {
+    shown: Mutex<Option<Prompt>>,
+    return_to: Mutex<Option<i32>>,
+}
+
+/// The fade-out the page plays after a click, before the window hides.
+const LEAVE: Duration = Duration::from_millis(180);
 
 /// Creates the (hidden) prompt window, so showing it later is instant.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
@@ -128,7 +137,7 @@ pub fn recording_changed(app: &AppHandle, recording: bool) {
         let Some(prompt) = app.try_state::<CallPrompt>() else {
             return;
         };
-        let shown = lock(&prompt.0);
+        let shown = lock(&prompt.shown);
         matches!(
             (&*shown, recording),
             (Some(Prompt::Record { .. }), true) | (Some(Prompt::Stop { .. }), false)
@@ -143,7 +152,9 @@ fn show(app: &AppHandle, prompt: Prompt) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
-    *lock(&app.state::<CallPrompt>().0) = Some(prompt.clone());
+    let state = app.state::<CallPrompt>();
+    *lock(&state.shown) = Some(prompt.clone());
+    *lock(&state.return_to) = other_frontmost_app();
     place(app, &window);
     let _ = app.emit_to(LABEL, EVENT, Some(prompt));
     if let Err(e) = window.show() {
@@ -153,7 +164,7 @@ fn show(app: &AppHandle, prompt: Prompt) {
 
 fn hide(app: &AppHandle) {
     if let Some(prompt) = app.try_state::<CallPrompt>() {
-        *lock(&prompt.0) = None;
+        *lock(&prompt.shown) = None;
     }
     let _ = app.emit_to(LABEL, EVENT, None::<Prompt>);
     if let Some(window) = app.get_webview_window(LABEL) {
@@ -182,21 +193,69 @@ fn place(app: &AppHandle, window: &tauri::WebviewWindow) {
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
+/// The app in front, unless it's Quill.
+fn other_frontmost_app() -> Option<i32> {
+    #[cfg(target_os = "macos")]
+    {
+        let own = i32::try_from(std::process::id()).ok();
+        quill_insert::frontmost_pid().filter(|pid| Some(*pid) != own)
+    }
+    #[cfg(not(target_os = "macos"))]
+    None
+}
+
+/// Makes the app that was in front when the prompt appeared active again.
+fn give_focus_back(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    if let Some(pid) = *lock(&app.state::<CallPrompt>().return_to) {
+        // AppKit wants the main thread.
+        let _ = app.run_on_main_thread(move || {
+            quill_insert::refocus(pid);
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
 /// What the prompt window should show now (it also gets [`EVENT`]s).
 #[tauri::command]
 pub fn call_prompt(prompt: tauri::State<'_, CallPrompt>) -> Option<Prompt> {
-    lock(&prompt.0).clone()
+    lock(&prompt.shown).clone()
 }
 
-/// The prompt's buttons: "record", "stop" or "dismiss".
+/// The pointer is over the prompt: the app in front now is the one to go
+/// back to (the user may have switched since it appeared).
+#[tauri::command]
+pub fn call_prompt_hovered(prompt: tauri::State<'_, CallPrompt>) {
+    if let Some(pid) = other_frontmost_app() {
+        *lock(&prompt.return_to) = Some(pid);
+    }
+}
+
+/// A button is being pressed: that activated Quill, so hand focus back at
+/// once, before the click completes.
+#[tauri::command]
+pub fn call_prompt_pressed(app: AppHandle) {
+    give_focus_back(&app);
+}
+
+/// The prompt's buttons: "record", "stop" or "dismiss". The window hides
+/// once the page's fade-out has played.
 #[tauri::command]
 pub async fn answer_call_prompt(app: AppHandle, answer: String) -> CommandResult<()> {
-    hide(&app);
-    blocking(move || match answer.as_str() {
-        "record" => crate::commands::start(&app).map(|_| ()),
-        "stop" => crate::commands::stop(&app).map(|_| ()),
-        "dismiss" => Ok(()),
-        other => Err(CommandError::Other(format!("unknown answer {other:?}"))),
+    give_focus_back(&app);
+    // Answered: starting or stopping below mustn't hide it before its fade.
+    *lock(&app.state::<CallPrompt>().shown) = None;
+    blocking(move || {
+        let result = match answer.as_str() {
+            "record" => crate::commands::start(&app).map(|_| ()),
+            "stop" => crate::commands::stop(&app).map(|_| ()),
+            "dismiss" => Ok(()),
+            other => Err(CommandError::Other(format!("unknown answer {other:?}"))),
+        };
+        std::thread::sleep(LEAVE);
+        hide(&app);
+        result
     })
     .await
 }

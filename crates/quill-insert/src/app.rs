@@ -34,6 +34,29 @@ pub fn frontmost_app() -> Option<FrontApp> {
     }
 }
 
+/// The process id of the app in front, to hand focus back to later with
+/// [`refocus`].
+#[cfg(target_os = "macos")]
+pub fn frontmost_pid() -> Option<i32> {
+    use objc2_app_kit::NSWorkspace;
+    Some(
+        NSWorkspace::sharedWorkspace()
+            .frontmostApplication()?
+            .processIdentifier(),
+    )
+}
+
+/// Makes the app with `pid` active again. On macOS a click on any of
+/// Quill's windows, even one that never takes focus, activates Quill and
+/// brings its main window forward; this puts the user back where they were.
+/// Call on the main thread.
+#[cfg(target_os = "macos")]
+pub fn refocus(pid: i32) -> bool {
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
+    NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+        .is_some_and(|app| app.activateWithOptions(NSApplicationActivationOptions::empty()))
+}
+
 #[cfg(windows)]
 #[allow(unsafe_code)]
 pub fn frontmost_app() -> Option<FrontApp> {

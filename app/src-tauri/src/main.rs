@@ -157,6 +157,8 @@ fn main() {
             commands::meeting_overviews,
             calls::call_prompt,
             calls::answer_call_prompt,
+            calls::call_prompt_hovered,
+            calls::call_prompt_pressed,
             commands::get_meeting,
             commands::meeting_stats,
             commands::search_transcripts,

@@ -327,6 +327,8 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   call_prompt: () =>
     flags.get("prompt") === "stop" ? { kind: "stop", app: "Zoom" } : { kind: "record", app: "Google Chrome" },
   answer_call_prompt: () => {},
+  call_prompt_hovered: () => {},
+  call_prompt_pressed: () => {},
   meeting_stats: ({ id }) =>
     meetings.find((m) => m.id === id)?.has_transcript ? meetingStats() : { ...meetingStats(), speakers: [], stretches: [] },
   dictation_stats: ({ id }) => {

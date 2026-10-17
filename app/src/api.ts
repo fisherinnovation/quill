@@ -399,6 +399,10 @@ export const api = {
   meetingOverviews: () => invoke<MeetingOverview[]>("meeting_overviews"),
   callPrompt: () => invoke<CallPrompt | null>("call_prompt"),
   answerCallPrompt: (answer: "record" | "stop" | "dismiss") => invoke<void>("answer_call_prompt", { answer }),
+  /** The pointer is over the prompt (the app in front now gets focus back after a click). */
+  callPromptHovered: () => invoke<void>("call_prompt_hovered"),
+  /** A prompt button is being pressed: give focus back to the call right away. */
+  callPromptPressed: () => invoke<void>("call_prompt_pressed"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),

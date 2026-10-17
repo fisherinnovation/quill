@@ -257,7 +257,11 @@ decision someone might otherwise undo.
 - **Prompt:** its own always-on-top window at the bottom centre (above the
   Dock, where it's hard to miss) that takes clicks but never focus, so it
   doesn't pull you out of the call. It rises and fades in, and fades out
-  when answered. Unanswered,
+  when answered. A click on any of an app's windows still activates the
+  app on macOS (bringing Quill's main window forward), and Tauri windows
+  can't be non-activating panels without swapping their class at runtime,
+  so the prompt notes the app in front (when it appears and on hover) and
+  reactivates it the moment a button is pressed (`quill_insert::refocus`). Unanswered,
   it goes after 30 s (60 s for "Stop recording?"). Not shown while
   recording, before onboarding, or with the setting off. Windows support is
   planned (the microphone ConsentStore in the registry).

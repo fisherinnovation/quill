@@ -5,9 +5,6 @@ import { Logo } from "./Icon";
 /** Unanswered, the prompt goes away after this long (Not now / Keep recording). */
 const TIMEOUT_MS = { record: 30_000, stop: 60_000 };
 
-/** How long the card takes to fade out after a button is clicked. */
-const LEAVE_MS = 160;
-
 /**
  * The call prompt (its own transparent window at the bottom centre that
  * never takes focus; see src-tauri/src/calls.rs): "Zoom is using your
@@ -30,15 +27,12 @@ export function CallPromptCard() {
     return () => void unlisten.then((f) => f());
   }, []);
 
-  // Fade out, then answer (which hides the window).
+  // Fade out while answering: the window hides once the fade has played.
   const answer = useCallback((a: "record" | "stop" | "dismiss") => {
     if (answered.current) return;
     answered.current = true;
     setLeaving(true);
-    setTimeout(() => {
-      setPrompt(null);
-      void api.answerCallPrompt(a);
-    }, LEAVE_MS);
+    void api.answerCallPrompt(a);
   }, []);
 
   // Not while the pointer is on it: the user may be about to click.
@@ -58,8 +52,14 @@ export function CallPromptCard() {
         className={`call-prompt${leaving ? " leaving" : ""}`}
         role="dialog"
         aria-label="Quill"
-        onMouseEnter={() => setHovered(true)}
+        onMouseEnter={() => {
+          setHovered(true);
+          void api.callPromptHovered();
+        }}
         onMouseLeave={() => setHovered(false)}
+        // Pressing activates Quill (macOS): hand focus back to the call at
+        // once, rather than after the click.
+        onPointerDown={() => void api.callPromptPressed()}
       >
         <Logo size={30} />
         <div className="call-prompt-text">
