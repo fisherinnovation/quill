@@ -79,7 +79,7 @@ Choose models in **Settings → Models**. See [Summary and clean-up models](#llm
 
 - **Home**: your day at a glance, the notes from your latest meeting, recent meetings and your usage numbers.
 - **Meetings**: every meeting, by day, with search across all transcripts.
-- **Dictations**: whether dictation is ready, and what you've dictated.
+- **Dictations**: whether dictation is ready, your dictation numbers, and what you've dictated.
 - **Help**: this page.
 - **Settings**: tabs for General, Meetings, Dictation, Models and Storage.
 
@@ -324,7 +324,7 @@ A misspelled name ("Quil" → "Quill") becomes a vocabulary word; words typed ap
         id: "history",
         title: "Your dictation history",
         keywords: "history past dictations copy lost text clipboard",
-        body: `**Dictations** lists what you've dictated, by day, newest first. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
+        body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
 
 History is kept only on your computer. Turn it off or delete it all in **Settings → Dictation → History**; words Quill has learned stay.`,
       },

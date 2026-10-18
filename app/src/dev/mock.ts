@@ -643,13 +643,16 @@ export function installMocks() {
   );
   // Let the console drive live states, e.g. mockEmit("dictation-state", {phase: "listening", error: null}).
   (window as unknown as { mockEmit: typeof emit }).mockEmit = emit;
-  if (flags.has("indicator") && phase === "listening") {
-    // A talking-like level: bursts with pauses.
+  if (phase === "listening") {
+    // A talking-like level: bursts with pauses (the pill's meter, and the
+    // Dictations page's waveform).
     setInterval(() => {
       const t = Date.now() / 1000;
       const speaking = Math.sin(t * 1.7) > -0.3;
       void emit("dictation-level", speaking ? 0.05 + Math.random() * 0.4 : 0.004);
     }, 50);
+  }
+  if (flags.has("indicator") && phase === "listening") {
     // Captions growing like the app's: a few words per 600 ms pass, a
     // sentence locking in once it's over.
     const words = CAPTION.split(" ");

@@ -232,7 +232,7 @@ function TalkShare({ share }: { share: number }) {
 }
 
 /** "27.5 h", "3 h 12 min", "45 min", "<1 min". */
-function duration(ms: number): string {
+export function duration(ms: number): string {
   const minutes = Math.round(ms / 60_000);
   if (minutes < 1) return ms > 0 ? "<1 min" : "0 min";
   if (minutes < 60) return `${minutes} min`;

@@ -368,6 +368,14 @@ decision someone might otherwise undo.
   ("Meetings · Recording"); badges become dots.
   ⌘\ or Ctrl+\ toggles it. The choice is kept in the webview's
   localStorage: a per-computer view preference, not a setting.
+- **Dictations page:** the hero has a waveform behind it (`VoiceWave.tsx`,
+  a canvas) shaped by words per day over the last 30 days, mirrored like
+  a voice's waveform. It breathes when idle, follows the mic level while
+  listening (the level the pill gets is also sent to the main window),
+  and a shimmer crosses it while typing. It stops drawing when the window
+  is hidden and holds still with reduced motion. Below it, the all-time
+  numbers count up once; each day in the history shows its totals, and
+  each dictation a badge for its app.
 - **Help** is a page in the app (sidebar, and Help → Quill Help on macOS),
   not a website: it works offline and can say "Settings → Dictation" for
   the settings the user actually has. Articles live in

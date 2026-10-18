@@ -64,8 +64,11 @@ pub fn update(app: &AppHandle, phase: Phase) {
     }
 }
 
+/// The mic level while listening: for the pill's meter, and the main
+/// window's Dictations page, whose waveform follows the voice.
 pub fn level(app: &AppHandle, level: f32) {
     let _ = app.emit_to(LABEL, LEVEL_EVENT, level);
+    let _ = app.emit_to("main", LEVEL_EVENT, level);
 }
 
 pub fn caption(app: &AppHandle, caption: &quill_core::live::Caption) {
