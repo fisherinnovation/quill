@@ -18,6 +18,7 @@ mod live_notes;
 mod llm_models;
 mod logging;
 mod models;
+mod notify;
 mod onboarding;
 mod pipeline;
 mod recorder;
@@ -25,6 +26,7 @@ mod storage;
 mod theme;
 mod tray;
 mod updates;
+mod wrapup;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -42,6 +44,14 @@ pub const LIBRARY_EVENT: &str = "library-changed";
 
 /// Asks the UI to show a view (`"dictation"`, `"settings"`).
 pub const NAVIGATE_EVENT: &str = "navigate";
+
+/// Brings Quill's window forward on meeting `id` (from a notification or
+/// the wrap-up card).
+pub fn open_meeting(app: &tauri::AppHandle, id: &str) {
+    use tauri::Emitter;
+    tray::show_window(app);
+    let _ = app.emit(NAVIGATE_EVENT, format!("meeting:{id}"));
+}
 
 pub struct AppState {
     pub data_dir: PathBuf,
@@ -169,6 +179,9 @@ fn main() {
             live_notes::live_notes_dismiss,
             live_notes::live_notes_tick,
             live_notes::live_notes_collapse,
+            live_notes::live_notes_fit,
+            live_notes::live_notes_close,
+            live_notes::live_notes_open_meeting,
             commands::get_meeting,
             commands::meeting_stats,
             commands::search_transcripts,

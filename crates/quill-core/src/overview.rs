@@ -114,7 +114,7 @@ pub fn overview(id: &str, turns: &[Turn], summary: Option<&str>) -> Overview {
 
 /// The body of the `## …` section whose heading starts with `title`
 /// (ignoring case).
-fn section<'a>(markdown: &'a str, title: &str) -> Option<&'a str> {
+pub(crate) fn section<'a>(markdown: &'a str, title: &str) -> Option<&'a str> {
     let mut lines = markdown.split_inclusive('\n');
     let mut offset = 0;
     let mut start = None;
@@ -133,7 +133,7 @@ fn section<'a>(markdown: &'a str, title: &str) -> Option<&'a str> {
 }
 
 /// A top-level list item: "- …", "* …" or "1. …".
-fn is_item(line: &str) -> bool {
+pub(crate) fn is_item(line: &str) -> bool {
     let line = line.trim_end();
     line.starts_with("- ")
         || line.starts_with("* ")

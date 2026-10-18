@@ -11,6 +11,11 @@ publish.workspace = true
 objc2.workspace = true
 objc2-app-kit.workspace = true
 objc2-foundation.workspace = true
+objc2-user-notifications.workspace = true
+block2.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
 
 [build-dependencies]
 tauri-build.workspace = true

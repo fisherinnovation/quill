@@ -79,6 +79,39 @@ pub fn transcribe_recording(
     opts: &TranscribeOptions,
     echo_cancellation: bool,
 ) -> Result<Vec<Segment>, MeetingError> {
+    transcribe_recording_with(dir, transcriber, opts, echo_cancellation, None)
+}
+
+/// Which track of a recording.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Track {
+    /// The microphone: you.
+    Mic,
+    /// The computer's sound: the call.
+    Call,
+}
+
+/// What [`transcribe_recording_with`] reports as it goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Phase {
+    /// The tracks are loaded (and the echo removed): which ones there are.
+    Ready { mic: bool, call: bool },
+    /// How far through a track Whisper is, 0–100.
+    Percent(Track, u8),
+    /// A line from a track, as soon as it's recognised.
+    Line(Track, String),
+    /// A track is done.
+    Done(Track),
+}
+
+/// [`transcribe_recording`], telling `report` how it's going.
+pub fn transcribe_recording_with(
+    dir: &Path,
+    transcriber: &dyn Transcriber,
+    opts: &TranscribeOptions,
+    echo_cancellation: bool,
+    report: Option<std::sync::Arc<dyn Fn(Phase) + Send + Sync>>,
+) -> Result<Vec<Segment>, MeetingError> {
     let mut mic = load_track(track_path(dir, MIC_FLAC, MIC_FILE).as_deref())?;
     let system = load_track(track_path(dir, SYSTEM_FLAC, SYSTEM_FILE).as_deref())?;
     if mic.is_none() && system.is_none() {
@@ -95,17 +128,35 @@ pub fn transcribe_recording(
             },
         )?;
     }
-    let transcribe = |pcm: Option<Vec<f32>>, name: &str| -> Result<Vec<Segment>, MeetingError> {
-        match pcm {
-            Some(pcm) => {
-                tracing::info!(track = name, "transcribing");
-                Ok(transcriber.transcribe(&pcm, opts)?)
-            }
-            None => Ok(Vec::new()),
+    if let Some(report) = &report {
+        report(Phase::Ready {
+            mic: mic.is_some(),
+            call: system.is_some(),
+        });
+    }
+    let transcribe = |pcm: Option<Vec<f32>>, track: Track| -> Result<Vec<Segment>, MeetingError> {
+        let Some(pcm) = pcm else {
+            return Ok(Vec::new());
+        };
+        tracing::info!(track = ?track, "transcribing");
+        let mut opts = opts.clone();
+        if let Some(report) = &report {
+            let report = std::sync::Arc::clone(report);
+            opts.progress = Some(quill_stt::Progress::new(move |event| {
+                report(match event {
+                    quill_stt::ProgressEvent::Percent(p) => Phase::Percent(track, p),
+                    quill_stt::ProgressEvent::Line(text) => Phase::Line(track, text),
+                });
+            }));
         }
+        let segments = transcriber.transcribe(&pcm, &opts)?;
+        if let Some(report) = &report {
+            report(Phase::Done(track));
+        }
+        Ok(segments)
     };
-    let mic_segments = transcribe(mic, MIC_FILE)?;
-    let system_segments = transcribe(system, SYSTEM_FILE)?;
+    let mic_segments = transcribe(mic, Track::Mic)?;
+    let system_segments = transcribe(system, Track::Call)?;
     Ok(merge_tracks(mic_segments, system_segments))
 }
 

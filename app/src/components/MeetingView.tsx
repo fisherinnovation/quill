@@ -14,6 +14,7 @@ import {
 } from "../api";
 import { useElapsed } from "./RecordButton";
 import { Icon } from "./Icon";
+import { WriteUpCard } from "./WriteUp";
 import { BackLink, Banner } from "./ui";
 import { MeetingStatsView } from "./MeetingStats";
 
@@ -26,13 +27,27 @@ interface Props {
   /** Set while this meeting is being recorded. */
   recording: RecordingState | null;
   progress?: Progress;
+  /** Its write-up just finished: show what came out, and reveal the notes. */
+  justWritten?: boolean;
+  onDismissWriteUp?: () => void;
   onChanged: () => void;
   onDeleted: () => void;
   /** Back to the Meetings page. */
   onBack: () => void;
 }
 
-export function MeetingView({ id, jumpTo, version, recording, progress, onChanged, onDeleted, onBack }: Props) {
+export function MeetingView({
+  id,
+  jumpTo,
+  version,
+  recording,
+  progress,
+  justWritten,
+  onDismissWriteUp,
+  onChanged,
+  onDeleted,
+  onBack,
+}: Props) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"summary" | "transcript" | "stats">(jumpTo !== undefined ? "transcript" : "summary");
@@ -236,8 +251,16 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
           Nothing was said in this recording, so there's nothing to transcribe or summarize.
         </Banner>
       )}
-      {progress && progress.stage !== "done" && (
-        <ProgressBanner progress={progress} onRetry={() => process(segments.length === 0)} />
+      {progress?.report && (progress.stage !== "done" || justWritten) ? (
+        <WriteUpCard
+          progress={progress}
+          durationMs={meeting.duration_ms}
+          onRetry={() => process(segments.length === 0)}
+          onDismiss={() => onDismissWriteUp?.()}
+        />
+      ) : (
+        progress &&
+        progress.stage !== "done" && <ProgressBanner progress={progress} onRetry={() => process(segments.length === 0)} />
       )}
 
       {tab === "summary" && notesOutdated && !busy && (
@@ -247,7 +270,7 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
       )}
       {tab === "summary" &&
         (summary ? (
-          <section className="summary">
+          <section className={`summary${justWritten ? " revealing" : ""}`}>
             <Markdown remarkPlugins={[remarkGfm]}>{summary.markdown}</Markdown>
             <footer className="summary-footer">
               <span>Written by {summary.model.split("/").pop()}</span>
@@ -256,7 +279,7 @@ export function MeetingView({ id, jumpTo, version, recording, progress, onChange
               <span className="dot-sep">{(summary.latency_ms / 1000).toFixed(1)} s</span>
             </footer>
           </section>
-        ) : (
+        ) : busy && progress?.report ? null : (
           <Placeholder
             icon="sparkle"
             title={

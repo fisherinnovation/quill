@@ -140,7 +140,7 @@ A line at the top says where the conversation is. Every minute Quill updates the
 
 The panel is hidden from screen sharing and recordings, so others on the call don't see it, and clicking it doesn't bring Quill's window over your call.
 
-Live notes are a rough draft made as you go. The full transcript and notes are still written after the recording. Each update sends the last 15 minutes of the conversation, as text, to your notes model; use an Ollama model to keep that on your computer. Turn live notes off in **Settings → Meetings → Live notes during meetings**.`,
+Live notes are a rough draft made as you go. The full transcript and notes are still written after the recording; when you stop, the panel stays to follow that write-up (see [When your notes are ready](#notes-ready)). Each update sends the last 15 minutes of the conversation, as text, to your notes model; use an Ollama model to keep that on your computer. Turn live notes off in **Settings → Meetings → Live notes during meetings**.`,
       },
       {
         id: "after-recording",
@@ -154,7 +154,22 @@ Live notes are a rough draft made as you go. The full transcript and notes are s
 4. **Writes the notes**, if **Summarize automatically** is on.
 5. **Compacts the audio** to about 70 MB per hour.
 
-Progress shows on the meeting and on the Meetings page, and the sidebar shows **Working**. You can keep using your computer, and dictate, while it runs. Telling speakers apart adds about two minutes per hour of audio.`,
+You can watch it happen. The meeting shows each step as it goes, with how far it's got, roughly how long is left, and the lines it's hearing as they're transcribed. Home shows it at the top, the meeting's tile has a progress bar, and the sidebar says **Writing up**. You can keep using your computer, and dictate, while it runs. Telling speakers apart adds about two minutes per hour of audio.
+
+When it's done, the meeting says what came out (people, action items, decisions, words, and how long it took) and the notes rise into view. See [When your notes are ready](#notes-ready).`,
+      },
+      {
+        id: "notes-ready",
+        title: "When your notes are ready",
+        keywords: "notification toast alert finished done ready new badge write-up",
+        body: `Quill tells you where you are:
+
+- **On the meeting**, the write-up turns into **Your notes are ready**, with what came out.
+- **Elsewhere in Quill**, a card at the bottom right says the notes are ready, with **Open**, and the meeting is marked **New** until you open it.
+- **In your call**, if live notes were showing, the panel stays after you stop and follows the write-up, then offers **Open notes**. It goes away by itself a little later.
+- **In another app**, a notification says the notes are ready (or couldn't be written). Click it to open the meeting. ${isMac ? "macOS asks whether Quill may send notifications the first time. " : ""}Turn these off in **Settings → Meetings → Tell me when notes are ready**. Notifications show the meeting's title.
+
+If something stops the write-up, the step that failed is marked and the reason given, with **Try again**.`,
       },
       {
         id: "recording-tips",

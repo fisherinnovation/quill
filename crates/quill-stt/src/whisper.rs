@@ -8,7 +8,7 @@ use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperVadContext,
 };
 
-use crate::{Segment, SttError, TranscribeOptions, Transcriber, vad};
+use crate::{ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, vad};
 
 /// Load-time settings for a Whisper model.
 #[derive(Debug, Clone)]
@@ -142,6 +142,23 @@ impl Transcriber for WhisperTranscriber {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
+        if let Some(progress) = &opts.progress {
+            let percent = progress.clone();
+            params.set_progress_callback_safe(move |p: i32| {
+                (percent.0)(ProgressEvent::Percent(
+                    u8::try_from(p.clamp(0, 100)).unwrap_or(0),
+                ));
+            });
+            let line = progress.clone();
+            params.set_segment_callback_safe_lossy(
+                move |segment: whisper_rs::SegmentCallbackData| {
+                    let text = segment.text.trim();
+                    if !text.is_empty() {
+                        (line.0)(ProgressEvent::Line(text.to_string()));
+                    }
+                },
+            );
+        }
 
         // With VAD, transcribe only the speech, packed together; `regions`
         // remembers where each piece came from. `Cow` lets the no-VAD path

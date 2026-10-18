@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { api, clock, errorText, events, type LiveItem, type LiveState, type RecordingState } from "../api";
+import {
+  api,
+  clock,
+  errorText,
+  events,
+  type LiveItem,
+  type LiveState,
+  type Progress,
+  type RecordingState,
+} from "../api";
 import { Icon, Logo } from "./Icon";
 import { useElapsed } from "./RecordButton";
+import { WriteUpCard } from "./WriteUp";
 
 const SECTIONS: [LiveItem["kind"], string][] = [
   ["ask", "Ask before the end"],
@@ -18,6 +28,7 @@ const EMPTY: LiveState = {
   heard: null,
   error: null,
   collapsed: false,
+  wrapping: null,
 };
 
 /**
@@ -82,6 +93,8 @@ export function LivePanel() {
   }
 
   const open = state.notes.items.filter((i) => i.kind === "ask" && !i.done).length;
+
+  if (state.wrapping) return <WrapUp key={state.wrapping.meeting_id} wrapping={state.wrapping} />;
 
   if (state.collapsed) {
     return (
@@ -219,6 +232,77 @@ export function LivePanel() {
           {state.heard && <span className="live-heard">Heard: “{state.heard}”</span>}
         </footer>
       </section>
+    </div>
+  );
+}
+
+/** How long the card stays once the notes are ready (unless pointed at). */
+const READY_STAYS_MS = 45_000;
+
+/**
+ * After the recording stops, the panel follows the write-up as a small
+ * card at the same edge of the screen: the steps, then "Notes ready" with
+ * Open notes. It fits the panel to itself, and goes away a while after
+ * the notes are ready, or when closed.
+ */
+function WrapUp({ wrapping }: { wrapping: NonNullable<LiveState["wrapping"]> }) {
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [pointed, setPointed] = useState(false);
+  const card = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unlisten = events.onProgress((p) => {
+      if (p.meeting_id === wrapping.meeting_id) setProgress(p);
+    });
+    return () => void unlisten.then((f) => f());
+  }, [wrapping.meeting_id]);
+
+  // The panel is as tall as the card.
+  useEffect(() => {
+    const el = card.current;
+    if (!el) return;
+    let last = 0;
+    const observer = new ResizeObserver(() => {
+      // The stage's padding around the card, top and bottom.
+      const height = Math.ceil(el.getBoundingClientRect().height) + 16;
+      if (Math.abs(height - last) > 2) {
+        last = height;
+        void api.liveNotesFit(height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const done = progress?.stage === "done";
+  useEffect(() => {
+    if (!done || pointed) return;
+    const timer = setTimeout(() => void api.liveNotesClose(), READY_STAYS_MS);
+    return () => clearTimeout(timer);
+  }, [done, pointed]);
+
+  const shown: Progress = progress ?? {
+    meeting_id: wrapping.meeting_id,
+    stage: "transcribing",
+    fraction: null,
+    message: null,
+    report: null,
+    title: null,
+  };
+  const open = () => void api.liveNotesOpenMeeting();
+  return (
+    <div className="live-stage wrapup-stage" onMouseEnter={() => setPointed(true)} onMouseLeave={() => setPointed(false)}>
+      <div ref={card}>
+        <WriteUpCard
+          compact
+          title={wrapping.title}
+          progress={shown}
+          durationMs={0}
+          onRetry={open}
+          onDismiss={() => void api.liveNotesClose()}
+          onOpen={open}
+        />
+      </div>
     </div>
   );
 }

@@ -226,6 +226,16 @@ export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTa
             onChange={(auto_summarize) => update({ auto_summarize })}
           />
         </Row>
+        <Row
+          label="Tell me when notes are ready"
+          hint="A notification when a meeting's notes are ready, or couldn't be written, if Quill isn't in front. It shows the meeting's title."
+        >
+          <Switch
+            label="Tell me when notes are ready"
+            checked={settings.notify_notes_ready}
+            onChange={(notify_notes_ready) => update({ notify_notes_ready })}
+          />
+        </Row>
       </Group>
 
         </>

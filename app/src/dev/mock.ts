@@ -8,12 +8,14 @@
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
 // fn as the dictation key, ?about for the About window, ?prompt (or
 // ?prompt=stop) for the call prompt, ?live (or ?live=empty) for the live
-// notes panel, ?update for a
+// notes panel, ?writeup (or ?writeup=failed) for a meeting being written
+// up after recording (also what stopping a recording shows), ?update for a
 // new version waiting to be installed, and ?backlog for enough older
 // meetings and dictations to need "Show more".
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { UpdateInfo } from "../api";
+import { simulateWriteUp } from "./writeup";
 
 const flags = new URLSearchParams(location.search);
 const now = Date.now();
@@ -75,6 +77,27 @@ let meetings = flags.has("empty")
       { id: "m5", title: "Customer call — Northwind", started_at: iso(4 * D), duration_ms: 37 * 60_000, has_transcript: true, has_summary: true , empty: false },
       { id: "m6", title: "Hiring sync", started_at: iso(12 * D), duration_ms: 55 * 60_000, has_transcript: true, has_summary: true , empty: false },
     ];
+// A meeting's write-up after recording: it isn't transcribed until the
+// transcription steps are done, and has notes once the notes are.
+function startWriteUp(id: string, fail = flags.get("writeup") === "failed") {
+  const set = (patch: Partial<(typeof meetings)[number]>) => {
+    meetings = meetings.map((m) => (m.id === id ? { ...m, ...patch } : m));
+  };
+  set({ has_transcript: false, has_summary: false });
+  simulateWriteUp({
+    id,
+    title: meetings.find((m) => m.id === id)?.title ?? "Meeting",
+    lines: SEGMENTS.map((s) => ({ you: s.speaker === "Me", text: String(s.text) })),
+    fail,
+    onTranscribed: () => set({ has_transcript: true }),
+    onDone: (ok) => set({ has_summary: ok }),
+  });
+}
+if (flags.has("writeup")) {
+  meetings = meetings.map((m) => (m.id === "m1" ? { ...m, has_transcript: false, has_summary: false } : m));
+  setTimeout(() => startWriteUp("m1"), 900);
+}
+
 if (flags.has("backlog")) {
   const titles = ["Weekly planning", "1:1 with Dan", "Vendor demo", "Retro", "Roadmap review"];
   meetings = meetings.concat(
@@ -114,6 +137,11 @@ let live = {
   heard: "and then we can look at pricing once the numbers are clean",
   error: null,
   collapsed: false,
+  // ?live&writeup: the panel after the recording, following the write-up.
+  wrapping: (flags.has("writeup") ? { meeting_id: "m1", title: "Product sync" } : null) as {
+    meeting_id: string;
+    title: string;
+  } | null,
 };
 
 // What the dictation captions say in the preview (?indicator&listening).
@@ -170,6 +198,7 @@ const settings = {
   theme: flags.has("light") ? "light" : flags.has("dark") ? "dark" : "system",
   offer_to_record_calls: true,
   live_notes: true,
+  notify_notes_ready: true,
   dictation: {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
@@ -394,6 +423,15 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     };
     void emit("live-notes", live);
   },
+  live_notes_fit: () => {},
+  live_notes_close: () => {
+    live = { ...live, wrapping: null };
+    void emit("live-notes", live);
+  },
+  live_notes_open_meeting: () => {
+    live = { ...live, wrapping: null };
+    void emit("live-notes", live);
+  },
   live_notes_collapse: ({ collapsed }) => {
     live = { ...live, collapsed: Boolean(collapsed) };
     void emit("live-notes", live);
@@ -451,10 +489,14 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   start_recording: () => meetings[0],
   stop_recording: () => {
     recording = null;
+    // The live notes panel stays, following the write-up.
+    live = { ...live, active: false, collapsed: false, wrapping: { meeting_id: "m1", title: "Product sync" } };
+    void emit("live-notes", live);
     void emit("recording-state", { recording: false, paused: false, meeting_id: null, elapsed_ms: 0 });
+    startWriteUp("m1");
     return "m1";
   },
-  process_meeting: () => null,
+  process_meeting: ({ id }) => startWriteUp(String(id), false),
   split_speakers: () => null,
   models_info: () => modelsInfo(),
   footprint: () => {

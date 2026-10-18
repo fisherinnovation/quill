@@ -45,7 +45,12 @@ objc2-core-foundation = { version = "0.3.2", default-features = false, features 
 # app's floating.rs). The versions tauri already uses.
 objc2 = "0.6.5"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPanel", "NSWindow", "NSView", "NSResponder", "NSScreen", "NSEvent", "NSColor", "NSGraphics"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSGeometry", "NSArray"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSGeometry", "NSArray", "NSBundle", "NSString"] }
+# macOS: notifications when a meeting's notes are ready (the app's notify.rs).
+objc2-user-notifications = { version = "0.3.2", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger"] }
+block2 = "0.6.2"
+# Windows: the same notifications, as toasts.
+windows = { version = "0.61", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
 # Pure-Rust port of WebRTC audio processing; we use its echo canceller (AEC3)
 # to remove speaker sound picked up by the mic.
 sonora = "0.2"

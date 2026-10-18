@@ -10,6 +10,7 @@ import {
   type SearchHit,
 } from "../api";
 import { Icon, Logo } from "./Icon";
+import { writeUpFraction, writeUpStatus } from "./WriteUp";
 import { groupByDay, timeOfDay } from "./ui";
 
 /** Meetings shown before "Show more", and how many more each click shows. */
@@ -23,11 +24,14 @@ export function MeetingsView({
   meetings,
   progress,
   recordingId,
+  fresh,
   onSelect,
 }: {
   meetings: Meeting[];
   progress: Record<string, Progress>;
   recordingId: string | null;
+  /** Meetings written up since the user last opened them. */
+  fresh: Set<string>;
   onSelect: (id: string, atMs?: number) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -125,6 +129,7 @@ export function MeetingsView({
                       overview={overviews.get(m.id)}
                       progress={progress[m.id]}
                       recording={m.id === recordingId}
+                      fresh={fresh.has(m.id)}
                       timeOnly={oneDay}
                       onClick={() => onSelect(m.id)}
                     />
@@ -153,6 +158,7 @@ function MeetingTile({
   overview,
   progress,
   recording,
+  fresh,
   timeOnly,
   onClick,
 }: {
@@ -160,17 +166,25 @@ function MeetingTile({
   overview?: MeetingOverview;
   progress?: Progress;
   recording: boolean;
+  fresh: boolean;
   timeOnly: boolean;
   onClick: () => void;
 }) {
   const o = overview;
   const share = o?.my_share != null && o.people.length > 0 ? Math.round(o.my_share * 100) : null;
+  const working = progress && progress.stage !== "done" && progress.stage !== "failed";
+  const done = working ? writeUpFraction(progress) : null;
   return (
-    <button className="meeting-tile" onClick={onClick}>
+    <button className={`meeting-tile${fresh ? " fresh" : ""}`} onClick={onClick}>
+      {done != null && (
+        <span className="tile-progress" aria-hidden>
+          <span style={{ width: `${done * 100}%` }} />
+        </span>
+      )}
       {o && o.speaker.length > 0 && <Conversation overview={o} />}
       <span className="tile-top">
         <span className="tile-title">{meeting.title}</span>
-        <Status meeting={meeting} progress={progress} recording={recording} />
+        <Status meeting={meeting} progress={progress} recording={recording} fresh={fresh} />
         <span className="tile-when">{timeOnly ? timeOfDay(meeting.started_at) : shortWhen(meeting.started_at)}</span>
       </span>
       {o?.gist && <span className="tile-gist">{o.gist}</span>}
@@ -283,7 +297,18 @@ function shortWhen(rfc3339: string): string {
 }
 
 /** A meeting's state in a list: recording, working, failed, nothing said, not transcribed. */
-export function Status({ meeting, progress, recording }: { meeting: Meeting; progress?: Progress; recording: boolean }) {
+export function Status({
+  meeting,
+  progress,
+  recording,
+  fresh,
+}: {
+  meeting: Meeting;
+  progress?: Progress;
+  recording: boolean;
+  /** Written up since the user last looked. */
+  fresh?: boolean;
+}) {
   if (recording) {
     return (
       <span className="status recording dot-sep">
@@ -292,12 +317,14 @@ export function Status({ meeting, progress, recording }: { meeting: Meeting; pro
     );
   }
   if (progress && progress.stage !== "done" && progress.stage !== "failed") {
-    const label = {
-      downloading: "Downloading",
-      transcribing: "Transcribing",
-      identifying: "Finding speakers",
-      summarizing: "Summarizing",
-    }[progress.stage];
+    const label = progress.report
+      ? writeUpStatus(progress)
+      : {
+          downloading: "Downloading",
+          transcribing: "Transcribing",
+          identifying: "Finding speakers",
+          summarizing: "Summarizing",
+        }[progress.stage];
     return (
       <span className="status working dot-sep">
         <span className="spinner" style={{ width: 9, height: 9, borderWidth: 1.5 }} /> {label}
@@ -305,6 +332,7 @@ export function Status({ meeting, progress, recording }: { meeting: Meeting; pro
     );
   }
   if (progress?.stage === "failed") return <span className="status failed dot-sep">Failed</span>;
+  if (fresh) return <span className="status fresh">New</span>;
   if (meeting.empty) return <span className="status pending dot-sep">Nothing said</span>;
   if (!meeting.has_transcript) return <span className="status pending dot-sep">Not transcribed</span>;
   return null;

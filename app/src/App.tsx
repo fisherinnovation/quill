@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   errorText,
@@ -19,6 +19,7 @@ import { HelpView } from "./components/HelpView";
 import { HomeView } from "./components/HomeView";
 import { DictationEntryView } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
+import { type Toast, Toasts } from "./components/Toasts";
 
 type View =
   | { kind: "home" }
@@ -29,6 +30,9 @@ type View =
   | { kind: "dictation-entry"; id: number }
   | { kind: "help" }
   | { kind: "settings"; tab?: SettingsTab };
+
+/** How long a finished write-up's outcome shows on its meeting. */
+const WRITTEN_SHOWN_MS = 15 * 60_000;
 
 /** Where the sidebar's collapsed state is remembered, on this computer. */
 const COLLAPSED_KEY = "quill.sidebarCollapsed";
@@ -66,6 +70,12 @@ export function App() {
   const [dictation, setDictation] = useState<DictationState>({ phase: "idle", error: null });
   // Latest progress per meeting (absent = idle).
   const [progress, setProgress] = useState<Record<string, Progress>>({});
+  // Write-ups finished this session, and when: the meeting shows what came
+  // out for a while (until dismissed).
+  const [written, setWritten] = useState<Record<string, number>>({});
+  // Written up while the user was looking elsewhere, and not opened since.
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const [toasts, setToasts] = useState<Toast[]>([]);
   // Bumped when a meeting's data changes on the Rust side, so views refetch.
   const [version, setVersion] = useState(0);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -108,6 +118,23 @@ export function App() {
         if (p.stage === "done" || p.stage === "failed") {
           setVersion((v) => v + 1);
           void refresh();
+          // A write-up (transcribing or notes; not re-splitting speakers).
+          const writeUp = p.report?.steps.some((s) => s.kind !== "speakers" && s.status !== "skipped");
+          if (!writeUp) return;
+          const v = viewRef.current;
+          const looking = v.kind === "meeting" && v.id === p.meeting_id && document.hasFocus();
+          if (p.stage === "done") setWritten((w) => ({ ...w, [p.meeting_id]: Date.now() }));
+          if (!looking) {
+            if (p.stage === "done") setFresh((f) => new Set(f).add(p.meeting_id));
+            const toast: Toast = {
+              id: p.meeting_id,
+              kind: p.stage === "done" ? "done" : "failed",
+              title: p.title ?? "Meeting",
+              outcome: p.report?.outcome ?? null,
+              message: p.message,
+            };
+            setToasts((all) => [...all.filter((t) => t.id !== toast.id), toast]);
+          }
         }
       }),
       events.onDictation(setDictation),
@@ -119,7 +146,10 @@ export function App() {
         setView((v) => (v.kind === "meeting" && !list.some((m) => m.id === v.id) ? { kind: "meetings" } : v));
       }),
       events.onNavigate((view) => {
-        if (view === "home" || view === "dictation" || view === "help" || view === "settings") {
+        if (view.startsWith("meeting:")) {
+          // From a notification or the wrap-up card.
+          setView({ kind: "meeting", id: view.slice("meeting:".length) });
+        } else if (view === "home" || view === "dictation" || view === "help" || view === "settings") {
           setView({ kind: view });
         } else if (view === "insights") {
           // Insights are part of Home now.
@@ -131,6 +161,23 @@ export function App() {
       unlisten.forEach((u) => void u.then((f) => f()));
     };
   }, [refresh]);
+
+  // Which page is showing, for the progress handler; opening a meeting
+  // clears its "New".
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+    if (view.kind === "meeting") {
+      const id = view.id;
+      setFresh((f) => {
+        if (!f.has(id)) return f;
+        const next = new Set(f);
+        next.delete(id);
+        return next;
+      });
+      setToasts((all) => all.filter((t) => t.id !== id));
+    }
+  }, [view]);
 
   // Collapse or expand the sidebar: ⌘\ (Ctrl+\ on Windows), remembered.
   const toggleSidebar = useCallback(() => {
@@ -195,6 +242,13 @@ export function App() {
               version={version}
               recording={recording.meeting_id === view.id ? recording : null}
               progress={progress[view.id]}
+              justWritten={written[view.id] !== undefined && Date.now() - written[view.id] < WRITTEN_SHOWN_MS}
+              onDismissWriteUp={() =>
+                setWritten((w) => {
+                  const { [view.id]: _, ...rest } = w;
+                  return rest;
+                })
+              }
               onChanged={refresh}
               onDeleted={async () => {
                 setView({ kind: "meetings" });
@@ -208,6 +262,7 @@ export function App() {
               meetings={meetings}
               progress={progress}
               recordingId={recording.meeting_id}
+              fresh={fresh}
               onSelect={(id, at) => setView({ kind: "meeting", id, at })}
             />
           )}
@@ -234,12 +289,18 @@ export function App() {
               progress={progress}
               recording={recording}
               dictation={dictation.phase}
+              fresh={fresh}
               onSelect={(id) => setView({ kind: "meeting", id })}
               onMeetings={() => setView({ kind: "meetings" })}
               onDictationSettings={() => setView({ kind: "settings", tab: "dictation" })}
             />
           )}
         </div>
+        <Toasts
+          toasts={toasts}
+          onOpen={(id) => setView({ kind: "meeting", id })}
+          onDismiss={(id) => setToasts((all) => all.filter((t) => t.id !== id))}
+        />
       </main>
     </div>
   );

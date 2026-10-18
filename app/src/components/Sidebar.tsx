@@ -76,7 +76,7 @@ export function Sidebar({ current, onNavigate, recording, working, dictation, co
           recording
             ? { text: "Recording", tone: "red" }
             : working > 0
-              ? { text: "Working", tone: "accent" }
+              ? { text: "Writing up", tone: "accent" }
               : undefined,
         )}
         {item(

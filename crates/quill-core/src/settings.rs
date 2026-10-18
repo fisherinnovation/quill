@@ -46,9 +46,11 @@ pub struct Settings {
     /// (`quill_core::calls`); when it stops, offer to stop.
     pub offer_to_record_calls: bool,
     /// While recording, keep live notes (`quill_core::live_meeting`) in a
-    /// panel: the transcript so far goes to the summary model every couple
-    /// of minutes.
+    /// panel: the transcript so far goes to the summary model every minute.
     pub live_notes: bool,
+    /// A system notification when a meeting's notes are ready (or couldn't
+    /// be written), if Quill isn't in front.
+    pub notify_notes_ready: bool,
     // Tables must come after plain values in TOML, so keep this last.
     pub dictation: DictationSettings,
 }
@@ -166,6 +168,7 @@ impl Default for Settings {
             theme: Theme::System,
             offer_to_record_calls: true,
             live_notes: true,
+            notify_notes_ready: true,
             dictation: DictationSettings::default(),
         }
     }

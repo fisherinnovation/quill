@@ -282,6 +282,32 @@ decision someone might otherwise undo.
   recording, before onboarding, or with the setting off. Windows support is
   planned (the microphone ConsentStore in the registry).
 
+## After the recording
+
+- **The write-up is followed step by step** (`quill_core::processing`):
+  getting the audio ready, transcribing you, transcribing the call,
+  telling speakers apart, writing the notes. Whisper reports its progress
+  and each line as it's recognised (`quill_stt::Progress`), so the
+  transcription steps show a percentage and the lines being heard; the
+  others show time so far. The progress event carries the whole report;
+  a running job sends at most about seven a second, and step changes at
+  once.
+- **Time left** starts from typical speeds for the recording's length
+  (transcription about 25x real time, speakers about 2 minutes an hour,
+  notes 12 s plus 15 s an hour) and switches to the measured pace once a
+  transcription step is 8% in. It isn't shown for the first 1.5 s.
+- **Done** reports what came out: words and people from the transcript,
+  action items and decisions counted from the notes' sections.
+- **Where you're told** depends on where you are: on the meeting, the
+  card becomes "Your notes are ready" and the notes rise in; elsewhere in
+  Quill, a toast and a "New" mark until it's opened; on the live notes
+  panel (if it was showing), the panel stays after Stop as a small card
+  sized to its content, then offers Open notes and goes after 45 s; in
+  another app, a system notification (macOS's User Notifications, asked
+  for the first time; a toast on Windows) that opens the meeting when
+  clicked. Only one of these says it: no notification while the panel or
+  the window is showing it.
+
 ## Floating panels
 
 - **The call prompt and live notes** take clicks without bringing Quill

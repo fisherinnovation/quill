@@ -294,7 +294,12 @@ pub fn stop(app: &AppHandle) -> CommandResult<String> {
         .take()
         .ok_or_else(|| CommandError::Other("not recording".into()))?;
     let id = active.meeting_id.clone();
-    crate::live_notes::stop(app);
+    let title = state
+        .library
+        .get(&id)
+        .map(|d| d.meeting.title)
+        .unwrap_or_default();
+    crate::live_notes::stop(app, (id.clone(), title));
     let tracks = active.stop().map_err(CommandError::Other)?;
     let dir = state.library.meeting_dir(&id);
     if let Err(e) = quill_core::meeting::write_recording_info(&dir, &tracks) {

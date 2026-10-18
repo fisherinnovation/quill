@@ -14,6 +14,7 @@ import {
   type RecordingState,
 } from "../api";
 import { FEATHER, Icon } from "./Icon";
+import { writeUpFraction, writeUpStatus } from "./WriteUp";
 import { InsightDetails, UsageFacts } from "./Insights";
 import { callSpeakers, peopleText } from "./MeetingView";
 import { NoMeetings, Status } from "./MeetingsView";
@@ -34,6 +35,7 @@ export function HomeView({
   progress,
   recording,
   dictation,
+  fresh,
   onSelect,
   onMeetings,
   onDictationSettings,
@@ -42,6 +44,8 @@ export function HomeView({
   progress: Record<string, Progress>;
   recording: RecordingState;
   dictation: DictationPhase;
+  /** Meetings written up since the user last opened them. */
+  fresh: Set<string>;
   onSelect: (id: string) => void;
   onMeetings: () => void;
   onDictationSettings: () => void;
@@ -62,6 +66,11 @@ export function HomeView({
   const featured = meetings.find((m) => m.has_summary && m.id !== recording.meeting_id);
   const recent = meetings.filter((m) => m.id !== featured?.id).slice(0, RECENT);
   const live = recording.recording ? meetings.find((m) => m.id === recording.meeting_id) : undefined;
+  // Meetings being written up after recording.
+  const writing = meetings.flatMap((m) => {
+    const p = progress[m.id];
+    return p?.report && p.stage !== "done" && p.stage !== "failed" ? [{ meeting: m, progress: p }] : [];
+  });
   // Usage numbers once there's something to count.
   const used = insights && (insights.dictation.count > 0 || insights.meetings.count > 0) ? insights : null;
 
@@ -127,7 +136,26 @@ export function HomeView({
         {/* Meetings on the left, usage on the right; one column when narrow. */}
         <div className="home-columns">
           <div className="home-column">
-            {featured && <LatestNotes meeting={featured} onOpen={() => onSelect(featured.id)} />}
+            {writing.map(({ meeting: m, progress: p }) => {
+        const done = writeUpFraction(p);
+        return (
+          <button key={m.id} className="home-live writing" onClick={() => onSelect(m.id)}>
+            <span className="spinner" />
+            <span className="home-live-title">Writing up {m.title}</span>
+            <span className="home-live-time">{writeUpStatus(p)}</span>
+            <span className="home-live-open">
+              Open <Icon name="external" size={12} />
+            </span>
+            {done != null && (
+              <span className="home-live-bar" aria-hidden>
+                <span style={{ width: `${done * 100}%` }} />
+              </span>
+            )}
+          </button>
+        );
+      })}
+
+      {featured && <LatestNotes meeting={featured} onOpen={() => onSelect(featured.id)} />}
 
             <section className="home-section">
               <div className="home-section-head">
@@ -147,7 +175,12 @@ export function HomeView({
                       <button onClick={() => onSelect(m.id)}>
                         <span className="quiet-title">
                           {m.title}
-                          <Status meeting={m} progress={progress[m.id]} recording={recording.meeting_id === m.id} />
+                          <Status
+                            meeting={m}
+                            progress={progress[m.id]}
+                            recording={recording.meeting_id === m.id}
+                            fresh={fresh.has(m.id)}
+                          />
                         </span>
                         <span className="quiet-length">{m.duration_ms > 0 ? minutes(m.duration_ms) : ""}</span>
                         <span className="quiet-when">{relativeDay(m.started_at, now)}</span>

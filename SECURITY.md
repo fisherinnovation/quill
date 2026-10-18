@@ -47,6 +47,14 @@ where reality differs.
 
 There's no telemetry, analytics or crash reporting.
 
+**Notifications.** When a meeting's notes are ready (or couldn't be
+written) and Quill isn't in front, a system notification says so, with the
+meeting's title and how many action items and decisions it has, or the
+first sentence of the error. Notifications are local (macOS's notification
+centre or a Windows toast), may show on a locked screen depending on your
+system settings, and can be turned off in **Settings → Meetings → Tell me
+when notes are ready**. On macOS, Quill asks permission the first time.
+
 **What is sent.** Audio is never sent anywhere. Meeting transcripts are sent
 to the summary model, and dictated text to the clean-up model, only when
 those steps run, and only to the provider you chose. With live notes on

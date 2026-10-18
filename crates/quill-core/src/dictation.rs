@@ -69,6 +69,7 @@ pub(crate) fn options(settings: &DictationSettings, context: Option<&str>) -> Tr
         initial_prompt: prompt,
         short_clip: true,
         no_fallback: false,
+        progress: None,
     }
 }
 

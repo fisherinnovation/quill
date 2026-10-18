@@ -84,6 +84,8 @@ export interface Settings {
   offer_to_record_calls: boolean;
   /** Live notes in a side panel while recording. */
   live_notes: boolean;
+  /** A system notification when a meeting's notes are ready, if Quill isn't in front. */
+  notify_notes_ready: boolean;
   dictation: DictationSettings;
 }
 
@@ -108,6 +110,8 @@ export interface LiveState {
   heard: string | null;
   error: string | null;
   collapsed: boolean;
+  /** After the recording stops: the meeting being written up, followed by a small card. */
+  wrapping: { meeting_id: string; title: string } | null;
 }
 
 /** What the call prompt asks (src-tauri/src/calls.rs). */
@@ -282,8 +286,46 @@ export type Stage = "downloading" | "transcribing" | "identifying" | "summarizin
 export interface Progress {
   meeting_id: string;
   stage: Stage;
+  /** How far through the stage, 0–1, when known. */
   fraction: number | null;
   message: string | null;
+  /** The whole write-up: steps, time left, lines heard, what came out. */
+  report: WriteUp | null;
+  /** The meeting's title, on the last event (done or failed). */
+  title: string | null;
+}
+
+/** The steps of a meeting's write-up after recording (quill_core::processing). */
+export type StepKind = "prepare" | "you" | "call" | "speakers" | "notes";
+export type StepStatus = "pending" | "active" | "done" | "skipped" | "failed";
+
+export interface WriteUpStep {
+  kind: StepKind;
+  status: StepStatus;
+  fraction: number | null;
+  /** Time taken (done) or so far (active). */
+  ms: number | null;
+}
+
+export interface WriteUp {
+  steps: WriteUpStep[];
+  elapsed_ms: number;
+  /** Roughly how long is left, once there's enough to go on. */
+  eta_ms: number | null;
+  /** The last few lines heard, oldest first. */
+  heard: { you: boolean; text: string }[];
+  outcome: Outcome | null;
+}
+
+/** What came out of a finished write-up. */
+export interface Outcome {
+  words: number;
+  /** Everyone who spoke, you included. */
+  people: number;
+  action_items: number;
+  decisions: number;
+  notes: boolean;
+  took_ms: number;
 }
 
 /** What the About window shows. */
@@ -442,6 +484,11 @@ export const api = {
   liveNotesDismiss: (id: string) => invoke<void>("live_notes_dismiss", { id }),
   liveNotesTick: (id: string, done: boolean) => invoke<void>("live_notes_tick", { id, done }),
   liveNotesCollapse: (collapsed: boolean) => invoke<void>("live_notes_collapse", { collapsed }),
+  /** The wrap-up card's height: the panel fits itself to it. */
+  liveNotesFit: (height: number) => invoke<void>("live_notes_fit", { height }),
+  liveNotesClose: () => invoke<void>("live_notes_close"),
+  /** Opens the meeting being wrapped up in Quill's window. */
+  liveNotesOpenMeeting: () => invoke<void>("live_notes_open_meeting"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),

@@ -1060,6 +1060,21 @@ kbd {
   color: var(--text-3);
 }
 
+/* Written up since you last looked. */
+.status.fresh {
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.meeting-tile.fresh {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-panel));
+}
+
 .snippet {
   font-size: 12.5px;
   color: var(--text-2);
@@ -3742,6 +3757,43 @@ html.indicator-window #root {
   color: var(--text-2);
 }
 
+/* A meeting being written up, on Home: like the recording strip, in grape,
+   with a thin bar for how far it's got. */
+.home-live.writing {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--grape) 45%, transparent);
+  background: color-mix(in srgb, var(--grape) 12%, transparent);
+}
+
+.home-live.writing:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--grape) 18%, transparent);
+}
+
+.home-live.writing .spinner {
+  width: 12px;
+  height: 12px;
+  color: var(--grape-text);
+}
+
+.home-live-bar,
+.tile-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--grape) 18%, transparent);
+}
+
+.home-live-bar > span,
+.tile-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--grape-text);
+  transition: width 0.4s ease;
+}
+
 /* The latest meeting's notes. */
 .latest {
   padding: 20px 22px 16px;
@@ -4059,6 +4111,495 @@ html.indicator-window #root {
 @media (max-width: 900px) {
   .home-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+/* A meeting's write-up after recording (WriteUp.tsx): the steps as they
+   happen over a shimmering waveform, the lines being heard, then what came
+   out. */
+.writeup {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 18px 0 20px;
+  padding: 20px 22px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-panel);
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
+  animation: appear 0.3s ease-out;
+}
+
+.writeup.working {
+  border-color: color-mix(in srgb, var(--grape) 40%, var(--border-panel));
+}
+
+.writeup .voice-wave {
+  opacity: calc(var(--wave-opacity) * 0.55);
+  mask-image: linear-gradient(to right, transparent 35%, rgb(0 0 0 / 0.5) 60%, #000 85%);
+}
+
+.writeup-head h2 {
+  margin: 6px 0 2px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.writeup-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--grape-text);
+}
+
+.writeup.failed .writeup-kicker {
+  color: var(--red);
+}
+
+.writeup-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.writeup-time {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.writeup-steps {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-width: 460px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.writeup-step {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 6px 0;
+  font-size: 13.5px;
+  transition: color 0.3s ease;
+}
+
+.writeup-step.pending,
+.writeup-step.skipped {
+  color: var(--text-3);
+}
+
+.writeup-step.skipped .writeup-label {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--text-3) 50%, transparent);
+}
+
+.writeup-step.active {
+  font-weight: 600;
+}
+
+.writeup-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  color: var(--text-3);
+}
+
+.writeup-step.active .writeup-icon {
+  border-color: transparent;
+  color: var(--grape-text);
+}
+
+.writeup-step.active .writeup-icon .spinner {
+  width: 16px;
+  height: 16px;
+}
+
+.writeup-step.done .writeup-icon {
+  border-color: transparent;
+  color: #fff;
+  background: var(--grape-text);
+  animation: writeup-pop 0.35s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.writeup-step.failed .writeup-icon {
+  border-color: transparent;
+  color: #fff;
+  background: var(--red);
+}
+
+@keyframes writeup-pop {
+  from {
+    transform: scale(0.4);
+  }
+}
+
+.writeup-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.writeup-right {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.writeup-step.active .writeup-right {
+  color: var(--text-2);
+}
+
+.writeup-bar {
+  grid-column: 2 / -1;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--grape) 16%, transparent);
+}
+
+.writeup-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--grape-text);
+  transition: width 0.35s ease;
+}
+
+/* No measure of how far: a soft band travels along. */
+.writeup-bar.unknown > span {
+  width: 35%;
+  animation: writeup-travel 1.4s ease-in-out infinite;
+}
+
+@keyframes writeup-travel {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+.writeup-heard {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-panel);
+  max-width: 560px;
+}
+
+.writeup-heard p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-2);
+  animation: writeup-line 0.4s ease-out;
+  transition: opacity 0.4s ease;
+}
+
+@keyframes writeup-line {
+  from {
+    transform: translateY(6px);
+  }
+}
+
+.writeup-who {
+  display: inline-block;
+  min-width: 36px;
+  margin-right: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--grape-text);
+}
+
+.writeup-who.you {
+  color: var(--sky-text);
+}
+
+.writeup-error {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-panel);
+}
+
+.writeup-error p {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* Done: what came out. */
+.writeup.ready {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border-color: color-mix(in srgb, var(--sky) 45%, var(--border-panel));
+}
+
+.writeup-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--sky-text);
+  animation: writeup-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.writeup-ready-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.writeup-ready-body h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.writeup-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.writeup-facts span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text);
+  background: var(--bg-hover);
+  animation: writeup-fact 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes writeup-fact {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+/* The notes arrive: their parts rise in, one after another. */
+.summary.revealing > * {
+  animation: writeup-fact 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.summary.revealing > :nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.summary.revealing > :nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.summary.revealing > :nth-child(4) {
+  animation-delay: 180ms;
+}
+
+.summary.revealing > :nth-child(n + 5) {
+  animation-delay: 240ms;
+}
+
+/* The compact card on the live notes panel after the recording: the
+   panel's own look, fitted to its content. */
+.live-stage.wrapup-stage {
+  height: auto;
+}
+
+.writeup.compact {
+  margin: 0;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg);
+}
+
+.writeup.compact .writeup-head h2 {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.writeup.compact .writeup-steps {
+  margin-top: 12px;
+}
+
+.writeup.compact .writeup-step {
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.writeup-compact-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-panel);
+}
+
+.writeup-compact-heard {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.writeup-compact-foot .link-button {
+  flex: none;
+  margin-left: auto;
+}
+
+.writeup.ready.compact {
+  gap: 12px;
+}
+
+.writeup.ready.compact .writeup-check {
+  width: 32px;
+  height: 32px;
+}
+
+.writeup.ready.compact h2 {
+  font-size: 16px;
+}
+
+.writeup-open {
+  margin-top: 14px;
+  gap: 4px;
+}
+
+/* Toasts (Toasts.tsx), at the bottom right of the main area. */
+.main {
+  position: relative;
+}
+
+.toasts {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+  width: min(380px, calc(100% - 36px));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  animation: toast-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+.toast-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--sky-text);
+}
+
+.toast.failed .toast-icon {
+  background: var(--red);
+}
+
+.toast-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.toast-body strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.toast-body span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.toast-open {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .writeup,
+  .writeup-heard p,
+  .writeup-facts span,
+  .summary.revealing > *,
+  .toast,
+  .writeup-step.done .writeup-icon,
+  .writeup-check {
+    animation: none;
+  }
+
+  .writeup-bar.unknown > span {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
   }
 }
 

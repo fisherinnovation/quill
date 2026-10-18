@@ -44,6 +44,35 @@ pub struct TranscribeOptions {
     /// For live dictation's passes over audio that ends mid-word, where
     /// retries cost seconds and the next pass redoes it anyway.
     pub no_fallback: bool,
+    /// Told how the transcription is going, for showing progress. Doesn't
+    /// change the result.
+    pub progress: Option<Progress>,
+}
+
+/// What a [`Progress`] hook hears while a transcription runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProgressEvent {
+    /// How far through the audio Whisper is, 0–100.
+    Percent(u8),
+    /// A line as soon as it's recognised (before speech is mapped back to
+    /// the recording's timeline).
+    Line(String),
+}
+
+/// A hook for [`ProgressEvent`]s, shareable with Whisper's callbacks.
+#[derive(Clone)]
+pub struct Progress(pub std::sync::Arc<dyn Fn(ProgressEvent) + Send + Sync>);
+
+impl Progress {
+    pub fn new(f: impl Fn(ProgressEvent) + Send + Sync + 'static) -> Self {
+        Self(std::sync::Arc::new(f))
+    }
+}
+
+impl std::fmt::Debug for Progress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Progress(..)")
+    }
 }
 
 /// Anything that turns 16 kHz mono audio into timestamped text.

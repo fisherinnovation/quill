@@ -15,6 +15,7 @@ pub mod llm_choices;
 pub mod meeting;
 pub mod overview;
 pub mod paths;
+pub mod processing;
 pub mod samples;
 pub mod settings;
 pub mod speakers;

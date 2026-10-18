@@ -57,6 +57,15 @@ pub struct LiveState {
     pub heard: Option<String>,
     pub error: Option<String>,
     pub collapsed: bool,
+    /// After the recording stops: the meeting being written up. The panel
+    /// becomes a small card following it until the notes are ready.
+    pub wrapping: Option<Wrapping>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Wrapping {
+    pub meeting_id: String,
+    pub title: String,
 }
 
 /// The panel's state and the worker's controls.
@@ -132,19 +141,91 @@ pub fn start(app: &AppHandle, dir: PathBuf) {
         .ok();
 }
 
-/// Stops live notes when the recording stops.
-pub fn stop(app: &AppHandle) {
+/// Stops live notes when the recording stops. If the panel was showing,
+/// it stays as a small card following `meeting`'s write-up (id, title).
+pub fn stop(app: &AppHandle, meeting: (String, String)) {
     let Some(live) = app.try_state::<LiveNotes>() else {
         return;
     };
-    if let Some(stop) = lock(&live.stop).take() {
+    let was_showing = lock(&live.stop).take().is_some_and(|stop| {
         stop.store(true, Ordering::SeqCst);
+        true
+    });
+    {
+        let mut state = lock(&live.state);
+        state.active = false;
+        state.collapsed = false;
+        state.wrapping = was_showing.then_some(Wrapping {
+            meeting_id: meeting.0,
+            title: meeting.1,
+        });
     }
-    lock(&live.state).active = false;
     live.emit(app);
+    if was_showing {
+        // Sized to fit by the page (`live_notes_fit`) once it's drawn.
+        show_wrap_up(app, WRAP_HEIGHT);
+    } else {
+        close(app);
+    }
+}
+
+/// The meeting the panel is following the write-up of, if it is.
+pub fn wrapping(app: &AppHandle) -> Option<String> {
+    let live = app.try_state::<LiveNotes>()?;
+    lock(&live.state)
+        .wrapping
+        .as_ref()
+        .map(|w| w.meeting_id.clone())
+}
+
+/// The wrap-up card's height before the page has measured it.
+const WRAP_HEIGHT: f64 = 330.0;
+
+fn show_wrap_up(app: &AppHandle, height: f64) {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        crate::floating::show(
+            &window,
+            (WIDTH, height.clamp(120.0, MAX_HEIGHT)),
+            Place::RightTop,
+        );
+    }
+}
+
+fn close(app: &AppHandle) {
+    if let Some(live) = app.try_state::<LiveNotes>() {
+        lock(&live.state).wrapping = None;
+        live.emit(app);
+    }
     if let Some(window) = app.get_webview_window(LABEL) {
         crate::floating::hide(&window);
     }
+}
+
+/// The wrap-up card's height changed: fit the panel to it.
+#[tauri::command]
+pub fn live_notes_fit(app: AppHandle, live: tauri::State<'_, LiveNotes>, height: f64) {
+    if lock(&live.state).wrapping.is_some() {
+        show_wrap_up(&app, height);
+    }
+}
+
+/// Closes the wrap-up card.
+#[tauri::command]
+pub fn live_notes_close(app: AppHandle) {
+    close(&app);
+}
+
+/// Opens the meeting being wrapped up in Quill's window, and closes the card.
+#[tauri::command]
+pub fn live_notes_open_meeting(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
+    let id = lock(&live.state)
+        .wrapping
+        .as_ref()
+        .map(|w| w.meeting_id.clone());
+    if let Some(id) = id {
+        crate::open_meeting(&app, &id);
+    }
+    close(&app);
 }
 
 /// The worker: follow the tracks, transcribe, update the notes.
