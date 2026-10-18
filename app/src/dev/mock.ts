@@ -209,8 +209,21 @@ async function installUpdate() {
   location.search = flags.toString();
 }
 
-let dictations = [
-  { id: 103, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true, app: "Slack" },
+let dictations: {
+  id: number;
+  created_at: string;
+  text: string;
+  raw: string | null;
+  polish_model: string | null;
+  audio_ms: number;
+  latency_ms: number;
+  pasted: boolean;
+  app: string;
+  corrected?: string | null;
+}[] = [
+  { id: 105, created_at: iso(60_000), text: "Can we move the design review to Friday afternoon?", raw: null, polish_model: null, audio_ms: 3200, latency_ms: 290, pasted: true, app: "Messages" },
+  { id: 104, created_at: iso(3 * 60_000), text: "The retry loop in sync_client backs off exponentially but never caps the delay, so after a long outage the client waits hours before trying again. Cap it at sixty seconds and add jitter, then log each retry at debug level with the attempt number and the error, so we can see it in the field without flooding the logs.", raw: "The retry loop in sync client backs off exponentially but never caps the delay, um, so after a long outage the client waits hours before trying again. Cap it at sixty seconds and add jitter, then log each retry at debug level with the attempt number and the error, so we can see it in the field without flooding the logs.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 41_000, latency_ms: 720, pasted: true, app: "Cursor" },
+  { id: 103, created_at: iso(4 * 60_000), text: "Sounds good, I'll send the rollout plan to support by Wednesday.", raw: null, polish_model: null, audio_ms: 3900, latency_ms: 310, pasted: true, app: "Slack", corrected: "Sounds good, I'll send the rollout plan to Priya by Wednesday." },
   { id: 102, created_at: iso(40 * 60_000), text: "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", raw: "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 9100, latency_ms: 980, pasted: true, app: "Notion" },
   { id: 101, created_at: iso(3 * H), text: "Let's meet at 4 p.m. on Thursday in the big conference room.", raw: "Let's meet at 3, no wait, 4 p.m. on Thursday in the big conference room.", polish_model: "google/gemini-3.5-flash-lite", audio_ms: 6100, latency_ms: 940, pasted: false, app: "Mail" },
 ];

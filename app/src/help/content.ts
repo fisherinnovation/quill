@@ -326,6 +326,15 @@ A misspelled name ("Quil" → "Quill") becomes a vocabulary word; words typed ap
         keywords: "history past dictations copy lost text clipboard",
         body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
 
+Each dictation is colour-coded by what happened to it:
+
+- **Tidied up** (blue): clean-up changed what Whisper heard.
+- **As spoken** (no colour): typed exactly as heard.
+- **Corrected** (purple): you fixed it afterwards.
+- **Not typed** (pink): Quill couldn't paste it, so it was left on your clipboard.
+
+The chips above the list show how many of each there are; click one to show only those. Tags also mark questions, lists, and dictations over 20 seconds, with their length.
+
 History is kept only on your computer. Turn it off or delete it all in **Settings → Dictation → History**; words Quill has learned stay.`,
       },
       {

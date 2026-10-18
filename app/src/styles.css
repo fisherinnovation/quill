@@ -2036,28 +2036,134 @@ mark {
   border-radius: 8px;
   font-size: 13px;
   font-weight: 700;
-}
-
-.app-badge.fuchsia {
-  color: var(--accent-text);
-  background: var(--accent-soft);
-}
-
-.app-badge.grape {
-  color: var(--grape-text);
-  background: rgb(108 110 160 / 0.16);
-}
-
-.app-badge.sky {
-  color: var(--sky-text);
-  background: var(--sky-soft);
-}
-
-.app-badge.slate,
-.app-badge.none {
   color: var(--text-2);
   background: var(--bg-hover);
 }
+
+/* What happened to each dictation, by colour: tidied up (sky), corrected
+   (grape), not typed (fuchsia: the one to act on). As spoken, the usual
+   case, stays plain. An edge on the row, a tag, and the filter's dot. */
+.dictation-row,
+.kind-chip,
+.dictation-tag.kind {
+  --kind: transparent;
+  --kind-text: var(--text-2);
+  --kind-soft: var(--bg-hover);
+}
+
+:is(.dictation-row, .kind-chip, .dictation-tag).tidied {
+  --kind: var(--sky);
+  --kind-text: var(--sky-text);
+  --kind-soft: var(--sky-soft);
+}
+
+:is(.dictation-row, .kind-chip, .dictation-tag).corrected {
+  /* The text shade: plain grape is too dim on the dark theme. */
+  --kind: var(--grape-text);
+  --kind-text: var(--grape-text);
+  --kind-soft: rgb(108 110 160 / 0.16);
+}
+
+:is(.dictation-row, .kind-chip, .dictation-tag).clipboard {
+  --kind: var(--accent);
+  --kind-text: var(--accent-text);
+  --kind-soft: var(--accent-soft);
+}
+
+.kind-chip.spoken {
+  --kind: var(--text-3);
+}
+
+.dictation-row {
+  box-shadow: inset 3px 0 0 var(--kind);
+}
+
+.dictation-tags {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.dictation-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: var(--bg-hover);
+  font-variant-numeric: tabular-nums;
+}
+
+.dictation-tag.kind {
+  font-weight: 600;
+  color: var(--kind-text);
+  background: var(--kind-soft);
+}
+
+.kind-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 22px 0 -4px;
+}
+
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-panel);
+  background: var(--bg-panel);
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.kind-chip:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-panel-hover);
+}
+
+.kind-chip.on,
+.kind-chip.on:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--selected);
+}
+
+.kind-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kind);
+}
+
+/* As spoken has no colour of its own: a ring, not a dot. */
+.kind-chip.spoken .kind-dot {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+
+.kind-count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Narrow: the tags give way to the text. */
+@container (max-width: 620px) {
+  .dictation-tag:not(.kind) {
+    display: none;
+  }
+}
+
 
 /* Animated level bars while listening */
 .bars {

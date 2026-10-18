@@ -33,6 +33,7 @@ export function DictationsView({
   const [settings, setSettings] = useState<DictationSettings | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
+  const [only, setOnly] = useState<Kind | null>(null);
 
   useEffect(() => {
     void api.getSettings().then((s) => setSettings(s.dictation));
@@ -146,7 +147,11 @@ export function DictationsView({
         </div>
       ) : (
         <>
-          {groupByDay(history.entries, (d) => d.created_at).map(([label, group]) => {
+          <KindFilter entries={history.entries} only={only} onChange={setOnly} />
+          {groupByDay(
+            history.entries.filter((d) => !only || kindOf(d) === only),
+            (d) => d.created_at,
+          ).map(([label, group]) => {
             const words = group.reduce((n, d) => n + wordCount(d), 0);
             return (
               <section className="group" key={label}>
@@ -160,7 +165,7 @@ export function DictationsView({
                 <ul className="card item-list dictation-list">
                   {group.map((d) => (
                     <li key={d.id}>
-                      <button className="item-row dictation-row" onClick={() => onOpen(d.id)}>
+                      <button className={`item-row dictation-row ${kindOf(d)}`} onClick={() => onOpen(d.id)}>
                         <AppBadge app={d.app} />
                         <span className="dictation-row-body">
                           <span className="item-text">{dictationTitle(d)}</span>
@@ -170,10 +175,9 @@ export function DictationsView({
                             <span className="dot-sep">
                               {wordCount(d)} {wordCount(d) === 1 ? "word" : "words"}
                             </span>
-                            {d.corrected && <span className="dot-sep">corrected</span>}
-                            {!d.pasted && <span className="dot-sep">left on clipboard</span>}
                           </span>
                         </span>
+                        <Tags entry={d} />
                         <Icon name="chevron-right" size={14} />
                       </button>
                     </li>
@@ -322,23 +326,107 @@ function wordCount(d: DictationEntry): number {
   return text ? text.split(/\s+/).length : 0;
 }
 
-/** The palette's soft tints, one per app (by name), for its badge. */
-const TINTS = ["fuchsia", "grape", "sky", "slate"] as const;
+/**
+ * What happened to a dictation, which colours it: left on the clipboard
+ * (it wasn't typed: the one to act on), corrected by the user, tidied up by
+ * clean-up, or typed as spoken.
+ */
+type Kind = "clipboard" | "corrected" | "tidied" | "spoken";
 
-/** An app's first letter on a tint of its own, so the list scans by app. */
-function AppBadge({ app }: { app: string | null }) {
-  if (!app) {
-    return (
-      <span className="app-badge none" aria-hidden>
-        <Icon name="mic" size={13} />
-      </span>
-    );
-  }
-  let hash = 0;
-  for (const ch of app) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+const KINDS: { kind: Kind; label: string; icon: IconName; hint: string }[] = [
+  { kind: "tidied", label: "Tidied up", icon: "sparkle", hint: "Clean-up changed what Whisper heard" },
+  { kind: "spoken", label: "As spoken", icon: "mic", hint: "Typed exactly as heard" },
+  { kind: "corrected", label: "Corrected", icon: "text", hint: "You fixed it afterwards" },
+  { kind: "clipboard", label: "Not typed", icon: "copy", hint: "Left on the clipboard: Quill couldn't paste" },
+];
+
+function kindOf(d: DictationEntry): Kind {
+  if (!d.pasted) return "clipboard";
+  if (d.corrected) return "corrected";
+  if (d.raw) return "tidied";
+  return "spoken";
+}
+
+/** All, or one kind: the chips are also the colours' legend. */
+function KindFilter({
+  entries,
+  only,
+  onChange,
+}: {
+  entries: DictationEntry[];
+  only: Kind | null;
+  onChange: (kind: Kind | null) => void;
+}) {
+  const counts = new Map<Kind, number>();
+  for (const d of entries) counts.set(kindOf(d), (counts.get(kindOf(d)) ?? 0) + 1);
+  const shown = KINDS.filter((k) => counts.get(k.kind));
+  // One kind only: nothing to tell apart.
+  if (shown.length < 2 && !only) return null;
   return (
-    <span className={`app-badge ${TINTS[hash % TINTS.length]}`} aria-hidden>
-      {app.trim().charAt(0).toUpperCase()}
+    <div className="kind-filter" role="group" aria-label="Show">
+      <button className={`kind-chip${only === null ? " on" : ""}`} aria-pressed={only === null} onClick={() => onChange(null)}>
+        All <span className="kind-count">{entries.length}</span>
+      </button>
+      {shown.map((k) => (
+        <button
+          key={k.kind}
+          className={`kind-chip ${k.kind}${only === k.kind ? " on" : ""}`}
+          aria-pressed={only === k.kind}
+          title={k.hint}
+          onClick={() => onChange(only === k.kind ? null : k.kind)}
+        >
+          <span className="kind-dot" />
+          {k.label} <span className="kind-count">{counts.get(k.kind)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * What's notable about a dictation, at a glance: its kind (unless typed as
+ * spoken, the usual case), and whether it's a question, a list, or long.
+ */
+function Tags({ entry }: { entry: DictationEntry }) {
+  const kind = kindOf(entry);
+  const text = (entry.corrected ?? entry.text).trim();
+  const facts: { label: string; icon?: IconName }[] = [];
+  if (/^\s*(?:[-*•]|\d+[.)])\s/m.test(text)) facts.push({ label: "List" });
+  else if (text.endsWith("?")) facts.push({ label: "Question" });
+  if (entry.audio_ms >= LONG_MS) facts.push({ label: clock(entry.audio_ms), icon: "clock" });
+  const k = KINDS.find((x) => x.kind === kind);
+  return (
+    <span className="dictation-tags">
+      {facts.map((f) => (
+        <span key={f.label} className="dictation-tag">
+          {f.icon && <Icon name={f.icon} size={11} />}
+          {f.label}
+        </span>
+      ))}
+      {k && kind !== "spoken" && (
+        <span className={`dictation-tag kind ${kind}`} title={k.hint}>
+          <Icon name={k.icon} size={11} />
+          {k.label}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Long enough to be worth pointing out (most dictations are a few seconds). */
+const LONG_MS = 20_000;
+
+/** "0:41", "2:05". */
+function clock(ms: number): string {
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** An app's first letter, so the list scans by app. */
+function AppBadge({ app }: { app: string | null }) {
+  return (
+    <span className="app-badge" aria-hidden>
+      {app ? app.trim().charAt(0).toUpperCase() : <Icon name="mic" size={13} />}
     </span>
   );
 }

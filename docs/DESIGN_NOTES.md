@@ -376,6 +376,12 @@ decision someone might otherwise undo.
   is hidden and holds still with reduced motion. Below it, the all-time
   numbers count up once; each day in the history shows its totals, and
   each dictation a badge for its app.
+- **Dictation colours** say what happened to each one, one colour per
+  outcome so they don't compete: not typed (left on the clipboard,
+  fuchsia, the one to act on) before corrected (grape) before tidied up
+  (sky); typed as spoken, the usual case, stays plain. The filter chips
+  are the legend. App badges are neutral, so colour means only this.
+  Questions, lists and dictations over 20 s get grey tags.
 - **Help** is a page in the app (sidebar, and Help → Quill Help on macOS),
   not a website: it works offline and can say "Settings → Dictation" for
   the settings the user actually has. Articles live in
