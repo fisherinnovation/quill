@@ -316,6 +316,12 @@ decision someone might otherwise undo.
   localStorage: a per-computer view preference, not a setting.
 - **Insights are part of Home**, not a page of their own, under the
   meetings. Two pages of numbers about the same use were one too many.
+- **Background wash:** the main area has a faint gradient of the palette
+  (fuchsia from the top right, sky or grape from the top left), the one
+  exception to flat colours: a plain sheet looked flat in both themes. It
+  stays put while pages scroll. The meeting page's sticky header spans the
+  whole content area (container units) and is see-through, so it doesn't
+  sit on the wash as a box.
 - **Home leads with content, not chrome.** A generated-dashboard look
   (greeting, equal cards, a row of KPI tiles, explanatory copy) read as
   robotic. Home now opens with a plain sentence about the day, then the

@@ -2,7 +2,9 @@
    Quill design tokens. Palette: Hot Fuchsia #ff1053 (the one accent),
    Dusty Grape #6c6ea0, Sky Blue #66c7f4, Pale Slate #c1cad6, white.
    Neutrals are tinted towards grape so the greys belong to the palette.
-   Flat colours and borders; no gradients or glows.
+   Flat colours and borders. The one exception is the main area's
+   background (--bg-wash): a faint wash of the palette, so the page isn't
+   a flat sheet. Nothing else gets gradients or glows.
    ========================================================================== */
 :root {
   color-scheme: light dark;
@@ -17,6 +19,11 @@
   --slate: #c1cad6;
 
   --bg: #ffffff;
+  /* Fuchsia from the top right, sky from the top left, fading to --bg. */
+  --bg-wash:
+    radial-gradient(120% 70% at 100% 0%, rgb(255 16 83 / 0.055), transparent 60%),
+    radial-gradient(90% 60% at 0% 0%, rgb(102 199 244 / 0.09), transparent 65%),
+    linear-gradient(to bottom, #fbfbfe, var(--bg) 70%);
   --bg-sidebar: #eef1f5;
   --bg-elevated: #ffffff;
   --bg-subtle: #f5f6f9;
@@ -91,6 +98,16 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #14141c;
+  /* Fuchsia from the top right, grape from the top left. */
+  --bg-wash:
+    radial-gradient(120% 70% at 100% 0%, rgb(255 16 83 / 0.07), transparent 60%),
+    radial-gradient(90% 60% at 0% 0%, rgb(108 110 160 / 0.16), transparent 65%),
+    var(--bg);
+    /* Fuchsia from the top right, grape from the top left. */
+    --bg-wash:
+      radial-gradient(120% 70% at 100% 0%, rgb(255 16 83 / 0.07), transparent 60%),
+      radial-gradient(90% 60% at 0% 0%, rgb(108 110 160 / 0.16), transparent 65%),
+      var(--bg);
     --bg-sidebar: #1b1b26;
     --bg-elevated: #1f1f2b;
     --bg-subtle: #232331;
@@ -123,6 +140,11 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #14141c;
+  /* Fuchsia from the top right, grape from the top left. */
+  --bg-wash:
+    radial-gradient(120% 70% at 100% 0%, rgb(255 16 83 / 0.07), transparent 60%),
+    radial-gradient(90% 60% at 0% 0%, rgb(108 110 160 / 0.16), transparent 65%),
+    var(--bg);
   --bg-sidebar: #1b1b26;
   --bg-elevated: #1f1f2b;
   --bg-subtle: #232331;
@@ -1088,13 +1110,18 @@ mark {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--bg);
+  /* Stays put while the page scrolls over it. */
+  background: var(--bg-wash);
 }
 
 .main-scroll {
   flex: 1;
   overflow-y: auto;
+  /* Full-width bars reach the edges exactly; never scroll sideways. */
+  overflow-x: hidden;
   min-height: 0;
+  /* Lets full-width bars inside a page measure it (cqw). */
+  container-type: inline-size;
 }
 
 .page {
@@ -1211,11 +1238,15 @@ mark {
   position: sticky;
   top: 0;
   z-index: 2;
-  margin: 0 -40px 20px;
-  padding: 4px 40px 0;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: saturate(180%) blur(16px);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  /* As wide as the whole content area, like a toolbar (no box edges over
+     the background wash), with its contents still in line with the page. */
+  margin: 0 calc(50% - 50cqw) 20px;
+  padding: 4px calc(50cqw - 50%) 0;
+  /* See-through enough to show the wash, blurred enough to read over
+     whatever scrolls under it. */
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border);
 }
 
