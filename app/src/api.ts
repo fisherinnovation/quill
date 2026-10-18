@@ -88,6 +88,14 @@ export interface Settings {
 /** What the call prompt asks (src-tauri/src/calls.rs). */
 export type CallPrompt = { kind: "record"; app: string } | { kind: "stop"; app: string };
 
+/** What's been said so far while dictating (quill_core::live::Caption). */
+export interface Caption {
+  /** Locked in: won't change. */
+  committed: string;
+  /** The latest guess at the rest: may still change. */
+  tentative: string;
+}
+
 /** "system" follows the OS, including when it switches. */
 export type Theme = "system" | "light" | "dark";
 
@@ -122,6 +130,8 @@ export interface DictationSettings {
   keep_history: boolean;
   /** Keep each dictation's audio and typed text, to measure accuracy. */
   save_samples: boolean;
+  /** Show what's being said, above the dictation pill, while speaking. */
+  live_captions: boolean;
   app_styles: AppStyle[];
 }
 
@@ -536,6 +546,9 @@ export const events = {
   onUpdate: (cb: (info: UpdateInfo) => void): Promise<UnlistenFn> =>
     listen<UpdateInfo>("update-status", (e) => cb(e.payload)),
   /** Mic peak 0..1, sent only to the indicator window while listening. */
+  /** Live captions while dictating (indicator window). */
+  onCaption: (cb: (caption: Caption) => void): Promise<UnlistenFn> =>
+    listen<Caption>("dictation-caption", (e) => cb(e.payload)),
   onLevel: (cb: (level: number) => void): Promise<UnlistenFn> =>
     listen<number>("dictation-level", (e) => cb(e.payload)),
 };

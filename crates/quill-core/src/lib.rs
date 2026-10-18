@@ -9,6 +9,7 @@ pub mod corrections;
 pub mod dictation;
 pub mod insights;
 pub mod library;
+pub mod live;
 pub mod llm_choices;
 pub mod meeting;
 pub mod overview;

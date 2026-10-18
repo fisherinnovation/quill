@@ -167,6 +167,26 @@ decision someone might otherwise undo.
   sized to the clip, VAD trimming only the outer silence) takes 0.27 s
   median on turbo, versus 0.6–0.7 s with meeting settings. Details in
   `eval/dictation/README.md`.
+- **Live captions** (`quill_core::live`, on by default): while listening,
+  a pass every 0.6 s re-transcribes the audio not yet locked in (no
+  temperature retries: audio ending mid-word makes Whisper unsure, and
+  retries took seconds). A segment locks in when two passes agree on it, it
+  isn't the last one, there's a real pause after it to cut at (150 ms below
+  20% of its speech level, within 0.8 s of Whisper's end time, which runs
+  early in short-clip mode), and its words fit the audio (at most 4.5 a
+  second: short-clip timestamps can put a long stretch's end seconds early,
+  and cutting there transcribed it twice). On release only the rest is
+  transcribed, primed with the locked text, minus any words repeating its
+  end. If the result has a Whisper loop (8 words repeated), one pass over
+  everything is used instead, when that one hasn't.
+- **Live captions, measured** (2026-10-17, M3 Pro, turbo; `quill-cli
+  dictate --stream` over 54 saved dictations): release to text went from a
+  median of 1.9 s to 0.53 s for dictations over 30 s (6.5 s to 0.15 s for
+  two minutes; 75% locked in by release), 0.65 s to 0.39 s at 15–30 s, and
+  unchanged under 15 s. Passes take ~0.3 s (rarely 2–3 s before anything
+  locks). The text matched a single pass but for 68 of 1,633 words: 57 were
+  a single pass's Whisper loops (repeated phrases) that live avoided, 11
+  one-word differences. The TTS clips match a single pass exactly but one.
 - **Clean-up only when needed:** `needs_polish` runs the model only for
   fillers, corrections, lists or stutters; on clean speech the model
   returned Whisper's text unchanged 7 times out of 9. Default

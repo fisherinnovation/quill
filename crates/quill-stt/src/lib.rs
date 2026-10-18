@@ -40,6 +40,10 @@ pub struct TranscribeOptions {
     /// greedy decoding and an encoder sized to the clip, which cuts latency
     /// several times over. Leave off for meetings.
     pub short_clip: bool,
+    /// Don't retry at higher temperatures when the decode looks unsure.
+    /// For live dictation's passes over audio that ends mid-word, where
+    /// retries cost seconds and the next pass redoes it anyway.
+    pub no_fallback: bool,
 }
 
 /// Anything that turns 16 kHz mono audio into timestamped text.

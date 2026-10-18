@@ -91,6 +91,8 @@ pub struct DictationSettings {
     /// Keep each dictation's audio and typed text, to measure accuracy
     /// (`quill_core::samples`). Off unless the user turns it on.
     pub save_samples: bool,
+    /// Show what's being said while dictating (`quill_core::live`).
+    pub live_captions: bool,
     /// Styles chosen for particular apps, overriding the built-in ones
     /// (`dictation::style_for`).
     pub app_styles: Vec<AppStyle>,
@@ -132,6 +134,7 @@ impl Default for DictationSettings {
             replacements: Vec::new(),
             keep_history: true,
             save_samples: false,
+            live_captions: true,
             app_styles: Vec::new(),
         }
     }

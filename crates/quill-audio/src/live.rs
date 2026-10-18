@@ -4,7 +4,8 @@
 //! last [`PRE_ROLL`] of audio, so speech that starts a moment before the
 //! hotkey registers isn't cut off; [`MicStream::begin`] starts collecting
 //! (pre-roll included) and [`MicStream::finish`] returns everything since as
-//! 16 kHz mono.
+//! 16 kHz mono. A [`MicTap`] reads what's been collected so far from
+//! another thread, for live captions.
 //!
 //! The audio callback only pushes samples into a lock-free ring buffer (no
 //! locks or allocation on the audio thread). A collector thread drains it
@@ -191,6 +192,37 @@ impl MicStream {
     /// Stops collecting and discards the audio.
     pub fn cancel(&self) {
         self.shared.lock().take = None;
+    }
+
+    /// A handle that reads the audio collected so far, from any thread.
+    pub fn tap(&self) -> MicTap {
+        MicTap {
+            shared: Arc::clone(&self.shared),
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+        }
+    }
+}
+
+/// Reads a [`MicStream`]'s audio while it's still collecting.
+#[derive(Clone)]
+pub struct MicTap {
+    shared: Arc<Shared>,
+    sample_rate: u32,
+    channels: u16,
+}
+
+impl MicTap {
+    /// Everything since [`MicStream::begin`] as 16 kHz mono (what
+    /// [`MicStream::finish`] would return now). Empty when not collecting.
+    pub fn so_far(&self) -> Result<Vec<f32>, AudioError> {
+        let take = {
+            let mut buffer = self.shared.lock();
+            buffer.drain();
+            buffer.take.clone().unwrap_or_default()
+        };
+        let mono = to_mono(&take, self.channels);
+        resample_mono(&mono, self.sample_rate, STT_SAMPLE_RATE)
     }
 }
 

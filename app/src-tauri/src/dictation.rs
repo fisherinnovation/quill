@@ -20,8 +20,10 @@ use std::time::{Duration, Instant};
 
 use quill_audio::STT_SAMPLE_RATE;
 use quill_audio::cue::{self, Cue};
-use quill_audio::live::MicStream;
+use quill_audio::live::{MicStream, MicTap};
 use quill_core::library::{DictationEntry, DictationStat, Suggestion, SuggestionStatus};
+use quill_core::live::{Caption, LiveTranscript};
+use quill_core::settings::Settings;
 use quill_core::settings::{DictationSettings, FN_HOTKEY, Style};
 use quill_core::{dictation, samples};
 use serde::Serialize;
@@ -205,6 +207,8 @@ struct Controller {
     mic: Option<MicStream>,
     last_used: Instant,
     listening: Option<Listening>,
+    /// Transcribing as the user speaks, for captions, while listening.
+    live: Option<LiveWorker>,
     /// When fn went down, while waiting out [`FN_GRACE`].
     fn_pending: Option<Instant>,
     #[cfg(target_os = "macos")]
@@ -228,6 +232,7 @@ impl Controller {
             mic: None,
             last_used: Instant::now(),
             listening: None,
+            live: None,
             fn_pending: None,
             #[cfg(target_os = "macos")]
             fn_key: None,
@@ -381,6 +386,10 @@ impl Controller {
             return;
         };
         mic.begin();
+        if settings.dictation.live_captions {
+            indicator::caption(&self.app, &Caption::default());
+            self.live = Some(LiveWorker::spawn(self.app.clone(), mic.tap(), settings));
+        }
         cue::play(Cue::Start);
         *lock(&self.shared.error) = None;
         self.listening = Some(Listening {
@@ -438,6 +447,8 @@ impl Controller {
         let Some(listening) = self.end_listening() else {
             return;
         };
+        // Dropped on the early returns below, which stops it.
+        let live = self.live.take();
         let Some(mic) = &self.mic else {
             return;
         };
@@ -463,7 +474,7 @@ impl Controller {
         let target = listening.app;
         tauri::async_runtime::spawn(async move {
             let stopped = Instant::now();
-            let result = process(&app, pcm, audio, stopped, target).await;
+            let result = process(&app, pcm, audio, stopped, target, live).await;
             shared.pending.fetch_sub(1, Ordering::SeqCst);
             if let Err(e) = result {
                 tracing::error!("dictation failed: {e}");
@@ -475,6 +486,8 @@ impl Controller {
     }
 
     fn cancel(&mut self) {
+        // It finishes the pass it's on and ends; nothing waits for it.
+        self.live = None;
         if self.end_listening().is_some() {
             if let Some(mic) = &self.mic {
                 mic.cancel();
@@ -497,6 +510,76 @@ impl Controller {
         cue::play(Cue::Cancel);
         *lock(&self.shared.error) = Some(error);
         notify(&self.app, &self.shared);
+    }
+}
+
+/// How often captions update while listening: a pass over the unlocked
+/// audio takes ~0.2 s on turbo (eval/dictation/README.md).
+const LIVE_STEP: Duration = Duration::from_millis(600);
+
+/// Live captions (Settings → Dictation): on its own thread, transcribes what's
+/// been said so far every [`LIVE_STEP`] and shows it above the indicator.
+/// Handed back on release, it leaves only the end to transcribe. Dropping it
+/// stops it.
+struct LiveWorker {
+    stop: Arc<AtomicBool>,
+    handle: Option<std::thread::JoinHandle<Option<LiveTranscript>>>,
+}
+
+impl LiveWorker {
+    fn spawn(app: AppHandle, tap: MicTap, settings: Settings) -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopping = Arc::clone(&stop);
+        let handle = std::thread::spawn(move || {
+            let transcriber = match pipeline::transcriber(&app, None, &settings) {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!("no live captions: {e}");
+                    return None;
+                }
+            };
+            let mut live = LiveTranscript::new();
+            while !stopping.load(Ordering::SeqCst) {
+                let started = Instant::now();
+                let pcm = tap.so_far().map_err(|e| e.to_string());
+                let caption = pcm.and_then(|pcm| {
+                    live.update(transcriber.as_ref(), &pcm, &settings.dictation)
+                        .map_err(|e| e.to_string())
+                });
+                match caption {
+                    Ok(caption) if !stopping.load(Ordering::SeqCst) => {
+                        indicator::caption(&app, &caption);
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        // The release does a single pass instead.
+                        tracing::warn!("live captions stopped: {e}");
+                        return None;
+                    }
+                }
+                while started.elapsed() < LIVE_STEP && !stopping.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            }
+            Some(live)
+        });
+        Self {
+            stop,
+            handle: Some(handle),
+        }
+    }
+
+    /// Stops, waiting for a pass in progress, and hands back what's locked
+    /// in (`None` if it failed).
+    fn finish(mut self) -> Option<LiveTranscript> {
+        self.stop.store(true, Ordering::SeqCst);
+        self.handle.take()?.join().ok().flatten()
+    }
+}
+
+impl Drop for LiveWorker {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
     }
 }
 
@@ -523,18 +606,36 @@ async fn process(
     audio: Duration,
     stopped: Instant,
     target: Option<quill_insert::FrontApp>,
+    live: Option<LiveWorker>,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
     let settings = lock(&state.settings).clone();
     let sample_pcm = settings.dictation.save_samples.then(|| pcm.clone());
 
-    let raw = {
+    // With live captions, most of it is already transcribed: only the end
+    // is left. Otherwise, or if they failed, one pass over it all.
+    let (raw, live_progress) = {
         let app = app.clone();
         let settings = settings.clone();
         tauri::async_runtime::spawn_blocking(move || {
             let transcriber = pipeline::transcriber(&app, None, &settings)?;
-            dictation::transcribe(transcriber.as_ref(), &pcm, &settings.dictation)
-                .map_err(|e| e.to_string())
+            let live = live.and_then(LiveWorker::finish);
+            let raw = match &live {
+                Some(live) => live.finish(transcriber.as_ref(), &pcm, &settings.dictation),
+                None => dictation::transcribe(transcriber.as_ref(), &pcm, &settings.dictation),
+            }
+            .map_err(|e| e.to_string())?;
+            if live.is_some() {
+                // All of it, while clean-up runs.
+                indicator::caption(
+                    &app,
+                    &Caption {
+                        committed: raw.clone(),
+                        tentative: String::new(),
+                    },
+                );
+            }
+            Ok::<_, String>((raw, live.map(|l| l.progress())))
         })
         .await
         .map_err(|e| e.to_string())??
@@ -604,10 +705,13 @@ async fn process(
     };
     let latency_ms = u64::try_from(latency.as_millis()).unwrap_or(u64::MAX);
     // Timings only: dictated text stays out of the logs.
+    let (live_passes, live_locked_ms) = live_progress.unwrap_or_default();
     tracing::info!(
         stt_ms,
         latency_ms,
         polished = polish_model.is_some(),
+        live_passes,
+        live_locked_ms,
         ?inserted,
         "dictation typed"
     );

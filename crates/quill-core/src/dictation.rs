@@ -52,22 +52,40 @@ pub fn transcribe(
     pcm: &[f32],
     settings: &DictationSettings,
 ) -> Result<String, SttError> {
-    let opts = TranscribeOptions {
-        language: language(settings.language.as_deref()),
-        initial_prompt: vocabulary_prompt(&settings.vocabulary),
-        short_clip: true,
+    let segments = transcriber.transcribe(pcm, &options(settings, None))?;
+    Ok(tidy(&join(&segments), settings))
+}
+
+/// Whisper's options for dictation: short-clip mode, the language, and the
+/// vocabulary as its prompt, followed by `context` (what came just before,
+/// when transcribing in pieces as [`crate::live`] does).
+pub(crate) fn options(settings: &DictationSettings, context: Option<&str>) -> TranscribeOptions {
+    let prompt = match (vocabulary_prompt(&settings.vocabulary), context) {
+        (Some(vocabulary), Some(context)) => Some(format!("{vocabulary} {context}")),
+        (vocabulary, context) => vocabulary.or_else(|| context.map(str::to_string)),
     };
-    let text = transcriber
-        .transcribe(pcm, &opts)?
+    TranscribeOptions {
+        language: language(settings.language.as_deref()),
+        initial_prompt: prompt,
+        short_clip: true,
+        no_fallback: false,
+    }
+}
+
+/// Segments' text, trimmed and joined with spaces.
+pub(crate) fn join(segments: &[quill_stt::Segment]) -> String {
+    segments
         .iter()
         .map(|s| s.text.trim())
         .filter(|t| !t.is_empty())
         .collect::<Vec<_>>()
-        .join(" ");
-    Ok(apply_replacements(
-        &collapse_repeats(&text),
-        &settings.replacements,
-    ))
+        .join(" ")
+}
+
+/// Whisper's text as it should be typed: loops collapsed, replacements
+/// applied.
+pub fn tidy(text: &str, settings: &DictationSettings) -> String {
+    apply_replacements(&collapse_repeats(text), &settings.replacements)
 }
 
 /// Whisper's prompt primes its spelling: listing the terms makes it use them.
@@ -396,6 +414,26 @@ fn is_list_number(word: &str) -> bool {
         .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
+/// Whether `text` repeats a run of [`LOOP_WORDS`] words: a Whisper loop
+/// that [`collapse_repeats`] lets through (it repeats a passage, not one
+/// sentence, or only twice). People don't repeat eight words verbatim.
+pub fn has_loop(text: &str) -> bool {
+    let words: Vec<String> = text
+        .split_whitespace()
+        .map(|w| {
+            w.trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase()
+        })
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    words
+        .windows(LOOP_WORDS)
+        .any(|run| !seen.insert(run.to_vec()))
+}
+
+/// See [`has_loop`].
+const LOOP_WORDS: usize = 8;
+
 /// Collapses a sentence repeated three or more times in a row, a Whisper
 /// failure mode ("Ask not. Ask not. Ask not.") when audio stops abruptly.
 pub fn collapse_repeats(text: &str) -> String {
@@ -498,6 +536,15 @@ mod tests {
             "Unicode ok"
         );
         assert_eq!(apply_replacements("text", &[rule("  ", "x")]), "text");
+    }
+
+    #[test]
+    fn loops_are_long_repeated_runs() {
+        let passage = "we agreed to ship the redesign on friday behind the flag";
+        assert!(has_loop(&format!("{passage}. {passage}.")));
+        assert!(!has_loop(passage));
+        // A short phrase said twice is normal speech.
+        assert!(!has_loop("I think so. Yes, I think so, yes."));
     }
 
     #[test]

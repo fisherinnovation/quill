@@ -48,6 +48,14 @@ pub struct Args {
     /// saved sample's clip.json]
     #[arg(long)]
     app: Option<String>,
+    /// Replay each clip through live dictation (captions while speaking):
+    /// passes every --step-ms of audio, then the final pass on release.
+    /// Compares the text and the wait after release with a single pass.
+    #[arg(long)]
+    stream: bool,
+    /// With --stream, how much audio arrives between passes
+    #[arg(long, default_value_t = 600)]
+    step_ms: u64,
 }
 
 pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
@@ -81,6 +89,10 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     if let Some(first) = args.files.first() {
         let pcm = quill_audio::load_for_stt(first)?;
         dictation::transcribe(&transcriber, &pcm, &settings)?;
+    }
+
+    if args.stream {
+        return stream(&args, &transcriber, &settings);
     }
 
     let mut whisper_total = Tally::default();
@@ -178,6 +190,105 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
         println!(
             "\n{unscored} of {} clips have no reference (clip.txt beside clip.wav), so weren't scored.",
             args.files.len()
+        );
+    }
+    Ok(())
+}
+
+/// `--stream`: each clip through live dictation and through a single pass.
+fn stream(
+    args: &Args,
+    transcriber: &WhisperTranscriber,
+    settings: &DictationSettings,
+) -> anyhow::Result<()> {
+    let step = (args.step_ms as usize * STT_SAMPLE_RATE as usize / 1000).max(1);
+    let (mut single_total, mut live_total) = (Tally::default(), Tally::default());
+    let (mut same, mut single_waits, mut live_waits, mut pass_times) =
+        (0, Vec::new(), Vec::new(), Vec::new());
+    for file in &args.files {
+        let pcm = quill_audio::load_for_stt(file)
+            .with_context(|| format!("reading {}", file.display()))?;
+        let reference = samples::reference(file)?;
+        println!(
+            "\n## {} ({:.1} s)",
+            display_name(file),
+            pcm.len() as f64 / f64::from(STT_SAMPLE_RATE)
+        );
+
+        let started = Instant::now();
+        let single = dictation::transcribe(transcriber, &pcm, settings)?;
+        single_waits.push(started.elapsed().as_millis());
+
+        let mut live = quill_core::live::LiveTranscript::new();
+        let mut end = step;
+        while end < pcm.len() {
+            let started = Instant::now();
+            live.update(transcriber, &pcm[..end], settings)?;
+            pass_times.push(started.elapsed().as_millis());
+            end += step;
+        }
+        let started = Instant::now();
+        let streamed = live.finish(transcriber, &pcm, settings)?;
+        let wait = started.elapsed().as_millis();
+        live_waits.push(wait);
+        let (passes, locked_ms) = live.progress();
+
+        println!(
+            "- single pass {} ms: {single}",
+            single_waits.last().unwrap_or(&0)
+        );
+        println!(
+            "- live, {passes} passes, {:.1} s locked in, {wait} ms after release: {streamed}",
+            locked_ms as f64 / 1000.0
+        );
+        if streamed == single {
+            same += 1;
+            println!("  - same text");
+        } else {
+            println!(
+                "  - differs: {}",
+                wer::align(&single, &streamed).errors().join(" ")
+            );
+        }
+        if let Some(reference) = &reference {
+            single_total += wer::align(reference, &single).tally();
+            live_total += wer::align(reference, &streamed).tally();
+        }
+    }
+
+    let median = |v: &mut Vec<u128>| {
+        v.sort_unstable();
+        v.get(v.len() / 2).copied().unwrap_or(0)
+    };
+    let max = |v: &[u128]| v.iter().max().copied().unwrap_or(0);
+    println!(
+        "\n## Live dictation: {} clips, a pass every {} ms of audio",
+        args.files.len(),
+        args.step_ms
+    );
+    println!(
+        "\n- Same text as a single pass: {same} of {}",
+        args.files.len()
+    );
+    println!(
+        "- Wait after release: single pass median {} ms (max {}), live median {} ms (max {})",
+        median(&mut single_waits.clone()),
+        max(&single_waits),
+        median(&mut live_waits.clone()),
+        max(&live_waits)
+    );
+    println!(
+        "- Passes while speaking: median {} ms, max {} ms (each must finish within the {} ms step)",
+        median(&mut pass_times.clone()),
+        max(&pass_times),
+        args.step_ms
+    );
+    if single_total.reference_words > 0 {
+        println!(
+            "- WER against references ({} words): single pass {:.1}%, live {:.1}%",
+            single_total.reference_words,
+            single_total.wer() * 100.0,
+            live_total.wer() * 100.0
         );
     }
     Ok(())

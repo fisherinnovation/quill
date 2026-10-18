@@ -1,6 +1,6 @@
 //! The floating dictation indicator: a small pill near the bottom of the
 //! screen while dictation listens ("● ▂▅▇▅▂" following the mic level) or
-//! types ("Typing…").
+//! types ("Typing…"), with captions of what's been said above it.
 //!
 //! It's a second, transparent window that can never take focus: the text is
 //! pasted into whatever app has focus, so the indicator must not be it. It
@@ -13,10 +13,14 @@ use crate::dictation::Phase;
 pub const LABEL: &str = "indicator";
 /// Mic level for the indicator's bars, ~20 times a second while listening.
 pub const LEVEL_EVENT: &str = "dictation-level";
+/// What's been said so far (`quill_core::live::Caption`), for the captions
+/// above the pill.
+pub const CAPTION_EVENT: &str = "dictation-caption";
 
-/// Logical size; the page draws the pill centred inside.
-const WIDTH: f64 = 180.0;
-const HEIGHT: f64 = 52.0;
+/// Logical size; the page draws the pill at the bottom centre and the
+/// captions above it. The rest is transparent and ignores the mouse.
+const WIDTH: f64 = 640.0;
+const HEIGHT: f64 = 160.0;
 /// Gap above the bottom of the usable screen area (above the Dock).
 const MARGIN: f64 = 28.0;
 
@@ -62,6 +66,10 @@ pub fn update(app: &AppHandle, phase: Phase) {
 
 pub fn level(app: &AppHandle, level: f32) {
     let _ = app.emit_to(LABEL, LEVEL_EVENT, level);
+}
+
+pub fn caption(app: &AppHandle, caption: &quill_core::live::Caption) {
+    let _ = app.emit_to(LABEL, CAPTION_EVENT, caption);
 }
 
 /// Bottom centre of the screen the mouse is on (where the user is working).

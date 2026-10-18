@@ -180,6 +180,8 @@ Press <kbd>Esc</kbd> to cancel. A pill near the bottom of the screen shows the m
 
 In **Settings → Dictation** you can change the shortcut, choose the language (your system language by default; auto-detection is available but about 0.5 s slower), turn clean-up on or off, set a style per app, and add vocabulary and replacements. The **Dictations** page shows whether dictation is ready and lists your dictations by day, newest first, with **Show more** for older ones. Open one to **Copy** it (in case text didn't land where you meant it to), correct it or delete it.
 
+**Live captions.** While you speak, what you've said so far appears above the dictation pill, the latest words fainter until Quill is sure of them. Most of a long dictation is transcribed before you let go, so it's typed sooner (a minute of speech in about half a second, not three). The captions are on your screen, so they're visible in screen shares; turn them off in **Settings → Dictation → Show what you're saying**.
+
 **Teaching Quill.** When Quill gets a name or term wrong, open that dictation from **Dictations**, click **Correct** and fix the text. Quill compares your fix with what it typed and suggests what to learn, under **Learn from your fixes** at the top of the **Dictations** page:
 
 - A misspelled name or term ("Quil" → "Quill") becomes a vocabulary word, which steers both the speech model and the clean-up.
@@ -235,7 +237,7 @@ cargo run --release -p quill-cli -- --help
 | `transcribe <file or dir>` | Transcribe a WAV/FLAC file or a recording folder (echo cancellation and VAD on by default; `--diarize [--speakers N]` tells the people on the call apart). |
 | `diarize <file or dir>` | Who spoke when, optionally scored against a reference RTTM (see [`eval/diarization`](eval/diarization)). |
 | `summarize <dir or transcript.json>` | Write meeting notes (`-m` picks the model, e.g. `-m ollama:qwen3:8b`). |
-| `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models. Clips with a reference (`clip.txt`, what should have been typed) are scored by word error rate. |
+| `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models; `--stream` replays them through live captions and compares the text and the wait after release with a single pass. Clips with a reference (`clip.txt`, what should have been typed) are scored by word error rate. |
 | `models list` / `models download <name>` | Manage models: Whisper (`tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`), VAD and the diarization models. |
 | `bench <file>` | Compare transcription speed across models (`--short-clip` for dictation settings). |
 | `eval` | Compare summary models on cost, latency and quality judged by an LLM. |

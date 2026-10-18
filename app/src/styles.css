@@ -2163,8 +2163,84 @@ html.indicator-window #root {
 
 .indicator-stage {
   height: 100vh;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  /* The pill sits where it did in its old 52 px window. */
+  padding-bottom: 8px;
+}
+
+/* Live captions above the pill (Indicator.tsx's Captions): a fixed-width
+   box with the last two lines of what's been said, left-aligned so words
+   never shift sideways. */
+.caption {
+  width: min(560px, calc(100vw - 24px));
+  padding: 9px 16px;
+  border-radius: 14px;
+  color: #fff;
+  background: rgb(22 22 28 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.3);
+  animation: caption-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.caption-lines {
+  position: relative;
+  overflow: hidden;
+  transition: height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Older lines fade as they slide up and out. */
+  mask-image: linear-gradient(to bottom, transparent, #000 10px);
+}
+
+.caption-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-size: 14.5px;
+  line-height: 21px;
+  text-align: left;
+}
+
+/* Each word fades up into place; dim until locked in, then white. */
+.caption-word {
+  display: inline-block;
+  color: rgb(255 255 255 / 0.55);
+  transition: color 0.5s ease;
+  animation: word-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.caption-word.locked {
+  color: #fff;
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caption,
+  .caption-word {
+    animation: none;
+  }
+
+  .caption-lines,
+  .caption-word {
+    transition: none;
+  }
 }
 
 .indicator {

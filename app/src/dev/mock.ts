@@ -89,6 +89,10 @@ if (flags.has("backlog")) {
   );
 }
 
+// What the dictation captions say in the preview (?indicator&listening).
+const CAPTION =
+  "Okay so for the launch plan I think we should ship the onboarding redesign on Friday. Then we can look at the pricing page next week once the analytics are fixed. And I'll send the rollout notes to support tomorrow.";
+
 // The Meetings page's overviews: a made-up but steady conversation shape
 // for each meeting (seeded by its id), with people, gist and action items.
 const OVERVIEW_DETAILS: Record<string, [string[], string, number]> = {
@@ -148,6 +152,7 @@ const settings = {
     replacements: [{ from: "open router", to: "OpenRouter" }],
     keep_history: true,
     save_samples: false,
+    live_captions: true,
     app_styles: [],
   },
 };
@@ -574,5 +579,19 @@ export function installMocks() {
       const speaking = Math.sin(t * 1.7) > -0.3;
       void emit("dictation-level", speaking ? 0.05 + Math.random() * 0.4 : 0.004);
     }, 50);
+    // Captions growing like the app's: a few words per 600 ms pass, a
+    // sentence locking in once it's over.
+    const words = CAPTION.split(" ");
+    let n = 0;
+    setInterval(() => {
+      n = n >= words.length ? 2 : n + 1 + Math.floor(Math.random() * 3);
+      const said = words.slice(0, n);
+      const lockedAt = said.map((w, i) => (w.endsWith(".") ? i + 1 : 0)).reduce((a, b) => Math.max(a, b), 0);
+      const locked = Math.max(0, lockedAt === said.length ? lockedAt - (n % 2) : lockedAt);
+      void emit("dictation-caption", {
+        committed: said.slice(0, locked).join(" "),
+        tentative: said.slice(locked).join(" "),
+      });
+    }, 600);
   }
 }

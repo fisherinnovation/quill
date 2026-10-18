@@ -15,6 +15,32 @@ it), an email, code identifiers, numbers, and a clip whose end is cut off
 latency and for catching hallucinations, not for judging accuracy on real
 voices.
 
+## Live captions
+
+```sh
+quill-cli dictate --stream eval/dictation/clips/*.wav     # or saved samples: …/dictation-samples/*.flac
+```
+
+replays each clip through live dictation (`quill_core::live`): a pass every
+`--step-ms` (600) of audio, then the final pass as if the key were released,
+next to a single pass over the whole clip. It prints both texts, how much was
+locked in before release, the wait after release for each, pass times, and
+WER for clips with references.
+
+The TTS clips are single sentences with short pauses, so nothing locks in and
+live matches a single pass (9 of 10 identical, same 6.5% WER). Judge it on
+real, long dictations. On 54 saved ones (2026-10-17, M3 Pro, turbo):
+
+| Length | Clips | Single pass, median wait | Live, median wait | Locked in by release |
+|---|---:|---:|---:|---:|
+| Under 15 s | 39 | 0.23 s | 0.23 s | 5% |
+| 15–30 s | 9 | 0.65 s | 0.39 s | 38% |
+| Over 30 s | 6 | 1.95 s | 0.53 s | 75% |
+
+The longest (126 s) went from 6.5 s to 0.15 s. Of 1,633 words, 68 differed
+from a single pass: 57 were loops in the single pass (Whisper repeating a
+phrase) that live avoided; the rest were single words.
+
 ## Accuracy
 
 A clip with a reference beside it (`clip.txt` next to `clip.wav` or

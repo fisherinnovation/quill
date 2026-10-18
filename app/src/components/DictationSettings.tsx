@@ -74,6 +74,16 @@ export function DictationSettingsTab({
           )}
         </Row>
         {isMac && settings.enabled && settings.hotkey === FN_HOTKEY && <GlobeKeyHint />}
+        <Row
+          label="Show what you're saying"
+          hint="Captions above the dictation pill as you speak. Long dictations are typed sooner, as most is transcribed before you let go."
+        >
+          <Switch
+            label="Show what you're saying"
+            checked={settings.live_captions}
+            onChange={(live_captions) => update({ live_captions })}
+          />
+        </Row>
         <Row label="Language">
           <select value={settings.language ?? ""} onChange={(e) => update({ language: e.target.value || null })}>
             <option value="">System language ({languageName(systemLanguage)})</option>

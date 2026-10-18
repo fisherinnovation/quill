@@ -129,6 +129,9 @@ impl Transcriber for WhisperTranscriber {
             })
         };
         params.set_n_threads(i32::try_from(self.threads).unwrap_or(8));
+        if opts.no_fallback {
+            params.set_temperature_inc(0.0);
+        }
         params.set_language(Some(opts.language.as_deref().unwrap_or("auto")));
         if let Some(prompt) = &opts.initial_prompt {
             params.set_initial_prompt(prompt);

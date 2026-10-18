@@ -166,7 +166,9 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
     synthetic voices. TTS voices want a lower threshold than real speech.
 - **Dictation latency:** about 0.3 s from release to typed text. Measure
   any change to the dictation path with `quill-cli dictate` and the clips
-  in `eval/dictation`.
+  in `eval/dictation` (`--stream` for live captions, which also need
+  checking on real long dictations: synthetic clips are too short to lock
+  anything in).
 
 ## Data on this machine
 
