@@ -4,7 +4,8 @@
    Neutrals are tinted towards grape so the greys belong to the palette.
    Flat colours and borders. The one exception is the main area's
    background (--bg-wash): a faint wash of the palette, so the page isn't
-   a flat sheet. Nothing else gets gradients or glows.
+   a flat sheet, and Home's faint quill. Nothing else gets gradients or
+   glows.
    ========================================================================== */
 :root {
   color-scheme: light dark;
@@ -25,6 +26,7 @@
     radial-gradient(90% 60% at 0% 0%, rgb(102 199 244 / 0.09), transparent 65%),
     linear-gradient(to bottom, #fbfbfe, var(--bg) 70%);
   --bg-sidebar: #eef1f5;
+  --home-art-opacity: 0.5;
   --bg-elevated: #ffffff;
   --bg-subtle: #f5f6f9;
   --bg-hover: rgb(108 110 160 / 0.08);
@@ -109,6 +111,7 @@
       radial-gradient(90% 60% at 0% 0%, rgb(108 110 160 / 0.16), transparent 65%),
       var(--bg);
     --bg-sidebar: #1b1b26;
+    --home-art-opacity: 0.45;
     --bg-elevated: #1f1f2b;
     --bg-subtle: #232331;
     --bg-hover: rgb(193 202 214 / 0.06);
@@ -146,6 +149,7 @@
     radial-gradient(90% 60% at 0% 0%, rgb(108 110 160 / 0.16), transparent 65%),
     var(--bg);
   --bg-sidebar: #1b1b26;
+  --home-art-opacity: 0.45;
   --bg-elevated: #1f1f2b;
   --bg-subtle: #232331;
   --bg-hover: rgb(193 202 214 / 0.06);
@@ -3353,84 +3357,40 @@ html.indicator-window #root {
   vertical-align: 1px;
 }
 
-/* Home's wordmark (Wordmark.tsx): the quill, "Quill" in the system serif
-   (New York on macOS), and the heartbeat under it as a signature line. */
-.wordmark {
+/* Home's quill: the mark's feather as a fine outline, large and faint,
+   cropped by the top right of the main area and fading out before the
+   content. It scrolls with the page and sits behind it. */
+.home-backdrop {
   position: relative;
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 9px;
-  margin-bottom: 26px;
-  padding: 0 4px 9px 0;
-  color: var(--accent);
+  min-height: 100%;
 }
 
-.wordmark-quill {
-  width: 38px;
-  height: 44px;
-  flex: none;
-}
-
-.wordmark-name {
-  font-family: ui-serif, "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
-  font-size: 34px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: -0.015em;
-  color: var(--text);
-  /* Sit on the line, just above the quill's tip. */
-  margin-bottom: 1px;
-}
-
-.wordmark-line {
+.home-art {
   position: absolute;
-  left: 0;
-  bottom: -2px;
-  overflow: visible;
+  top: -90px;
+  right: -40px;
+  width: 480px;
+  height: 560px;
+  pointer-events: none;
+  opacity: var(--home-art-opacity);
+  mask-image: radial-gradient(75% 60% at 80% 18%, #000 35%, transparent 80%);
+  animation: home-art 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.wordmark-line path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.85;
+.home-backdrop > .page {
+  position: relative;
 }
 
-/* First time Home shows after launch: the quill settles in and the line
-   writes itself out from its tip. */
-.wordmark.drawing .wordmark-line path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: wordmark-write 1.1s cubic-bezier(0.45, 0, 0.2, 1) 0.25s forwards;
-}
-
-.wordmark.drawing .wordmark-quill {
-  animation: wordmark-quill 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.wordmark.drawing .wordmark-name {
-  animation: wordmark-name 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
-}
-
-@keyframes wordmark-write {
-  to {
-    stroke-dashoffset: 0;
+@keyframes home-art {
+  from {
+    opacity: 0;
+    transform: translate(12px, -10px);
   }
 }
 
-@keyframes wordmark-quill {
-  from {
-    opacity: 0;
-    transform: translate(-4px, 4px) rotate(-6deg);
-  }
-}
-
-@keyframes wordmark-name {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
+@media (prefers-reduced-motion: reduce) {
+  .home-art {
+    animation: none;
   }
 }
 

@@ -366,13 +366,16 @@ decision someone might otherwise undo.
   that includes its status ("Meetings · Recording"); badges become dots.
   ⌘\ or Ctrl+\ toggles it. The choice is kept in the webview's
   localStorage: a per-computer view preference, not a setting.
-- **Insights are part of Home**, not a page of their own, under the
-  meetings. Two pages of numbers about the same use were one too many.
-- **Wordmark** (top of Home, the one place the name appears in the app):
-  the quill alone in the accent colour, "Quill" in the system serif
-  (`ui-serif`: New York on macOS, Georgia on Windows; nothing to bundle or
-  download), and the mark's heartbeat run under the word as a signature
-  line from the quill's tip. The line writes itself in once per launch.
+- **Insights are part of Home**, not a page of their own, beside or under
+  the meetings. Two pages of numbers about the same use were one too many.
+- **Home's quill:** the mark's feather as a fine outline (fuchsia to
+  grape), large and faint, cropped by the top right of Home and fading out
+  before the content. It replaced a wordmark (the quill beside "Quill" in
+  a serif, with a signature line), which looked dated at the top of the
+  page.
+- **Two columns on Home** once the main area is 900 px wide (the default
+  window is): meetings on the left, usage on the right. Narrower, or with
+  no usage yet, one column.
 - **Background wash:** the main area has a faint gradient of the palette
   (fuchsia from the top right, sky or grape from the top left), the one
   exception to flat colours: a plain sheet looked flat in both themes. It

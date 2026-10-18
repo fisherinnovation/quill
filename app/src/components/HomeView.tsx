@@ -13,13 +13,12 @@ import {
   type Progress,
   type RecordingState,
 } from "../api";
-import { Icon } from "./Icon";
+import { FEATHER, Icon } from "./Icon";
 import { InsightDetails, UsageFacts } from "./Insights";
 import { callSpeakers, peopleText } from "./MeetingView";
 import { NoMeetings, Status } from "./MeetingsView";
 import { ModelDownload } from "./Models";
 import { useElapsed } from "./RecordButton";
-import { Wordmark } from "./Wordmark";
 import { Keys, timeOfDay } from "./ui";
 import { UpdateBanner } from "./Updates";
 
@@ -67,98 +66,109 @@ export function HomeView({
   const used = insights && (insights.dictation.count > 0 || insights.meetings.count > 0) ? insights : null;
 
   return (
-    <div className={`page home${used ? " home-wide" : ""}`}>
-      <header className="home-head">
-        <Wordmark />
-        <p className="home-date">{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-        <h1 className="home-title">{dayLine(today)}</h1>
-        <p className="home-sub">
-          {used && used.dictation.words_last_7_days > 0 && (
-            <>{used.dictation.words_last_7_days.toLocaleString()} words dictated this week. </>
-          )}
-          {shortcut &&
-            (shortcut.enabled ? (
-              dictation === "listening" ? (
-                "Listening…"
-              ) : dictation === "processing" ? (
-                "Typing it out…"
+    <div className="home-backdrop">
+      {/* The quill in outline, large and faint behind the top of the page. */}
+      <svg className="home-art" viewBox="300 220 480 560" aria-hidden>
+        <defs>
+          <linearGradient id="home-art-fill" x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="var(--fuchsia)" />
+            <stop offset="1" stopColor="var(--grape)" />
+          </linearGradient>
+        </defs>
+        <path d={FEATHER} fill="none" stroke="url(#home-art-fill)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className={`page home${used ? " home-wide" : ""}`}>
+        <header className="home-head">
+          <p className="home-date">{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+          <h1 className="home-title">{dayLine(today)}</h1>
+          <p className="home-sub">
+            {used && used.dictation.words_last_7_days > 0 && (
+              <>{used.dictation.words_last_7_days.toLocaleString()} words dictated this week. </>
+            )}
+            {shortcut &&
+              (shortcut.enabled ? (
+                dictation === "listening" ? (
+                  "Listening…"
+                ) : dictation === "processing" ? (
+                  "Typing it out…"
+                ) : (
+                  <>
+                    Hold <Keys hotkey={shortcut.hotkey} /> in any app to dictate.
+                  </>
+                )
               ) : (
                 <>
-                  Hold <Keys hotkey={shortcut.hotkey} /> in any app to dictate.
+                  Dictation is off.{" "}
+                  <button className="link" onClick={onDictationSettings}>
+                    Turn it on
+                  </button>
                 </>
-              )
-            ) : (
-              <>
-                Dictation is off.{" "}
-                <button className="link" onClick={onDictationSettings}>
-                  Turn it on
-                </button>
-              </>
-            ))}
-        </p>
-      </header>
+              ))}
+          </p>
+        </header>
 
-      <ModelDownload variant="banner" />
-      <UpdateBanner />
+        <ModelDownload variant="banner" />
+        <UpdateBanner />
 
-      {recording.recording && recording.meeting_id && (
-        <button className="home-live" onClick={() => recording.meeting_id && onSelect(recording.meeting_id)}>
-          <span className="rec-dot pulsing" />
-          <span className="home-live-title">
-            {recording.paused ? "Paused" : "Recording"}
-            {live ? ` ${live.title}` : ""}
-          </span>
-          <span className="home-live-time">{clock(elapsed)}</span>
-          <span className="home-live-open">
-            Open <Icon name="external" size={12} />
-          </span>
-        </button>
-      )}
-
-      {/* Meetings on the left, usage on the right; one column when narrow. */}
-      <div className="home-columns">
-        <div className="home-column">
-          {featured && <LatestNotes meeting={featured} onOpen={() => onSelect(featured.id)} />}
-
-          <section className="home-section">
-            <div className="home-section-head">
-              <h2>{featured ? "Before that" : "Meetings"}</h2>
-              {meetings.length > recent.length + (featured ? 1 : 0) && (
-                <button className="link-button" onClick={onMeetings}>
-                  All meetings
-                </button>
-              )}
-            </div>
-            {meetings.length === 0 ? (
-              <NoMeetings />
-            ) : (
-              <ul className="quiet-list">
-                {recent.map((m) => (
-                  <li key={m.id}>
-                    <button onClick={() => onSelect(m.id)}>
-                      <span className="quiet-title">
-                        {m.title}
-                        <Status meeting={m} progress={progress[m.id]} recording={recording.meeting_id === m.id} />
-                      </span>
-                      <span className="quiet-length">{m.duration_ms > 0 ? minutes(m.duration_ms) : ""}</span>
-                      <span className="quiet-when">{relativeDay(m.started_at, now)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-
-        {used && (
-          <section className="home-section home-column home-usage">
-            <div className="home-section-head">
-              <h2>Your usage</h2>
-            </div>
-            <UsageFacts insights={used} />
-            <InsightDetails insights={used} onReset={loadInsights} />
-          </section>
+        {recording.recording && recording.meeting_id && (
+          <button className="home-live" onClick={() => recording.meeting_id && onSelect(recording.meeting_id)}>
+            <span className="rec-dot pulsing" />
+            <span className="home-live-title">
+              {recording.paused ? "Paused" : "Recording"}
+              {live ? ` ${live.title}` : ""}
+            </span>
+            <span className="home-live-time">{clock(elapsed)}</span>
+            <span className="home-live-open">
+              Open <Icon name="external" size={12} />
+            </span>
+          </button>
         )}
+
+        {/* Meetings on the left, usage on the right; one column when narrow. */}
+        <div className="home-columns">
+          <div className="home-column">
+            {featured && <LatestNotes meeting={featured} onOpen={() => onSelect(featured.id)} />}
+
+            <section className="home-section">
+              <div className="home-section-head">
+                <h2>{featured ? "Before that" : "Meetings"}</h2>
+                {meetings.length > recent.length + (featured ? 1 : 0) && (
+                  <button className="link-button" onClick={onMeetings}>
+                    All meetings
+                  </button>
+                )}
+              </div>
+              {meetings.length === 0 ? (
+                <NoMeetings />
+              ) : (
+                <ul className="quiet-list">
+                  {recent.map((m) => (
+                    <li key={m.id}>
+                      <button onClick={() => onSelect(m.id)}>
+                        <span className="quiet-title">
+                          {m.title}
+                          <Status meeting={m} progress={progress[m.id]} recording={recording.meeting_id === m.id} />
+                        </span>
+                        <span className="quiet-length">{m.duration_ms > 0 ? minutes(m.duration_ms) : ""}</span>
+                        <span className="quiet-when">{relativeDay(m.started_at, now)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          {used && (
+            <section className="home-section home-column home-usage">
+              <div className="home-section-head">
+                <h2>Your usage</h2>
+              </div>
+              <UsageFacts insights={used} />
+              <InsightDetails insights={used} onReset={loadInsights} />
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
