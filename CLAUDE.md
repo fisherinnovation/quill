@@ -51,7 +51,8 @@ results.
   the next version, point `crates/quill-llm/src/prompts.rs` at it, and add
   its golden file (`UPDATE_GOLDEN=1 cargo test -p quill-llm`).
 - **Docs:** when behaviour, data on disk, permissions or network use change,
-  update `README.md` and `SECURITY.md` in the same commit. Record decisions
+  update `README.md` and `SECURITY.md` in the same commit, and the in-app
+  Help (`app/src/help/content.ts`) when what users see or do changes. Record decisions
   and measurements in `docs/DESIGN_NOTES.md`.
 
 ## Layout

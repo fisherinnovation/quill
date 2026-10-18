@@ -15,6 +15,7 @@ import { type SettingsTab, SettingsView } from "./components/SettingsView";
 import { RecordButton } from "./components/RecordButton";
 import { Onboarding } from "./components/Onboarding";
 import { DictationsView } from "./components/DictationsView";
+import { HelpView } from "./components/HelpView";
 import { HomeView } from "./components/HomeView";
 import { DictationEntryView } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
@@ -26,6 +27,7 @@ type View =
   /** The Dictations page ("dictation", as the backend's navigate event names it). */
   | { kind: "dictation" }
   | { kind: "dictation-entry"; id: number }
+  | { kind: "help" }
   | { kind: "settings"; tab?: SettingsTab };
 
 /** Where the sidebar's collapsed state is remembered, on this computer. */
@@ -117,7 +119,7 @@ export function App() {
         setView((v) => (v.kind === "meeting" && !list.some((m) => m.id === v.id) ? { kind: "meetings" } : v));
       }),
       events.onNavigate((view) => {
-        if (view === "home" || view === "dictation" || view === "settings") {
+        if (view === "home" || view === "dictation" || view === "help" || view === "settings") {
           setView({ kind: view });
         } else if (view === "insights") {
           // Insights are part of Home now.
@@ -209,6 +211,7 @@ export function App() {
               onSelect={(id, at) => setView({ kind: "meeting", id, at })}
             />
           )}
+          {view.kind === "help" && <HelpView />}
           {view.kind === "settings" && <SettingsView key={view.tab ?? "general"} tab={view.tab} />}
           {view.kind === "dictation" && (
             <DictationsView

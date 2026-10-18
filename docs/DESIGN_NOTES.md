@@ -368,6 +368,14 @@ decision someone might otherwise undo.
   ("Meetings · Recording"); badges become dots.
   ⌘\ or Ctrl+\ toggles it. The choice is kept in the webview's
   localStorage: a per-computer view preference, not a setting.
+- **Help** is a page in the app (sidebar, and Help → Quill Help on macOS),
+  not a website: it works offline and can say "Settings → Dictation" for
+  the settings the user actually has. Articles live in
+  `app/src/help/content.ts` as Markdown, with platform wording swapped in
+  and Mac-only sections left out on Windows. Search runs over titles,
+  extra keywords and text: every word must match unless no section has
+  them all, words like "how do I" are ignored, and a title match ranks
+  highest. A table of contents follows the reading.
 - **Insights are part of Home**, not a page of their own, beside or under
   the meetings. Two pages of numbers about the same use were one too many.
 - **Home's quill:** the mark's feather as a fine outline (fuchsia to

@@ -143,6 +143,7 @@ pub fn open_link(link: Link) -> CommandResult<()> {
 /// Menu item ids handled in [`on_menu_event`].
 const ABOUT: &str = "about";
 const SETTINGS: &str = "settings";
+const HELP: &str = "help";
 const REPORT: &str = "report-problem";
 const WEBSITE: &str = "website";
 
@@ -201,6 +202,8 @@ pub fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         "Help",
         true,
         &[
+            &MenuItem::with_id(app, HELP, "Quill Help", true, None::<&str>)?,
+            &sep()?,
             &MenuItem::with_id(app, REPORT, "Report a Problem…", true, None::<&str>)?,
             &MenuItem::with_id(app, WEBSITE, "Quill on GitHub", true, None::<&str>)?,
         ],
@@ -215,6 +218,10 @@ pub fn on_menu_event(app: &AppHandle, id: &str) {
         SETTINGS => {
             crate::tray::show_window(app);
             let _ = app.emit(crate::NAVIGATE_EVENT, "settings");
+        }
+        HELP => {
+            crate::tray::show_window(app);
+            let _ = app.emit(crate::NAVIGATE_EVENT, "help");
         }
         REPORT => {
             let _ = open_link(Link::ReportProblem);

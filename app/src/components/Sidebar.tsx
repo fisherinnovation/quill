@@ -3,7 +3,7 @@ import { type DictationPhase, isMac } from "../api";
 import { Icon, type IconName } from "./Icon";
 
 /** The pages the sidebar leads to. */
-export type Section = "home" | "meetings" | "dictation" | "settings";
+export type Section = "home" | "meetings" | "dictation" | "help" | "settings";
 
 /** What a section is busy with, shown as a badge (a dot when collapsed). */
 interface Status {
@@ -92,6 +92,7 @@ export function Sidebar({ current, onNavigate, recording, working, dictation, co
       </nav>
 
       <nav className="sidebar-nav sidebar-foot">
+        {item("help", "help", "Help")}
         {item("settings", "settings", "Settings")}
         <button
           className="nav-item sidebar-toggle"

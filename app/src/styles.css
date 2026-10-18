@@ -3784,6 +3784,366 @@ html.indicator-window #root {
   }
 }
 
+/* Help (HelpView.tsx): a table of contents beside the articles, and
+   search over them. The articles keep a readable measure. */
+.page.help {
+  max-width: 1080px;
+}
+
+/* In the sidebar's foot, Help gets its own row above Settings. */
+.sidebar-foot > .nav-item:first-child {
+  grid-column: 1 / -1;
+}
+
+.help-head {
+  margin: 6px 0 26px;
+}
+
+.help-search {
+  max-width: 560px;
+  margin-top: 18px;
+}
+
+.help-search input {
+  height: 38px;
+  padding-right: 52px;
+  font-size: 14px;
+  border-radius: 10px;
+  background: var(--bg-panel);
+  border-color: var(--border-panel);
+  box-shadow: var(--panel-edge);
+}
+
+.help-search .icon {
+  left: 12px;
+}
+
+.help-search input {
+  padding-left: 34px;
+}
+
+.help-search-key {
+  position: absolute;
+  right: 9px;
+  pointer-events: none;
+  color: var(--text-3);
+  font-weight: 500;
+  border-bottom-width: 1px;
+  background: none;
+  border-color: var(--border);
+}
+
+.help-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.help-toc {
+  /* Positioned, so its links' offsetTop is measured from it. */
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - var(--titlebar) - 24px);
+  overflow-y: auto;
+  padding: 2px 4px 24px 0;
+  font-size: 13px;
+  scrollbar-width: thin;
+}
+
+.help-toc-topic + .help-toc-topic {
+  margin-top: 16px;
+}
+
+.help-toc-title {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.help-toc a {
+  display: block;
+  padding: 3px 0 3px 10px;
+  border-left: 2px solid var(--border);
+  color: var(--text-2);
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+.help-toc a:hover {
+  color: var(--text);
+}
+
+.help-toc a.current {
+  border-left-color: var(--accent);
+  color: var(--text);
+  font-weight: 550;
+}
+
+.help-articles {
+  max-width: 680px;
+  min-width: 0;
+}
+
+.help-quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.help-quick-card {
+  display: grid;
+  justify-content: stretch;
+  justify-items: start;
+  align-content: start;
+  gap: 4px;
+  height: auto;
+  padding: 14px 14px 13px;
+  white-space: normal;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+  border: 1px solid var(--border-panel);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
+}
+
+.help-quick-card:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-panel-hover);
+}
+
+.help-quick-card .icon {
+  margin-bottom: 4px;
+  color: var(--accent-text);
+}
+
+.help-quick-title {
+  font-weight: 600;
+}
+
+.help-quick-text {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+.help-topic {
+  padding-top: 30px;
+}
+
+.help-topic h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.help-topic-intro {
+  margin: 4px 0 0;
+  color: var(--text-2);
+}
+
+.help-section {
+  /* Clear of the top of the page when jumped to. */
+  scroll-margin-top: 16px;
+  margin: 22px -14px 0;
+  padding: 2px 14px 4px;
+  border-radius: 10px;
+  transition: background-color 0.6s ease;
+}
+
+.help-section.flash {
+  background: var(--bg-active);
+  transition: none;
+}
+
+.help-section h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.help-body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.help-body p,
+.help-body ul,
+.help-body ol {
+  margin: 0 0 10px;
+}
+
+.help-body ul,
+.help-body ol {
+  padding-left: 20px;
+}
+
+.help-body li + li {
+  margin-top: 4px;
+}
+
+.help-body strong {
+  font-weight: 600;
+}
+
+.help-body a {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+.help-body a:hover {
+  text-decoration: underline;
+}
+
+.help-body kbd {
+  height: 20px;
+  min-width: 20px;
+  margin: 0 1px;
+  vertical-align: 1px;
+}
+
+.help-body code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--bg-hover);
+  overflow-wrap: anywhere;
+}
+
+.help-table {
+  overflow-x: auto;
+  margin: 4px 0 12px;
+  border: 1px solid var(--border-panel);
+  border-radius: 10px;
+  background: var(--bg-panel);
+}
+
+.help-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.help-table th,
+.help-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.help-table th {
+  font-weight: 600;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border-panel);
+}
+
+.help-table tr + tr td {
+  border-top: 1px solid var(--border-panel);
+}
+
+/* Search results */
+.help-results {
+  max-width: 720px;
+}
+
+.help-count {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.help-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.help-result {
+  display: grid;
+  justify-content: stretch;
+  justify-items: start;
+  gap: 2px;
+  width: calc(100% + 24px);
+  height: auto;
+  margin: 0 -12px;
+  padding: 10px 12px;
+  white-space: normal;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  box-shadow: none;
+}
+
+.help-result.active,
+.help-result:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.help-result-topic {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.help-result-title {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.help-result-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.help-results mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  color: inherit;
+  background: var(--accent-soft);
+}
+
+.help-none {
+  margin: 0 0 14px;
+  color: var(--text-2);
+}
+
+.help-browse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+/* Narrow: the articles alone, with search still at the top. */
+@container (max-width: 760px) {
+  .help-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .help-toc {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-section {
+    transition: none;
+  }
+}
+
 /* One dictation, opened from the Dictations page */
 .dictation-entry .page-head {
   margin-bottom: 18px;
