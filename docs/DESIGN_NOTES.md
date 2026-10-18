@@ -270,16 +270,22 @@ decision someone might otherwise undo.
 
 - **Signal:** which apps are recording from a microphone, from Core Audio's
   process objects (macOS 14.2+: PID, bundle id, `IsRunningInput`). No
-  permission needed, and no audio, windows or tabs read. Checked once a
+  permission needed, and no audio, windows or tabs read. Checked twice a
   second (`calls.rs`), turned into starts and ends by
   `quill_core::calls::Detector`.
 - **Measured** with `quill-cli mic-users --watch` (2026-10-17): Zoom shows
   as `us.zoom.xos`; a Google Meet tab as `com.google.Chrome.helper` (so
   call apps match by bundle-id prefix); Quill's dictation as its own id,
   which is excluded. Safari and Firefox not yet checked.
-- **Timing:** a call app must hold the mic for 5 s before Quill asks (a
-  voice search or mic test doesn't), and release it for 15 s before the
-  call counts as over (rejoining or switching devices doesn't end it).
+- **Timing:** a call app must hold the mic for 2 s before Quill asks, and
+  release it for 15 s before the call counts as over (rejoining or
+  switching devices doesn't end it). It was 5 s, polled once a second, and
+  in use (Google Meet, 2026-10-18) the prompt felt about 10 s into the
+  call: too late, with the start of the meeting already unrecorded. Now
+  2 s, polled twice a second, and a gap of up to 3 s keeps an app's start
+  time, so a browser letting go of the mic between a preview screen and
+  the call doesn't restart the clock. A long voice search can bring the
+  prompt up; it goes on its own, which costs less than a missed start.
 - **Browsers** show as the browser, not the site: telling Meet from any
   other tab would mean reading tabs or window titles (Screen Recording or
   Accessibility), against the promise to read only app names.

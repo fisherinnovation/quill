@@ -73,7 +73,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | **Logs** | Local files with events, timings and errors. Never transcripts, notes, dictated text or keys. |
 | **Telemetry** | None. Quill makes no network requests other than the model calls above, downloading the speech models, and a daily check on GitHub for a new version (which can be turned off). |
 
-For dictation, Quill reads the *name* of the frontmost app (for per-app style and insights), never its windows or contents. To offer to record calls (macOS), it checks once a second which apps are using a microphone (their identifiers only), never their audio, windows or contents.
+For dictation, Quill reads the *name* of the frontmost app (for per-app style and insights), never its windows or contents. To offer to record calls (macOS), it checks twice a second which apps are using a microphone (their identifiers only), never their audio, windows or contents.
 
 ## Platform support
 
@@ -149,7 +149,7 @@ Quill opens on **Home**: a line about your day (how many meetings, how long on c
 
 ### Recording a meeting
 
-Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. You can pause and resume from the menu-bar icon or the live notes panel; nothing is recorded while paused, and the timer stands still. On macOS Quill also notices calls: when Zoom, Teams, Webex, FaceTime, Slack, Discord or a browser (for Google Meet and other web calls) has been using your microphone for a few seconds, a small prompt at the bottom of the screen asks whether to record, and when the call lets go of the mic, whether to stop. It sees only *which app* is using the microphone, so a browser call shows as "Google Chrome is using your microphone". Turn it off in **Settings → Meetings → Offer to record calls**. Quill then:
+Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. You can pause and resume from the menu-bar icon or the live notes panel; nothing is recorded while paused, and the timer stands still. On macOS Quill also notices calls: when Zoom, Teams, Webex, FaceTime, Slack, Discord or a browser (for Google Meet and other web calls) has been using your microphone for about two seconds, a small prompt at the bottom of the screen asks whether to record, and when the call lets go of the mic, whether to stop. It sees only *which app* is using the microphone, so a browser call shows as "Google Chrome is using your microphone". Turn it off in **Settings → Meetings → Offer to record calls**. Quill then:
 
 1. Cleans speaker echo out of your microphone track.
 2. Transcribes both tracks locally and merges them into one transcript, with your lines labelled **You**.

@@ -115,7 +115,7 @@ While recording, Home shows the meeting at the top with its timer, and the sideb
         title: "When Quill offers to record",
         keywords: "call detection automatic prompt notification zoom teams facetime slack discord browser",
         only: "mac",
-        body: `When a call app has been using your microphone for a few seconds, a small prompt rises at the bottom of the screen asking whether to record. When the call lets go of the microphone while Quill is recording, it asks whether to stop.
+        body: `When a call app has been using your microphone for about two seconds, a small prompt rises at the bottom of the screen asking whether to record. When the call lets go of the microphone while Quill is recording, it asks whether to stop.
 
 It recognises Zoom, Teams, Webex, FaceTime, Slack, Discord, and browsers for Google Meet and other web calls. Quill sees only *which app* is using the microphone, never its audio, windows or tabs, so a browser call shows as "Google Chrome is using your microphone".
 

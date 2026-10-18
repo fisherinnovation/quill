@@ -1,4 +1,4 @@
-//! Offering to record calls. Once a second, reads which apps are using a
+//! Offering to record calls. Twice a second, reads which apps are using a
 //! microphone (`quill_audio::mic_users`: bundle ids only) and feeds them to
 //! `quill_core::calls::Detector`. When a call starts, a small prompt offers
 //! to record it; when it ends while Quill is recording, to stop.
@@ -45,6 +45,10 @@ pub struct CallPrompt {
     shown: Mutex<Option<Prompt>>,
 }
 
+/// How often to look at which apps use the microphone. Cheap (a few Core
+/// Audio property reads), and often enough that the prompt isn't late.
+const POLL: Duration = Duration::from_millis(500);
+
 /// The fade-out the page plays after a click, before the window hides.
 const LEAVE: Duration = Duration::from_millis(180);
 
@@ -79,7 +83,7 @@ pub fn spawn(app: AppHandle) {
         let mut detector = Detector::new();
         let mut failing = false;
         loop {
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::sleep(POLL);
             let state = app.state::<AppState>();
             let enabled = {
                 let settings = lock(&state.settings);

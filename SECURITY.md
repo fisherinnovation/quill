@@ -89,7 +89,7 @@ never transcripts, notes, dictated text or keys.
 
 For dictation, Quill reads the frontmost app's identifier and name, never its
 windows or contents. To offer to record calls (macOS, on by default, Settings →
-Meetings), it checks once a second which apps are using a microphone: their
+Meetings), it checks twice a second which apps are using a microphone: their
 process id and bundle identifier, from Core Audio, which needs no permission.
 It never reads their audio, windows, tabs or contents, and logs only the call
 app's name ("Zoom") when a call starts or ends. Dictated text passes through the clipboard: it's marked
