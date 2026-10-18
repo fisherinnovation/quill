@@ -290,10 +290,10 @@ decision someone might otherwise undo.
 
 - **During a recording** a worker follows `mic.wav` and `system.wav` as
   they're written (`quill_audio::growing`: nothing on the capture path
-  changes) and transcribes ~20 s chunks, cut where both tracks pause, as
+  changes) and transcribes ~10 s chunks, cut where both tracks pause, as
   You (mic, echo-cancelled per chunk) and Others (call). It's a draft for
   the notes; the real transcript is still made after the recording.
-- **Every two minutes** (or on "update now") the summary model gets the
+- **Every minute** (or on "update now") the summary model gets the
   notes so far as JSON, the items dismissed, and the last 15 minutes of
   transcript (`prompts/live-v1`), and returns updated notes: gist, ask
   before the end, follow-ups, decisions. The 15-minute window keeps each
@@ -307,6 +307,16 @@ decision someone might otherwise undo.
   count. On by default (the owner's choice while they're its only user);
   Settings → Meetings turns it off. Notes and transcript live in memory
   only.
+- **Cadence:** every two minutes, with 20 s chunks, felt behind the
+  conversation in the first real use: by the time a note appeared, the
+  moment to act on it had passed. Now every minute with ~10 s chunks, so a
+  note reflects what was said within about a minute. A 15-minute window
+  per update keeps that affordable (~$0.0004 per update with Haiku).
+- **Controls on the panel:** the recording's timer, Pause/Resume and Stop
+  (which asks once). Pausing is in the recorder itself: the track writers
+  keep draining their buffers but discard what arrives, so both files skip
+  the same stretch and stay aligned; paused time is left out of the clock
+  and the meeting's length. Also in the menu bar.
 - **Measured** (`quill-cli live-notes eval/bench/meeting.wav`, 3.9 min
   synthetic product sync, turbo + claude-haiku-5.5): live transcription
   took 15 s of compute for the whole meeting; each update ~1.5 s and

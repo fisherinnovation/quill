@@ -269,7 +269,10 @@ export interface AccessReport {
 
 export interface RecordingState {
   recording: boolean;
+  /** Paused: nothing is recorded and the clock stands still. */
+  paused: boolean;
   meeting_id: string | null;
+  /** Time recorded, pauses left out. */
   elapsed_ms: number;
 }
 
@@ -455,6 +458,8 @@ export const api = {
   recordingState: () => invoke<RecordingState>("recording_state"),
   startRecording: () => invoke<Meeting>("start_recording"),
   stopRecording: () => invoke<string>("stop_recording"),
+  pauseRecording: () => invoke<void>("pause_recording"),
+  resumeRecording: () => invoke<void>("resume_recording"),
   /** transcribe=true: transcribe (+ summarize per settings); false: summarize only. */
   processMeeting: (id: string, transcribe: boolean) => invoke<void>("process_meeting", { id, transcribe }),
   /** Re-split the people on the call, into `speakers` if given. Replaces names; progress arrives as events. */

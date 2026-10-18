@@ -25,7 +25,7 @@ pub struct Args {
     #[arg(long, default_value = "turbo")]
     stt_model: String,
     /// Update the notes every this many seconds of audio
-    #[arg(long, default_value_t = 120)]
+    #[arg(long, default_value_t = 60)]
     every_secs: u64,
     /// Spoken language code [default: detect]
     #[arg(long, short)]

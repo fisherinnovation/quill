@@ -2137,6 +2137,51 @@ html.live-window #root {
   font-size: 13px;
 }
 
+.live-clock {
+  font-variant-numeric: tabular-nums;
+}
+
+.live-head .icon {
+  color: var(--text-2);
+}
+
+/* Stop: asks once ("Stop?") before ending the meeting. */
+.live-stop {
+  height: 26px;
+  padding: 0 9px 0 8px;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
+  color: var(--accent-text);
+  background: none;
+}
+
+.live-stop .icon {
+  color: var(--accent);
+}
+
+.live-stop.confirm,
+.live-stop.confirm:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.live-stop.confirm .icon {
+  color: #fff;
+}
+
+.live-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-status .link-button {
+  font-size: 11.5px;
+}
+
 .live-head .rec-dot,
 .live-tab .rec-dot {
   width: 7px;

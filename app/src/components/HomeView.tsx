@@ -104,7 +104,10 @@ export function HomeView({
       {recording.recording && recording.meeting_id && (
         <button className="home-live" onClick={() => recording.meeting_id && onSelect(recording.meeting_id)}>
           <span className="rec-dot pulsing" />
-          <span className="home-live-title">Recording{live ? ` ${live.title}` : ""}</span>
+          <span className="home-live-title">
+            {recording.paused ? "Paused" : "Recording"}
+            {live ? ` ${live.title}` : ""}
+          </span>
           <span className="home-live-time">{clock(elapsed)}</span>
           <span className="home-live-open">
             Open <Icon name="external" size={12} />

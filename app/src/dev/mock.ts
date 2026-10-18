@@ -152,7 +152,8 @@ function mockOverview(m: (typeof meetings)[number]) {
   return { id: m.id, speaker, level, people, my_share: mine, gist: m.has_summary ? gist : null, action_items: m.has_summary ? actions : 0 };
 }
 
-const recording = flags.has("recording") ? { recording: true, meeting_id: "m1", elapsed_ms: 754_000 } : null;
+let recording: { recording: boolean; paused: boolean; meeting_id: string | null; elapsed_ms: number } | null =
+  flags.has("recording") || flags.has("live") ? { recording: true, paused: false, meeting_id: "m1", elapsed_ms: 754_000 } : null;
 const phase = flags.has("listening") ? "listening" : flags.has("processing") ? "processing" : "idle";
 
 const settings = {
@@ -429,9 +430,21 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   get_settings: () => settings,
   save_settings: () => null,
-  recording_state: () => recording ?? { recording: false, meeting_id: null, elapsed_ms: 0 },
+  recording_state: () => recording ?? { recording: false, paused: false, meeting_id: null, elapsed_ms: 0 },
+  pause_recording: () => {
+    if (recording) recording = { ...recording, paused: true };
+    void emit("recording-state", recording);
+  },
+  resume_recording: () => {
+    if (recording) recording = { ...recording, paused: false };
+    void emit("recording-state", recording);
+  },
   start_recording: () => meetings[0],
-  stop_recording: () => "m1",
+  stop_recording: () => {
+    recording = null;
+    void emit("recording-state", { recording: false, paused: false, meeting_id: null, elapsed_ms: 0 });
+    return "m1";
+  },
   process_meeting: () => null,
   split_speakers: () => null,
   models_info: () => modelsInfo(),

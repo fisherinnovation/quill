@@ -125,7 +125,9 @@ pub fn save_settings(
 #[derive(Debug, Clone, Serialize)]
 pub struct RecordingState {
     pub recording: bool,
+    pub paused: bool,
     pub meeting_id: Option<String>,
+    /// Time recorded, pauses left out.
     pub elapsed_ms: u64,
 }
 
@@ -319,21 +321,44 @@ pub fn stop(app: &AppHandle) -> CommandResult<String> {
     Ok(id)
 }
 
+/// Pauses or resumes the recording in progress.
+pub fn set_paused(app: &AppHandle, paused: bool) -> CommandResult<()> {
+    let state = app.state::<AppState>();
+    lock(&state.recording)
+        .as_mut()
+        .ok_or_else(|| CommandError::Other("not recording".into()))?
+        .set_paused(paused);
+    tracing::info!(paused, "recording paused or resumed");
+    notify(app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn pause_recording(app: AppHandle) -> CommandResult<()> {
+    set_paused(&app, true)
+}
+
+#[tauri::command]
+pub fn resume_recording(app: AppHandle) -> CommandResult<()> {
+    set_paused(&app, false)
+}
+
 fn current(state: &AppState) -> RecordingState {
     let recording = lock(&state.recording);
     RecordingState {
         recording: recording.is_some(),
+        paused: recording.as_ref().is_some_and(ActiveRecording::is_paused),
         meeting_id: recording.as_ref().map(|r| r.meeting_id.clone()),
-        elapsed_ms: recording.as_ref().map_or(0, |r| {
-            u64::try_from(r.started.elapsed().as_millis()).unwrap_or(0)
-        }),
+        elapsed_ms: recording
+            .as_ref()
+            .map_or(0, |r| u64::try_from(r.elapsed().as_millis()).unwrap_or(0)),
     }
 }
 
 /// Tells the tray and the UI that recording started or stopped.
 fn notify(app: &AppHandle) {
     let state = current(&app.state::<AppState>());
-    tray::set_recording(app, state.recording);
+    tray::set_recording(app, state.recording, state.paused);
     crate::calls::recording_changed(app, state.recording);
     let _ = app.emit(RECORDING_EVENT, state);
 }

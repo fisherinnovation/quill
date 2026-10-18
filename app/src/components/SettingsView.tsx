@@ -208,7 +208,7 @@ export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTa
       <Group title="Live notes">
         <Row
           label="Live notes during meetings"
-          hint="While recording, a panel at the right edge of your screen shows what to ask before the end, follow-ups and decisions, updated every two minutes. The conversation so far is sent to your notes model (Settings → Models) each time. The panel is hidden from screen sharing."
+          hint="While recording, a panel at the right edge of your screen shows what to ask before the end, follow-ups and decisions, updated every minute. The last 15 minutes of the conversation are sent to your notes model (Settings → Models) each time. The panel is hidden from screen sharing."
         >
           <Switch
             label="Live notes during meetings"

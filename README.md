@@ -67,7 +67,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | Data | Where it goes |
 |---|---|
 | **Audio** (meetings and dictation) | Never leaves your computer. Transcription runs locally. |
-| **Meeting transcripts** | Sent to the summary model you choose: [OpenRouter](https://openrouter.ai) (routed only to providers that don't store or train on your data; zero-data-retention mode available), or a local [Ollama](https://ollama.com) model, so nothing leaves your machine. Summaries are optional. With live notes on (the default), the last 15 minutes of the conversation also go to that model every two minutes *during* a recording. |
+| **Meeting transcripts** | Sent to the summary model you choose: [OpenRouter](https://openrouter.ai) (routed only to providers that don't store or train on your data; zero-data-retention mode available), or a local [Ollama](https://ollama.com) model, so nothing leaves your machine. Summaries are optional. With live notes on (the default), the last 15 minutes of the conversation also go to that model every minute *during* a recording. |
 | **Dictated text** | Sent to the clean-up model only when clean-up runs (fillers, corrections, lists). Clean-up can be turned off or pointed at a local Ollama model. |
 | **API keys** | Stored in the macOS Keychain or Windows Credential Manager, never in config files or logs. |
 | **Logs** | Local files with events, timings and errors. Never transcripts, notes, dictated text or keys. |
@@ -149,7 +149,7 @@ Quill opens on **Home**: a line about your day (how many meetings, how long on c
 
 ### Recording a meeting
 
-Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. On macOS Quill also notices calls: when Zoom, Teams, Webex, FaceTime, Slack, Discord or a browser (for Google Meet and other web calls) has been using your microphone for a few seconds, a small prompt at the bottom of the screen asks whether to record, and when the call lets go of the mic, whether to stop. It sees only *which app* is using the microphone, so a browser call shows as "Google Chrome is using your microphone". Turn it off in **Settings → Meetings → Offer to record calls**. Quill then:
+Click **Record meeting** at the top of the sidebar, or use the menu-bar (tray) icon, when the call starts. Stop when it ends. You can pause and resume from the menu-bar icon or the live notes panel; nothing is recorded while paused, and the timer stands still. On macOS Quill also notices calls: when Zoom, Teams, Webex, FaceTime, Slack, Discord or a browser (for Google Meet and other web calls) has been using your microphone for a few seconds, a small prompt at the bottom of the screen asks whether to record, and when the call lets go of the mic, whether to stop. It sees only *which app* is using the microphone, so a browser call shows as "Google Chrome is using your microphone". Turn it off in **Settings → Meetings → Offer to record calls**. Quill then:
 
 1. Cleans speaker echo out of your microphone track.
 2. Transcribes both tracks locally and merges them into one transcript, with your lines labelled **You**.
@@ -168,7 +168,7 @@ Closing the window keeps Quill running in the menu bar, so a recording isn't cut
 **About Quill** (in the Quill menu on macOS, or the menu-bar icon's menu) shows the version and build, the models in use, links, and credits. **Copy diagnostic info** there copies what a bug report needs (no keys or text). On macOS, **Help → Report a Problem…** opens a new issue.
 
 
-**Live notes.** While you record, a panel at the right edge of your screen keeps notes as the meeting goes: **Ask before the end** (questions left open, decisions without an owner or date), **Follow-ups** and **Decisions**, with a line on where the conversation is. Every two minutes Quill transcribes what's been said (roughly, from your mic as **You** and the call as **Others**) and asks your notes model to update them; items the conversation has dealt with tick themselves off. Tick items off yourself, dismiss ones you don't want (they won't come back), update now, or collapse the panel to a tab on the screen edge. It's hidden from screen sharing, so others on the call don't see it, and it never takes focus from your call. The notes model gets the last 15 minutes of the conversation each time (with OpenRouter, the provider rules above apply; use an Ollama model to keep it on your computer). Turn it off in **Settings → Meetings → Live notes during meetings**. The meeting's real transcript and notes are still written after the recording, as before.
+**Live notes.** While you record, a panel at the right edge of your screen keeps notes as the meeting goes: **Ask before the end** (questions left open, decisions without an owner or date), **Follow-ups** and **Decisions**, with a line on where the conversation is. Quill transcribes what's said every ten seconds or so (roughly, from your mic as **You** and the call as **Others**), and every minute asks your notes model to update the notes; items the conversation has dealt with tick themselves off. Tick items off yourself, dismiss ones you don't want (they won't come back), update now, or collapse the panel to a tab on the screen edge. Its header has the recording's timer and **Pause** and **Stop** (Stop asks once, so a stray click doesn't end the meeting). It's hidden from screen sharing, so others on the call don't see it, and it never takes focus from your call. The notes model gets the last 15 minutes of the conversation each time (with OpenRouter, the provider rules above apply; use an Ollama model to keep it on your computer). Turn it off in **Settings → Meetings → Live notes during meetings**. The meeting's real transcript and notes are still written after the recording, as before.
 
 ### Dictating
 
@@ -248,7 +248,7 @@ cargo run --release -p quill-cli -- --help
 | `compact [dirs…]` | Convert recordings' WAVs to FLAC (the app does this automatically). |
 | `keys set\|delete openrouter` | Manage the API key in the OS keychain. |
 | `mic-users [--watch]` | List the apps using a microphone (macOS), e.g. to see how a call shows up: Zoom as `us.zoom.xos`, a Meet tab as `com.google.Chrome.helper`. Reads only which apps, never audio. |
-| `live-notes <recording or audio file>` | Replay a recording through live notes (the panel during meetings) and print the notes at each two-minute update, with timings and cost. |
+| `live-notes <recording or audio file>` | Replay a recording through live notes (the panel during meetings) and print the notes at each update (every minute, as in the app), with timings and cost. |
 
 The CLI and the app share one library, so meetings recorded or imported in either appear in both.
 

@@ -159,6 +159,8 @@ fn main() {
             about::about_info,
             about::open_link,
             commands::list_meetings,
+            commands::pause_recording,
+            commands::resume_recording,
             commands::meeting_overviews,
             calls::call_prompt,
             calls::answer_call_prompt,

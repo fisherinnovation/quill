@@ -1,6 +1,6 @@
 //! Live notes during a meeting (Settings → Meetings → Live notes): while
 //! recording, a worker follows the two tracks as they're written, keeps a
-//! rough transcript (`quill_core::live_meeting`), and every two minutes asks
+//! rough transcript (`quill_core::live_meeting`), and every minute asks
 //! the summary model to update the notes: what to ask before the end,
 //! follow-ups, decisions. A panel at the right edge of the screen shows
 //! them.
@@ -32,8 +32,9 @@ pub const LABEL: &str = "live";
 /// Sent to the panel with the [`LiveState`] whenever it changes.
 pub const EVENT: &str = "live-notes";
 
-/// How often the notes are updated.
-const NOTES_EVERY: Duration = Duration::from_secs(120);
+/// How often the notes are updated: often enough to keep up with the
+/// conversation (every two minutes felt behind it).
+const NOTES_EVERY: Duration = Duration::from_secs(60);
 /// How often the worker reads new audio and transcribes what's ready.
 const TICK: Duration = Duration::from_secs(2);
 /// Logical sizes: the panel, and the tab it collapses to.

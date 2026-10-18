@@ -1,5 +1,5 @@
 //! Live notes during a meeting: a rough transcript built as the recording
-//! goes, and notes an LLM keeps up to date from it every couple of minutes
+//! goes, and notes an LLM keeps up to date from it every minute or so
 //! (what to ask before the end, follow-ups, decisions).
 //!
 //! The transcript is a working draft for the notes. The meeting's real
@@ -15,12 +15,13 @@ use crate::live::{pause, rms};
 use crate::meeting::{ME, OTHERS};
 
 const SAMPLES_PER_MS: usize = 16;
-/// Transcribe once this much audio has built up...
-const CHUNK_MS: usize = 20_000;
+/// Transcribe once this much audio has built up (short, so the notes keep
+/// up with the conversation)...
+const CHUNK_MS: usize = 10_000;
 /// ...cutting where both tracks are quiet, found in the last stretch of it...
-const CUT_SEARCH_MS: usize = 8_000;
+const CUT_SEARCH_MS: usize = 6_000;
 /// ...or, if nobody pauses, here anyway.
-const MAX_CHUNK_MS: usize = 45_000;
+const MAX_CHUNK_MS: usize = 25_000;
 const PAUSE_RATIO: f32 = 0.2;
 /// The notes are updated from this much of the latest transcript; the notes
 /// themselves carry what came before, so each update costs about the same.
@@ -264,7 +265,9 @@ fn parse(text: &str) -> Result<Reply, serde_json::Error> {
 
 /// The new notes: ids kept where the model kept them, new ones numbered
 /// after the highest so far, dismissed items left out (by id or text, so
-/// they can't come back renumbered), ticked ones done.
+/// they can't come back renumbered), ticked ones done. Decisions and items
+/// already done stay even if the model leaves them out: they're what the
+/// meeting has achieved, not clutter.
 fn merge(previous: &Notes, reply: Reply, dismissed: &[Item], ticked: &[String]) -> Notes {
     let key = |text: &str| {
         text.chars()
@@ -297,10 +300,11 @@ fn merge(previous: &Notes, reply: Reply, dismissed: &[Item], ticked: &[String]) 
                 format!("n{next}")
             }
         };
+        // Only follow-ups have someone to do them.
         let who = item
             .who
             .map(|w| w.trim().to_string())
-            .filter(|w| !w.is_empty());
+            .filter(|w| !w.is_empty() && item.kind == Kind::FollowUp);
         // "Priya: fix…" with who "Priya" would show the name twice.
         let text = item.text.trim();
         let text = who
@@ -317,6 +321,14 @@ fn merge(previous: &Notes, reply: Reply, dismissed: &[Item], ticked: &[String]) 
             who,
         });
     }
+    for kept in &previous.items {
+        let settled = kept.kind == Kind::Decision || kept.done;
+        if settled && !items.iter().any(|i| i.id == kept.id) && !gone(Some(&kept.id), &kept.text) {
+            items.push(kept.clone());
+        }
+    }
+    // Back in kind order, done last within each, as the panel lists them.
+    items.sort_by_key(|i| (i.kind as u8, i.done));
     Notes {
         gist: reply.gist.trim().to_string(),
         items,
@@ -354,29 +366,29 @@ mod tests {
     #[test]
     fn transcribes_in_chunks_cut_at_a_shared_pause() {
         let mut live = LiveTranscript::new();
-        // The call talks for 18 s, pauses 1 s, talks 6 s; you're silent.
-        let mut system = speech(18_000);
+        // The call talks for 10 s, pauses 1 s, talks 4 s; you're silent.
+        let mut system = speech(10_000);
         system.extend(vec![0.0; 16_000]);
-        system.extend(speech(6_000));
+        system.extend(speech(4_000));
         let mic = vec![0.0; system.len()];
         // Not enough yet, then only what both tracks have.
-        live.push(&mic[..10 * 16_000], &system[..10 * 16_000]);
+        live.push(&mic[..5 * 16_000], &system[..5 * 16_000]);
         assert_eq!(
             live.step(&Echo, &TranscribeOptions::default(), false)
                 .unwrap(),
             0
         );
-        live.push(&mic[10 * 16_000..], &system[10 * 16_000..]);
+        live.push(&mic[5 * 16_000..], &system[5 * 16_000..]);
         assert_eq!(
             live.step(&Echo, &TranscribeOptions::default(), false)
                 .unwrap(),
             1
         );
-        // Cut in the pause (18–19 s), not mid-speech.
+        // Cut in the pause (10–11 s), not mid-speech.
         let line = &live.lines()[0];
         assert_eq!(line.speaker, OTHERS);
         let cut_ms: u64 = line.text.trim_end_matches(" ms").parse().unwrap();
-        assert!((18_000..19_000).contains(&cut_ms), "{cut_ms}");
+        assert!((10_000..11_000).contains(&cut_ms), "{cut_ms}");
         // The rest comes on flush, timed from the start of the recording.
         assert_eq!(
             live.step(&Echo, &TranscribeOptions::default(), true)
@@ -433,18 +445,48 @@ mod tests {
         assert_eq!(notes.gist, "Rollout owner agreed.");
         let ids: Vec<&str> = notes.items.iter().map(|i| i.id.as_str()).collect();
         // New items are numbered after the highest id, dismissed ones
-        // included; n9 wasn't ours, so it's renumbered too. The dismissed
-        // item stays gone, by id or by its text without one.
-        assert_eq!(ids, ["n1", "n2", "n4", "n5"]);
-        assert!(notes.items[0].done, "the model saw it dealt with");
-        assert!(notes.items[1].done, "the user ticked it");
-        assert_eq!(notes.items[1].who.as_deref(), Some("Priya"));
+        // included; n9 wasn't ours, so it's renumbered too (n5). The
+        // dismissed item stays gone, by id or by its text without one.
+        // Listed by kind, open before done.
+        assert_eq!(ids, ["n5", "n1", "n2", "n4"]);
+        let by_id = |id: &str| notes.items.iter().find(|i| i.id == id).unwrap();
+        assert!(by_id("n1").done, "the model saw it dealt with");
+        assert!(by_id("n2").done, "the user ticked it");
+        assert_eq!(by_id("n2").who.as_deref(), Some("Priya"));
         assert_eq!(
-            notes.items[1].text, "Fix duplicate events",
+            by_id("n2").text,
+            "Fix duplicate events",
             "the name isn't repeated"
         );
-        assert_eq!(notes.items[2].kind, Kind::Decision);
-        assert!(!notes.items[2].done, "decisions are never done");
+        assert_eq!(by_id("n4").kind, Kind::Decision);
+        assert!(!by_id("n4").done, "decisions are never done");
+    }
+
+    #[test]
+    fn decisions_and_done_items_stay_when_the_model_drops_them() {
+        let item = |id: &str, kind, done| Item {
+            id: id.into(),
+            kind,
+            text: format!("item {id}"),
+            who: None,
+            done,
+        };
+        let previous = Notes {
+            gist: String::new(),
+            items: vec![
+                item("n1", Kind::Ask, true),
+                item("n2", Kind::Ask, false),
+                item("n3", Kind::Decision, false),
+            ],
+        };
+        let reply = parse(r#"{"gist": "Hiring.", "items": [{"id": null, "kind": "ask", "text": "New one", "who": "Dan"}]}"#).unwrap();
+        let notes = merge(&previous, reply, &[], &[]);
+        let ids: Vec<&str> = notes.items.iter().map(|i| i.id.as_str()).collect();
+        // n2 (open, dropped as less important) goes; the answered ask and
+        // the decision stay, the new item first among the asks.
+        assert_eq!(ids, ["n4", "n1", "n3"]);
+        // Only follow-ups have a "who": an ask would read "Dan: Ask Dan…".
+        assert_eq!(notes.items[0].who, None);
     }
 
     #[test]

@@ -57,6 +57,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState<RecordingState>({
     recording: false,
+    paused: false,
     meeting_id: null,
     elapsed_ms: 0,
   });

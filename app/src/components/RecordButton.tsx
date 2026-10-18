@@ -25,7 +25,11 @@ export function RecordButton({ state, onError, compact = false }: Props) {
     }
   }
 
-  const label = state.recording ? `Stop recording · ${clock(elapsed)}` : busy ? "Starting…" : "Record meeting";
+  const label = state.recording
+    ? `Stop recording · ${state.paused ? "paused" : clock(elapsed)}`
+    : busy
+      ? "Starting…"
+      : "Record meeting";
   return (
     <button
       className={`record${state.recording ? " active" : ""}`}
@@ -39,7 +43,7 @@ export function RecordButton({ state, onError, compact = false }: Props) {
           <span className="stop-square" />
           <span className="record-label">Stop recording</span>
           <span className="spacer record-label" />
-          <span className="record-label">{clock(elapsed)}</span>
+          <span className="record-label">{state.paused ? "Paused" : clock(elapsed)}</span>
         </>
       ) : busy ? (
         <>
@@ -64,13 +68,16 @@ export function useElapsed(state: RecordingState): number {
 
   useEffect(() => {
     setAnchor({ at: Date.now(), elapsed: state.elapsed_ms });
-  }, [state.elapsed_ms, state.recording]);
+  }, [state.elapsed_ms, state.recording, state.paused]);
 
+  // Paused, the clock stands still at what Rust last said.
+  const ticking = state.recording && !state.paused;
   useEffect(() => {
-    if (!state.recording) return;
+    if (!ticking) return;
     const timer = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(timer);
-  }, [state.recording]);
+  }, [ticking]);
 
-  return state.recording ? anchor.elapsed + Math.max(0, now - anchor.at) : 0;
+  if (!state.recording) return 0;
+  return ticking ? anchor.elapsed + Math.max(0, now - anchor.at) : anchor.elapsed;
 }

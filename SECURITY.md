@@ -51,7 +51,7 @@ There's no telemetry, analytics or crash reporting.
 to the summary model, and dictated text to the clean-up model, only when
 those steps run, and only to the provider you chose. With live notes on
 (Settings → Meetings, on by default), a rough transcript of the last 15
-minutes of a meeting is sent to the summary model every two minutes while
+minutes of a meeting is sent to the summary model every minute while
 it's being recorded; the live notes panel is excluded from screen sharing
 and screen recording, and the live transcript and notes are kept only in
 memory (they aren't saved or logged). OpenRouter requests ask

@@ -70,6 +70,9 @@ impl TrackSummary {
 /// dropping it without stopping leaves them truncated.
 pub struct Recording {
     tracks: Vec<ActiveTrack>,
+    /// While set, every track's writer discards what arrives (see
+    /// [`Recording::pause_flag`]).
+    paused: Arc<AtomicBool>,
 }
 
 struct ActiveTrack {
@@ -101,10 +104,16 @@ pub fn start(requests: &[TrackRequest]) -> Result<Recording, AudioError> {
     // not turn into leading silence. `OnceLock::get` is a plain atomic load,
     // so the audio callback can read it without locking.
     let session_start = Arc::new(OnceLock::new());
+    let paused = Arc::new(AtomicBool::new(false));
 
     let mut tracks = Vec::with_capacity(requests.len());
     for request in requests {
-        tracks.push(open_track(&host, request, Arc::clone(&session_start))?);
+        tracks.push(open_track(
+            &host,
+            request,
+            Arc::clone(&session_start),
+            Arc::clone(&paused),
+        )?);
     }
     // Start the streams only once all are built, so they begin together.
     let _ = session_start.set(Instant::now());
@@ -114,10 +123,17 @@ pub fn start(requests: &[TrackRequest]) -> Result<Recording, AudioError> {
             .play()
             .map_err(|e| AudioError::device("starting stream", e))?;
     }
-    Ok(Recording { tracks })
+    Ok(Recording { tracks, paused })
 }
 
 impl Recording {
+    /// Pauses (and resumes) every track. While paused the audio still
+    /// arrives but isn't written, so the files skip that stretch and stay
+    /// aligned with each other (to within a writer's 20 ms poll).
+    pub fn pause_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.paused)
+    }
+
     /// Stops all tracks, waits for the writers to flush and returns a summary
     /// per track.
     pub fn stop(self) -> Result<Vec<TrackSummary>, AudioError> {
@@ -151,6 +167,7 @@ fn open_track(
     host: &cpal::Host,
     request: &TrackRequest,
     session_start: Arc<OnceLock<Instant>>,
+    paused: Arc<AtomicBool>,
 ) -> Result<ActiveTrack, AudioError> {
     let (device, supported) = match request.source {
         Source::Microphone => {
@@ -219,7 +236,7 @@ fn open_track(
         let stop = Arc::clone(&stop);
         std::thread::Builder::new()
             .name(format!("quill-wav-{:?}", request.source))
-            .spawn(move || write_wav(&path, spec, consumer, &first_sample_at, &stop))?
+            .spawn(move || write_wav(&path, spec, consumer, &first_sample_at, &stop, &paused))?
     };
 
     tracing::info!(
@@ -322,6 +339,7 @@ fn write_wav(
     mut consumer: Consumer<f32>,
     first_sample_at: &AtomicU64,
     stop: &AtomicBool,
+    paused: &AtomicBool,
 ) -> Result<WriterStats, AudioError> {
     let channels = u64::from(spec.channels);
     let mut wav = WavWriter::create(path, spec)?;
@@ -359,6 +377,11 @@ fn write_wav(
         let chunk = consumer
             .read_chunk(available)
             .map_err(|e| AudioError::Capture(e.to_string()))?;
+        // Paused: take the audio off the buffer, but don't keep it.
+        if paused.load(Ordering::Acquire) {
+            chunk.commit_all();
+            continue;
+        }
         let (first, second) = chunk.as_slices();
         for &sample in first.iter().chain(second) {
             wav.write_sample(sample)?;
@@ -408,6 +431,35 @@ mod tests {
     }
 
     #[test]
+    fn a_paused_writer_drains_but_keeps_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("track.wav");
+        let spec = WavSpec {
+            channels: 1,
+            sample_rate: 1000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let (mut producer, consumer) = RingBuffer::new(16);
+        for s in [0.25, -0.5, 0.75] {
+            producer.push(s).unwrap();
+        }
+        let stats = write_wav(
+            &path,
+            spec,
+            consumer,
+            &AtomicU64::new(0),
+            &AtomicBool::new(true),
+            &AtomicBool::new(true),
+        )
+        .unwrap();
+        assert_eq!(stats.frames, 0);
+        assert_eq!(hound::WavReader::open(&path).unwrap().len(), 0);
+        // The buffer was emptied, so the audio thread never stalls.
+        assert_eq!(producer.slots(), 16);
+    }
+
+    #[test]
     fn writer_pads_lead_in_and_writes_all_samples() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("track.wav");
@@ -426,7 +478,15 @@ mod tests {
         let first = AtomicU64::new(5_000_000);
         let stop = AtomicBool::new(true);
 
-        let stats = write_wav(&path, spec, consumer, &first, &stop).unwrap();
+        let stats = write_wav(
+            &path,
+            spec,
+            consumer,
+            &first,
+            &stop,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
 
         assert_eq!(stats.lead_in_frames, 5);
         assert_eq!(stats.frames, 7);

@@ -1,6 +1,7 @@
 //! Menu-bar (macOS) / system-tray (Windows) icon: start and stop recording
 //! without opening the window, with a live timer while recording.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tauri::image::Image;
@@ -12,6 +13,7 @@ use crate::AppState;
 use crate::commands::{self, lock};
 
 const TOGGLE: &str = "toggle-recording";
+const PAUSE: &str = "pause-recording";
 const OPEN: &str = "open";
 const ABOUT: &str = "tray-about";
 const QUIT: &str = "quit";
@@ -28,10 +30,16 @@ const ICON: &[u8] = include_bytes!("../icons/tray-windows.png");
 pub struct Tray {
     icon: TrayIcon,
     toggle: MenuItem<Wry>,
+    pause: MenuItem<Wry>,
 }
+
+/// Set while the menu-bar timer is running, so pausing and resuming don't
+/// start another.
+static TIMER: AtomicBool = AtomicBool::new(false);
 
 pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
     let toggle = MenuItem::with_id(app, TOGGLE, "Start Recording", true, None::<&str>)?;
+    let pause = MenuItem::with_id(app, PAUSE, "Pause Recording", false, None::<&str>)?;
     let open = MenuItem::with_id(app, OPEN, "Open Quill", true, None::<&str>)?;
     let about = MenuItem::with_id(app, ABOUT, "About Quill", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT, "Quit Quill", true, None::<&str>)?;
@@ -39,6 +47,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
         app,
         &[
             &toggle,
+            &pause,
             &PredefinedMenuItem::separator(app)?,
             &open,
             &about,
@@ -71,6 +80,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
                     }
                 });
             }
+            PAUSE => {
+                let paused = lock(&app.state::<AppState>().recording)
+                    .as_ref()
+                    .is_some_and(crate::recorder::ActiveRecording::is_paused);
+                if let Err(e) = commands::set_paused(app, !paused) {
+                    tracing::warn!("pause from the menu bar: {e}");
+                }
+            }
             OPEN => show_window(app),
             ABOUT => crate::about::show(app),
             QUIT => app.exit(0),
@@ -78,11 +95,15 @@ pub fn create(app: &AppHandle) -> tauri::Result<Tray> {
         })
         .build(app)?;
 
-    Ok(Tray { icon, toggle })
+    Ok(Tray {
+        icon,
+        toggle,
+        pause,
+    })
 }
 
 /// Reflects the recording state in the menu and menu-bar title.
-pub fn set_recording(app: &AppHandle, recording: bool) {
+pub fn set_recording(app: &AppHandle, recording: bool, paused: bool) {
     let state = app.state::<AppState>();
     let tray = lock(&state.tray);
     let Some(tray) = tray.as_ref() else {
@@ -93,9 +114,17 @@ pub fn set_recording(app: &AppHandle, recording: bool) {
     } else {
         "Start Recording"
     });
-    let _ = tray.icon.set_title(recording.then_some("● 0:00"));
-    if recording {
+    let _ = tray.pause.set_enabled(recording);
+    let _ = tray.pause.set_text(if paused {
+        "Resume Recording"
+    } else {
+        "Pause Recording"
+    });
+    if recording && !TIMER.swap(true, Ordering::SeqCst) {
+        let _ = tray.icon.set_title(Some("● 0:00"));
         spawn_timer(app.clone());
+    } else if !recording {
+        let _ = tray.icon.set_title(None::<&str>);
     }
 }
 
@@ -116,17 +145,22 @@ pub fn set_dictation(app: &AppHandle, phase: crate::dictation::Phase) {
     }
 }
 
-/// Updates the "● m:ss" title once a second until recording stops.
+/// Updates the "● m:ss" title (❚❚ while paused) until recording stops.
 fn spawn_timer(app: AppHandle) {
     std::thread::spawn(move || {
         loop {
             std::thread::sleep(Duration::from_millis(500));
             let state = app.state::<AppState>();
-            let Some(elapsed) = lock(&state.recording).as_ref().map(|r| r.started.elapsed()) else {
+            let Some((elapsed, paused)) = lock(&state.recording)
+                .as_ref()
+                .map(|r| (r.elapsed(), r.is_paused()))
+            else {
+                TIMER.store(false, Ordering::SeqCst);
                 return;
             };
             let secs = elapsed.as_secs();
-            let title = format!("● {}:{:02}", secs / 60, secs % 60);
+            let mark = if paused { "❚❚" } else { "●" };
+            let title = format!("{mark} {}:{:02}", secs / 60, secs % 60);
             if let Some(tray) = lock(&state.tray).as_ref() {
                 let _ = tray.icon.set_title(Some(title));
             }
