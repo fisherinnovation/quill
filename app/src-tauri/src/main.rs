@@ -12,7 +12,9 @@ mod about;
 mod calls;
 mod commands;
 mod dictation;
+mod focus;
 mod indicator;
+mod live_notes;
 mod llm_models;
 mod logging;
 mod models;
@@ -123,6 +125,9 @@ fn main() {
             if let Err(e) = calls::create(app.handle()) {
                 tracing::warn!("no call prompt: {e}");
             }
+            if let Err(e) = live_notes::create(app.handle()) {
+                tracing::warn!("no live notes panel: {e}");
+            }
             calls::spawn(app.handle().clone());
             let theme = commands::lock(&app.state::<AppState>().settings).theme;
             theme::apply(app.handle(), theme);
@@ -159,6 +164,13 @@ fn main() {
             calls::answer_call_prompt,
             calls::call_prompt_hovered,
             calls::call_prompt_pressed,
+            live_notes::live_notes_state,
+            live_notes::live_notes_refresh,
+            live_notes::live_notes_dismiss,
+            live_notes::live_notes_tick,
+            live_notes::live_notes_collapse,
+            live_notes::live_notes_hovered,
+            live_notes::live_notes_pressed,
             commands::get_meeting,
             commands::meeting_stats,
             commands::search_transcripts,

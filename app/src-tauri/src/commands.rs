@@ -268,7 +268,7 @@ pub fn start(app: &AppHandle) -> CommandResult<Meeting> {
     }
     let meeting = state.library.create_meeting()?;
     let dir = state.library.meeting_dir(&meeting.id);
-    match ActiveRecording::start(meeting.id.clone(), dir) {
+    match ActiveRecording::start(meeting.id.clone(), dir.clone()) {
         Ok(active) => *recording = Some(active),
         Err(e) => {
             // Don't leave an empty meeting behind.
@@ -280,6 +280,7 @@ pub fn start(app: &AppHandle) -> CommandResult<Meeting> {
     }
     drop(recording);
     notify(app);
+    crate::live_notes::start(app, dir);
     Ok(meeting)
 }
 
@@ -291,6 +292,7 @@ pub fn stop(app: &AppHandle) -> CommandResult<String> {
         .take()
         .ok_or_else(|| CommandError::Other("not recording".into()))?;
     let id = active.meeting_id.clone();
+    crate::live_notes::stop(app);
     let tracks = active.stop().map_err(CommandError::Other)?;
     let dir = state.library.meeting_dir(&id);
     if let Err(e) = quill_core::meeting::write_recording_info(&dir, &tracks) {

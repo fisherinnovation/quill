@@ -7,7 +7,8 @@
 // for the dictation pill (with ?listening or ?processing), ?others for a
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
 // fn as the dictation key, ?about for the About window, ?prompt (or
-// ?prompt=stop) for the call prompt, ?update for a
+// ?prompt=stop) for the call prompt, ?live (or ?live=empty) for the live
+// notes panel, ?update for a
 // new version waiting to be installed, and ?backlog for enough older
 // meetings and dictations to need "Show more".
 import { emit } from "@tauri-apps/api/event";
@@ -89,6 +90,32 @@ if (flags.has("backlog")) {
   );
 }
 
+// The live notes panel in the preview (?live; ?live=empty before the first
+// update).
+let live = {
+  active: true,
+  notes:
+    flags.get("live") === "empty"
+      ? { gist: "", items: [] }
+      : {
+          gist: "Planning Friday's onboarding launch; now on why signups look 12% too high.",
+          items: [
+            { id: "n1", kind: "ask", text: "Ask who owns the rollout plan for support", who: null, done: false },
+            { id: "n2", kind: "ask", text: "Check whether the 10% flag is per region or global", who: null, done: false },
+            { id: "n3", kind: "ask", text: "Confirm the date for the pricing experiments", who: null, done: true },
+            { id: "n4", kind: "follow_up", text: "Fix the duplicate signup events by Thursday", who: "Priya", done: false },
+            { id: "n5", kind: "follow_up", text: "Send the rollout plan to support by Wednesday", who: "You", done: false },
+            { id: "n6", kind: "decision", text: "Ship the redesign Friday behind a flag at 10%", who: null, done: false },
+          ],
+        },
+  updated_ms: Date.now() - 60_000,
+  next_ms: null,
+  updating: false,
+  heard: "and then we can look at pricing once the numbers are clean",
+  error: null,
+  collapsed: false,
+};
+
 // What the dictation captions say in the preview (?indicator&listening).
 const CAPTION =
   "Okay so for the launch plan I think we should ship the onboarding redesign on Friday. Then we can look at the pricing page next week once the analytics are fixed. And I'll send the rollout notes to support tomorrow.";
@@ -141,6 +168,7 @@ const settings = {
   check_for_updates: true,
   theme: flags.has("light") ? "light" : flags.has("dark") ? "dark" : "system",
   offer_to_record_calls: true,
+  live_notes: true,
   dictation: {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
@@ -334,6 +362,32 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   answer_call_prompt: () => {},
   call_prompt_hovered: () => {},
   call_prompt_pressed: () => {},
+  live_notes_state: () => live,
+  live_notes_refresh: () => {
+    live = { ...live, updating: true };
+    void emit("live-notes", live);
+    setTimeout(() => {
+      live = { ...live, updating: false, updated_ms: Date.now() };
+      void emit("live-notes", live);
+    }, 1500);
+  },
+  live_notes_dismiss: ({ id }) => {
+    live = { ...live, notes: { ...live.notes, items: live.notes.items.filter((i) => i.id !== id) } };
+    void emit("live-notes", live);
+  },
+  live_notes_tick: ({ id, done }) => {
+    live = {
+      ...live,
+      notes: { ...live.notes, items: live.notes.items.map((i) => (i.id === id ? { ...i, done: Boolean(done) } : i)) },
+    };
+    void emit("live-notes", live);
+  },
+  live_notes_collapse: ({ collapsed }) => {
+    live = { ...live, collapsed: Boolean(collapsed) };
+    void emit("live-notes", live);
+  },
+  live_notes_hovered: () => {},
+  live_notes_pressed: () => {},
   meeting_stats: ({ id }) =>
     meetings.find((m) => m.id === id)?.has_transcript ? meetingStats() : { ...meetingStats(), speakers: [], stretches: [] },
   dictation_stats: ({ id }) => {
@@ -557,7 +611,15 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
 
 export function installMocks() {
   mockWindows(
-    flags.has("indicator") ? "indicator" : flags.has("prompt") ? "prompt" : flags.has("about") ? "about" : "main",
+    flags.has("indicator")
+      ? "indicator"
+      : flags.has("prompt")
+        ? "prompt"
+        : flags.has("live")
+          ? "live"
+          : flags.has("about")
+            ? "about"
+            : "main",
   );
   mockIPC(
     (cmd, args) => {

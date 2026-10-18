@@ -120,6 +120,21 @@ pub const DICTATION: DictationPrompts = DictationPrompts {
     user: prompt!("dictation-v3/user.md"),
 };
 
+/// Prompts that keep live notes during a meeting (quill_core::live_meeting).
+#[derive(Debug, Clone, Copy)]
+pub struct LivePrompts {
+    pub version: &'static str,
+    pub system: &'static str,
+    /// Vars: minutes, notes (JSON), dismissed (item ids), transcript.
+    pub user: &'static str,
+}
+
+pub const LIVE: LivePrompts = LivePrompts {
+    version: "live-v1",
+    system: prompt!("live-v1/system.md"),
+    user: prompt!("live-v1/user.md"),
+};
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum RenderError {
     #[error("template uses {{{{{0}}}}} but no value was given")]
@@ -243,6 +258,33 @@ mod tests {
             ],
         )
         .unwrap();
+    }
+
+    /// Golden file for the live-notes prompt; regenerate like the others.
+    #[test]
+    fn live_prompt_golden() {
+        let rendered = render(
+            LIVE.user,
+            &[
+                ("minutes", "12"),
+                (
+                    "notes",
+                    r#"{"gist": "Planning the launch.", "items": [{"id": "a1", "kind": "ask", "text": "Ask who owns the rollout plan", "who": null, "done": false}]}"#,
+                ),
+                ("dismissed", "f2"),
+                (
+                    "transcript",
+                    "[11:02] Me: Priya, can you take the rollout plan?\n[11:05] Others: Sure, by Wednesday.",
+                ),
+            ],
+        )
+        .unwrap();
+        let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("tests/golden/{}-user.md", LIVE.version));
+        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+            std::fs::write(&golden, &rendered).unwrap();
+        }
+        assert_eq!(rendered, std::fs::read_to_string(&golden).unwrap());
     }
 
     /// Golden file: the fully rendered single-pass prompt for a tiny

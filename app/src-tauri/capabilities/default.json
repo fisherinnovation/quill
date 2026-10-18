@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "What the main window's JavaScript may call. Our own commands are allowed by default; Tauri's built-in APIs only as listed here.",
-  "windows": ["main", "indicator", "about", "prompt"],
+  "windows": ["main", "indicator", "about", "prompt", "live"],
   "permissions": ["core:default", "core:window:allow-start-dragging"]
 }

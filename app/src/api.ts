@@ -82,7 +82,32 @@ export interface Settings {
   theme: Theme;
   /** Offer to record when a call app starts using the mic (macOS for now). */
   offer_to_record_calls: boolean;
+  /** Live notes in a side panel while recording. */
+  live_notes: boolean;
   dictation: DictationSettings;
+}
+
+/** A live note (quill_core::live_meeting::Item). */
+export interface LiveItem {
+  id: string;
+  kind: "ask" | "follow_up" | "decision";
+  text: string;
+  who: string | null;
+  done: boolean;
+}
+
+/** What the live notes panel shows (src-tauri/src/live_notes.rs). */
+export interface LiveState {
+  active: boolean;
+  notes: { gist: string; items: LiveItem[] };
+  /** Recording time (ms) of the last update and of the next. */
+  updated_ms: number | null;
+  next_ms: number | null;
+  updating: boolean;
+  /** The latest line heard. */
+  heard: string | null;
+  error: string | null;
+  collapsed: boolean;
 }
 
 /** What the call prompt asks (src-tauri/src/calls.rs). */
@@ -413,6 +438,13 @@ export const api = {
   callPromptHovered: () => invoke<void>("call_prompt_hovered"),
   /** A prompt button is being pressed: give focus back to the call right away. */
   callPromptPressed: () => invoke<void>("call_prompt_pressed"),
+  liveNotesState: () => invoke<LiveState>("live_notes_state"),
+  liveNotesRefresh: () => invoke<void>("live_notes_refresh"),
+  liveNotesDismiss: (id: string) => invoke<void>("live_notes_dismiss", { id }),
+  liveNotesTick: (id: string, done: boolean) => invoke<void>("live_notes_tick", { id, done }),
+  liveNotesCollapse: (collapsed: boolean) => invoke<void>("live_notes_collapse", { collapsed }),
+  liveNotesHovered: () => invoke<void>("live_notes_hovered"),
+  liveNotesPressed: () => invoke<void>("live_notes_pressed"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),
@@ -528,6 +560,9 @@ export const events = {
     listen<DictationState>("dictation-state", (e) => cb(e.payload)),
   onDictationEntry: (cb: (entry: DictationEntry) => void): Promise<UnlistenFn> =>
     listen<DictationEntry>("dictation-entry", (e) => cb(e.payload)),
+  /** The live notes panel's state changed. */
+  onLiveNotes: (cb: (state: LiveState) => void): Promise<UnlistenFn> =>
+    listen<LiveState>("live-notes", (e) => cb(e.payload)),
   /** The call prompt's question, or null when it hides. */
   onCallPrompt: (cb: (prompt: CallPrompt | null) => void): Promise<UnlistenFn> =>
     listen<CallPrompt | null>("call-prompt", (e) => cb(e.payload)),

@@ -215,7 +215,7 @@ impl LiveTranscript {
 /// The middle of the longest run of 10 ms frames in `pcm[lo..hi]` (clamped)
 /// quieter than `threshold`, if it's at least [`PAUSE_MS`] long: a sample
 /// index to cut at without splitting a word.
-fn pause(pcm: &[f32], lo: usize, hi: usize, threshold: f32) -> Option<usize> {
+pub(crate) fn pause(pcm: &[f32], lo: usize, hi: usize, threshold: f32) -> Option<usize> {
     let hi = hi.min(pcm.len());
     let lo = lo.min(hi);
     let (mut best, mut run_start) = (None::<(usize, usize)>, None);
@@ -272,7 +272,7 @@ fn without_overlap(locked: &str, next: &str) -> String {
     words[longest..].join(" ")
 }
 
-fn rms(pcm: &[f32]) -> f32 {
+pub(crate) fn rms(pcm: &[f32]) -> f32 {
     if pcm.is_empty() {
         return 0.0;
     }

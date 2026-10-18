@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWi
 
 use crate::AppState;
 use crate::commands::{CommandError, CommandResult, blocking, lock};
+use crate::focus::ReturnFocus;
 
 pub const LABEL: &str = "prompt";
 /// Sent to the prompt window with what to show ([`Prompt`]).
@@ -45,7 +46,7 @@ pub enum Prompt {
 #[derive(Default)]
 pub struct CallPrompt {
     shown: Mutex<Option<Prompt>>,
-    return_to: Mutex<Option<i32>>,
+    focus: ReturnFocus,
 }
 
 /// The fade-out the page plays after a click, before the window hides.
@@ -154,7 +155,7 @@ fn show(app: &AppHandle, prompt: Prompt) {
     };
     let state = app.state::<CallPrompt>();
     *lock(&state.shown) = Some(prompt.clone());
-    *lock(&state.return_to) = other_frontmost_app();
+    state.focus.note_front();
     place(app, &window);
     let _ = app.emit_to(LABEL, EVENT, Some(prompt));
     if let Err(e) = window.show() {
@@ -193,30 +194,6 @@ fn place(app: &AppHandle, window: &tauri::WebviewWindow) {
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
-/// The app in front, unless it's Quill.
-fn other_frontmost_app() -> Option<i32> {
-    #[cfg(target_os = "macos")]
-    {
-        let own = i32::try_from(std::process::id()).ok();
-        quill_insert::frontmost_pid().filter(|pid| Some(*pid) != own)
-    }
-    #[cfg(not(target_os = "macos"))]
-    None
-}
-
-/// Makes the app that was in front when the prompt appeared active again.
-fn give_focus_back(app: &AppHandle) {
-    #[cfg(target_os = "macos")]
-    if let Some(pid) = *lock(&app.state::<CallPrompt>().return_to) {
-        // AppKit wants the main thread.
-        let _ = app.run_on_main_thread(move || {
-            quill_insert::refocus(pid);
-        });
-    }
-    #[cfg(not(target_os = "macos"))]
-    let _ = app;
-}
-
 /// What the prompt window should show now (it also gets [`EVENT`]s).
 #[tauri::command]
 pub fn call_prompt(prompt: tauri::State<'_, CallPrompt>) -> Option<Prompt> {
@@ -227,23 +204,21 @@ pub fn call_prompt(prompt: tauri::State<'_, CallPrompt>) -> Option<Prompt> {
 /// back to (the user may have switched since it appeared).
 #[tauri::command]
 pub fn call_prompt_hovered(prompt: tauri::State<'_, CallPrompt>) {
-    if let Some(pid) = other_frontmost_app() {
-        *lock(&prompt.return_to) = Some(pid);
-    }
+    prompt.focus.update_front();
 }
 
 /// A button is being pressed: that activated Quill, so hand focus back at
 /// once, before the click completes.
 #[tauri::command]
-pub fn call_prompt_pressed(app: AppHandle) {
-    give_focus_back(&app);
+pub fn call_prompt_pressed(app: AppHandle, prompt: tauri::State<'_, CallPrompt>) {
+    prompt.focus.give_back(&app);
 }
 
 /// The prompt's buttons: "record", "stop" or "dismiss". The window hides
 /// once the page's fade-out has played.
 #[tauri::command]
 pub async fn answer_call_prompt(app: AppHandle, answer: String) -> CommandResult<()> {
-    give_focus_back(&app);
+    app.state::<CallPrompt>().focus.give_back(&app);
     // Answered: starting or stopping below mustn't hide it before its fade.
     *lock(&app.state::<CallPrompt>().shown) = None;
     blocking(move || {

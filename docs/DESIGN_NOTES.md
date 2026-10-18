@@ -286,6 +286,36 @@ decision someone might otherwise undo.
   recording, before onboarding, or with the setting off. Windows support is
   planned (the microphone ConsentStore in the registry).
 
+## Live notes
+
+- **During a recording** a worker follows `mic.wav` and `system.wav` as
+  they're written (`quill_audio::growing`: nothing on the capture path
+  changes) and transcribes ~20 s chunks, cut where both tracks pause, as
+  You (mic, echo-cancelled per chunk) and Others (call). It's a draft for
+  the notes; the real transcript is still made after the recording.
+- **Every two minutes** (or on "update now") the summary model gets the
+  notes so far as JSON, the items dismissed, and the last 15 minutes of
+  transcript (`prompts/live-v1`), and returns updated notes: gist, ask
+  before the end, follow-ups, decisions. The 15-minute window keeps each
+  call's cost flat however long the meeting; the notes carry what came
+  before. Item ids stay stable; dismissed items are matched by id or text
+  so they can't come back renumbered; the model marks items done when the
+  conversation deals with them, and the user can tick them too.
+- **Panel:** its own window at the right edge, content-protected (hidden
+  from screen sharing and recording), never focused (clicks hand focus back
+  to the call, `focus.rs`), collapsible to a tab with the open questions'
+  count. On by default (the owner's choice while they're its only user);
+  Settings → Meetings turns it off. Notes and transcript live in memory
+  only.
+- **Measured** (`quill-cli live-notes eval/bench/meeting.wav`, 3.9 min
+  synthetic product sync, turbo + claude-haiku-5.5): live transcription
+  took 15 s of compute for the whole meeting; each update ~1.5 s and
+  together $0.0007. First draft of the prompt repeated owners' names in the
+  text, marked a decision "done" and listed one task twice; live-v1 says
+  not to, and the merge strips a repeated name and never marks decisions
+  done. It raised "make sure pricing and hiring get covered" and ticked it
+  off itself once they were.
+
 ## App layout
 
 - **The sidebar is navigation only** (Home, Meetings, Dictations, Settings,

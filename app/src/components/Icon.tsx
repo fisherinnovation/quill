@@ -4,6 +4,8 @@
 const PATHS = {
   home: "M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1v-8Z",
   back: "M19 12H5 M11 6l-6 6 6 6",
+  "chevron-right": "M9 6l6 6-6 6",
+  "chevron-left": "M15 6l-6 6 6 6",
   sidebar: "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z M9 5v14",
   mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z M19 11a7 7 0 0 1-14 0 M12 18v3",
   search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z M20 20l-4-4",

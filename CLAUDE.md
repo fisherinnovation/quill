@@ -113,7 +113,8 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   http://localhost:1420. `app/src/dev/mock.ts` stands in for every Tauri
   command. When you add a command or event, add it to the mock too.
 - **URL flags:** `?onboarding ?recording ?listening ?processing ?failed
-  ?nopaste ?empty ?light ?dark ?indicator ?prompt ?prompt=stop ?about ?others ?nomodels ?noollama
+  ?nopaste ?empty ?light ?dark ?indicator ?prompt ?prompt=stop
+  ?live ?live=empty ?about ?others ?nomodels ?noollama
   ?nokey ?fn ?update ?backlog`.
 - **Themes:** check light (`?light`) and dark (`?dark`).
 - **Clicking in the preview:** the first click after a page load is often

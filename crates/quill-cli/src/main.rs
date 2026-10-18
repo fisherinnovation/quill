@@ -11,6 +11,7 @@ mod eval;
 mod import;
 mod keys;
 mod library;
+mod live_notes;
 mod mic_users;
 mod models;
 mod record;
@@ -69,6 +70,8 @@ enum Command {
     Keys(keys::Command),
     /// List the apps using a microphone (macOS), e.g. to see how a call shows up
     MicUsers(mic_users::Args),
+    /// Replay a recording through live notes (the panel during meetings)
+    LiveNotes(live_notes::Args),
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -97,6 +100,7 @@ fn main() -> anyhow::Result<()> {
         Command::Import(args) => import::run(args),
         Command::Compact(args) => compact::run(args),
         Command::MicUsers(args) => mic_users::run(args),
+        Command::LiveNotes(args) => live_notes::run(args, &models_dir),
     }
 }
 

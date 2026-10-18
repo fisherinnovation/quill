@@ -18,6 +18,7 @@ pub mod capture;
 pub mod check;
 pub mod cue;
 mod flac;
+pub mod growing;
 pub mod live;
 pub mod mic_users;
 mod resample;

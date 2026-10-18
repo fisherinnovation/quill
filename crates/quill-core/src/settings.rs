@@ -45,6 +45,10 @@ pub struct Settings {
     /// When a call app starts using the microphone, offer to record it
     /// (`quill_core::calls`); when it stops, offer to stop.
     pub offer_to_record_calls: bool,
+    /// While recording, keep live notes (`quill_core::live_meeting`) in a
+    /// panel: the transcript so far goes to the summary model every couple
+    /// of minutes.
+    pub live_notes: bool,
     // Tables must come after plain values in TOML, so keep this last.
     pub dictation: DictationSettings,
 }
@@ -161,6 +165,7 @@ impl Default for Settings {
             check_for_updates: true,
             theme: Theme::System,
             offer_to_record_calls: true,
+            live_notes: true,
             dictation: DictationSettings::default(),
         }
     }

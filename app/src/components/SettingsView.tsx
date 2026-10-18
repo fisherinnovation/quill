@@ -205,6 +205,19 @@ export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTa
         </Row>
       </Group>
 
+      <Group title="Live notes">
+        <Row
+          label="Live notes during meetings"
+          hint="While recording, a panel at the right edge of your screen shows what to ask before the end, follow-ups and decisions, updated every two minutes. The conversation so far is sent to your notes model (Settings → Models) each time. The panel is hidden from screen sharing."
+        >
+          <Switch
+            label="Live notes during meetings"
+            checked={settings.live_notes}
+            onChange={(live_notes) => update({ live_notes })}
+          />
+        </Row>
+      </Group>
+
       <Group title="Summaries">
         <Row label="Summarize automatically" hint="Write the notes as soon as a recording is transcribed.">
           <Switch

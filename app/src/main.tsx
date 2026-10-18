@@ -5,6 +5,7 @@ import { api, applyTheme, events } from "./api";
 import { App } from "./App";
 import { About } from "./components/About";
 import { CallPromptCard } from "./components/CallPrompt";
+import { LivePanel } from "./components/LivePanel";
 import { Indicator } from "./components/Indicator";
 import "./styles.css";
 
@@ -35,6 +36,8 @@ async function start() {
         <Indicator />
       ) : label === "prompt" ? (
         <CallPromptCard />
+      ) : label === "live" ? (
+        <LivePanel />
       ) : label === "about" ? (
         <About />
       ) : (
