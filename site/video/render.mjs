@@ -10,6 +10,12 @@
 // cursor, records the screen, adds the caption, and joins the scenes with
 // crossfades. Needs Google Chrome and ffmpeg; no npm packages.
 //
+// To feel handled rather than scripted: the cursor travels on curves at a
+// speed that depends on the distance and drifts a little at rest, clicks
+// press in, typing has a rhythm, the camera pushes in slowly through each
+// scene, and captions rise as they fade in. Randomness is seeded per scene,
+// so the light and dark videos match.
+//
 // Writes site/media/hero-<theme>.mp4 and .jpg (the poster), and contact
 // sheets with one frame per scene to site/video/out/ for review.
 
@@ -26,6 +32,8 @@ const out = join(here, "out");
 const PORT = 1431;
 const FPS = 30;
 const FADE = 0.45;
+/** How far the camera pushes in over a scene, unless the scene says. */
+const PUSH = 0.035;
 
 const args = process.argv.slice(2);
 const arg = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
@@ -174,19 +182,35 @@ async function openPage(cdp, theme, { width = W, height = H, scale = DPR } = {})
 // Injected into each scene. Targets are CSS selectors, or "text:Label" for
 // the first visible button, tab, link or list item whose text starts with
 // Label (exact matches first).
-const HELPERS = `(() => {
+const HELPERS = (seed) => `(() => {
   if (window.__demo) return;
+  // Seeded per scene: the same moves in both themes.
+  let seed = ${seed};
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const cursor = document.createElement("div");
   cursor.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24"><path d="M5 3l14 8-6.2 1.6L10 19z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
   Object.assign(cursor.style, { position: "fixed", left: "0", top: "0", zIndex: 2147483647, pointerEvents: "none",
-    transition: "transform 650ms cubic-bezier(.45,.05,.25,1)", filter: "drop-shadow(0 2px 3px rgb(0 0 0 / .3))" });
+    transition: "opacity 200ms", filter: "drop-shadow(0 2px 3px rgb(0 0 0 / .3))" });
   const ripple = document.createElement("div");
-  Object.assign(ripple.style, { position: "fixed", width: "34px", height: "34px", margin: "-17px 0 0 -17px", borderRadius: "50%",
-    background: "rgb(120 120 140 / .35)", zIndex: 2147483646, pointerEvents: "none", opacity: "0", transform: "scale(.4)",
-    transition: "opacity 300ms, transform 300ms" });
+  Object.assign(ripple.style, { position: "fixed", width: "36px", height: "36px", margin: "-18px 0 0 -18px", borderRadius: "50%",
+    background: "rgb(120 120 140 / .32)", zIndex: 2147483646, pointerEvents: "none", opacity: "0", transform: "scale(.3)" });
   document.body.append(ripple, cursor);
   let at = { x: innerWidth * 0.62, y: innerHeight * 0.7 };
-  const place = (p) => (cursor.style.transform = "translate(" + (p.x - 4) + "px," + (p.y - 3) + "px)");
+  let press = 1;
+  let moving = false;
+  // At rest the hand isn't perfectly still: a slow drift of a pixel or two.
+  let drift = { x: 0, y: 0 };
+  const place = (p) => {
+    cursor.style.transform = "translate(" + (p.x + drift.x - 4) + "px," + (p.y + drift.y - 3) + "px) scale(" + press + ")";
+  };
+  const wander = (now) => {
+    const t = now / 1000;
+    const k = moving ? 0 : 1;
+    drift = { x: k * (Math.sin(t * 0.9) * 1.6 + Math.sin(t * 2.3) * 0.5), y: k * (Math.cos(t * 0.7) * 1.3) };
+    if (!moving) place(at);
+    requestAnimationFrame(wander);
+  };
+  requestAnimationFrame(wander);
   place(at);
   const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight; };
   const find = (target) => {
@@ -209,8 +233,36 @@ const HELPERS = `(() => {
     return el;
   };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + Math.min(r.width / 2, 60), y: r.top + r.height / 2 }; };
-  const move = async (el) => { el.scrollIntoView({ block: "nearest" }); await sleep(50); at = center(el); place(at); await sleep(700); };
+  // Somewhere near the middle of the target, not its exact centre.
+  const aim = (el) => {
+    const r = el.getBoundingClientRect();
+    const x = r.left + Math.min(r.width / 2, 60) + (random() - 0.5) * Math.min(r.width * 0.2, 10);
+    const y = r.top + r.height / 2 + (random() - 0.5) * Math.min(r.height * 0.25, 4);
+    return { x, y };
+  };
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  // A gentle curve, longer moves taking longer, easing out at the end.
+  const glide = (to) => new Promise((resolve) => {
+    const from = { ...at };
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 2) return resolve();
+    const ms = Math.min(950, 300 + dist * 0.75) * (0.9 + random() * 0.2);
+    const bend = (random() < 0.5 ? -1 : 1) * (0.08 + random() * 0.1);
+    const c = { x: from.x + dx / 2 - dy * bend, y: from.y + dy / 2 + dx * bend };
+    const start = performance.now();
+    moving = true;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / ms);
+      const e = ease(t), u = 1 - e;
+      at = { x: u * u * from.x + 2 * u * e * c.x + e * e * to.x, y: u * u * from.y + 2 * u * e * c.y + e * e * to.y };
+      place(at);
+      if (t < 1) requestAnimationFrame(step);
+      else { at = to; moving = false; resolve(); }
+    };
+    requestAnimationFrame(step);
+  });
+  const move = async (el) => { el.scrollIntoView({ block: "nearest" }); await sleep(50); await glide(aim(el)); await sleep(90 + random() * 120); };
   const setValue = (el, value) => {
     const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
@@ -223,9 +275,14 @@ const HELPERS = `(() => {
       const found = find(target);
       const el = found.matches("li, label") ? (found.querySelector("button, a, input") ?? found) : found;
       await move(el);
-      Object.assign(ripple.style, { left: at.x + "px", top: at.y + "px", opacity: "1", transform: "scale(1)" });
-      await sleep(120); el.click(); await sleep(180);
-      Object.assign(ripple.style, { opacity: "0", transform: "scale(.4)" });
+      // Press in, ripple out, let go.
+      press = 0.86; place(at);
+      ripple.style.transition = "none";
+      Object.assign(ripple.style, { left: at.x + "px", top: at.y + "px", opacity: "1", transform: "scale(.3)" });
+      ripple.getBoundingClientRect();
+      ripple.style.transition = "opacity 420ms ease-out, transform 420ms cubic-bezier(.2,.8,.2,1)";
+      Object.assign(ripple.style, { opacity: "0", transform: "scale(1.5)" });
+      await sleep(110); el.click(); press = 1; place(at); await sleep(160);
     },
     async hover(target) {
       const el = find(target); await move(el);
@@ -234,7 +291,12 @@ const HELPERS = `(() => {
     },
     async type(target, text, cps) {
       const el = find(target); await move(el); el.focus();
-      for (let i = 1; i <= text.length; i++) { setValue(el, text.slice(0, i)); await sleep(1000 / cps); }
+      // Bursts and small hesitations, a beat after spaces and punctuation.
+      for (let i = 1; i <= text.length; i++) {
+        setValue(el, text.slice(0, i));
+        const ch = text[i - 1];
+        await sleep((1000 / cps) * (0.55 + random() * 0.9) + (ch === " " && random() < 0.25 ? 90 : 0) + (/[,.?]/.test(ch) ? 140 : 0));
+      }
     },
     async scroll(target, to) {
       const el = find(target);
@@ -248,9 +310,16 @@ const HELPERS = `(() => {
       await sleep(800);
     },
     cursor(show) { cursor.style.opacity = show ? "1" : "0"; },
-    point(target) { at = center(find(target)); place(at); },
+    point(target) { at = aim(find(target)); place(at); },
   };
 })()`;
+
+/** A scene's random seed, from its id. */
+function seedOf(id) {
+  let h = 7;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 2147483647;
+  return h || 1;
+}
 
 /** Runs one step of a scene (see SKILL.md for the vocabulary). */
 async function step(page, s) {
@@ -265,6 +334,7 @@ async function step(page, s) {
     return page.evaluate(
       s.cursor === "hide" || s.cursor === "show" ? `__demo.cursor(${s.cursor === "show"})` : `__demo.point(${q(s.cursor)})`,
     );
+  if ("stage" in s) return page.evaluate(readFileSync(join(here, "stages", `${s.stage}.js`), "utf8"));
   if ("eval" in s) return page.evaluate(s.eval);
   throw new Error(`unknown step ${q(s)}`);
 }
@@ -364,7 +434,7 @@ async function renderScene(cdp, scene, theme, dir) {
   })`);
   await page.evaluate("document.fonts.ready.then(() => true)");
   await sleep(500);
-  await page.evaluate(HELPERS);
+  await page.evaluate(HELPERS(seedOf(scene.id)));
   await page.evaluate(`__demo.cursor(false)`);
   for (const s of scene.setup ?? []) await step(page, s);
   await sleep(300);
@@ -389,7 +459,14 @@ async function renderScene(cdp, scene, theme, dir) {
   await page.close();
 
   const clip = join(dir, "clip.mp4");
-  const base = `crop=${cam.w}:${cam.h}:${cam.x}:${cam.y},scale=${OW}:${OH}:flags=lanczos,fps=${FPS},format=yuv420p,settb=AVTB`;
+  // A slow push-in through the scene, centred. Zoomed at twice the output
+  // size, so zoompan's whole-pixel steps don't show as a judder.
+  const push = scene.push ?? PUSH;
+  const frames = Math.max(1, Math.round(seconds * FPS));
+  const zoom = push
+    ? `,scale=${OW * 2}:${OH * 2}:flags=lanczos,zoompan=z='1+${push}*on/${frames}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=${OW * 2}x${OH * 2}:fps=${FPS}`
+    : "";
+  const base = `crop=${cam.w}:${cam.h}:${cam.x}:${cam.y},fps=${FPS}${zoom},scale=${OW}:${OH}:flags=lanczos,format=yuv420p,settb=AVTB`;
   if (scene.caption) {
     // The scrim is there from the first frame so it matches across the
     // crossfade from the previous scene; only the card fades in.
@@ -401,8 +478,10 @@ async function renderScene(cdp, scene, theme, dir) {
       ...["-f", "concat", "-safe", "0", "-i", list, "-loop", "1", "-i", scrim, "-loop", "1", "-i", card],
       ...[
         "-filter_complex",
-        `[0:v]${base}[v];[1:v]scale=${OW}:${OH},format=rgba[s];[2:v]scale=${OW}:${OH},format=rgba,fade=in:st=0.35:d=0.4:alpha=1[c];` +
-          `[v][s]overlay=shortest=1:format=auto[vs];[vs][c]overlay=shortest=1:format=auto,format=yuv420p[o]`,
+        // The card rises 22 px as it fades in, easing out.
+        `[0:v]${base}[v];[1:v]scale=${OW}:${OH},format=rgba[s];[2:v]scale=${OW}:${OH},format=rgba,fade=in:st=0.35:d=0.45:alpha=1[c];` +
+          `[v][s]overlay=shortest=1:format=auto[vs];` +
+          `[vs][c]overlay=x=0:y='22*pow(1-clip((t-0.35)/0.6,0,1),3)':shortest=1:format=auto,format=yuv420p[o]`,
       ],
       ...["-map", "[o]", "-t", seconds.toFixed(3), "-c:v", "libx264", "-crf", "14", "-preset", "fast", clip],
     );
@@ -462,7 +541,9 @@ try {
       return f;
     });
     const cols = Math.min(3, stills.length);
-    ffmpeg(
+    // xstack needs two or more inputs.
+    if (stills.length === 1) ffmpeg("-i", stills[0], "-frames:v", "1", sheet);
+    else ffmpeg(
       ...stills.flatMap((f) => ["-i", f]),
       "-filter_complex",
       `${stills.map((_, i) => `[${i}:v]`).join("")}xstack=inputs=${stills.length}:layout=${stills

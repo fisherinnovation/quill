@@ -1,8 +1,8 @@
 {
-  "based_on": "9862429",
-  "label": "Quill in use: opening a call gives its meeting notes; the transcript shows who said what; the Stats tab charts who spoke when; dictation listens while a key is held and types the text; a saved dictation shows its words, pace and time saved.",
+  "based_on": "8ebfdb2",
+  "label": "Quill in use: during a video call, the live notes panel ticks off a question and a new one arrives; after the call, the meeting's notes open; the transcript shows who said what; the Stats tab charts who spoke when; in a chat app, holding a key shows live captions of what's said and the text is typed into the message; the Dictations page counts up words dictated and time saved over a moving waveform.",
   "viewport": {
-    "width": 1120,
+    "width": 1000,
     "height": 720,
     "scale": 2
   },
@@ -13,8 +13,55 @@
   "crf": 24,
   "scenes": [
     {
+      "id": "live",
+      "caption": "Notes while you talk",
+      "flags": "live",
+      "ready": ".live-panel",
+      "setup": [
+        {
+          "stage": "call"
+        },
+        {
+          "wait": 500
+        }
+      ],
+      "camera": [
+        296,
+        8,
+        696
+      ],
+      "cursorStart": ".stage-tile.b",
+      "steps": [
+        {
+          "wait": 450
+        },
+        {
+          "click": ".live-section.ask .live-item:first-child .live-tick"
+        },
+        {
+          "wait": 250
+        },
+        {
+          "hover": ".stage-tile.a .stage-face"
+        },
+        {
+          "wait": 700
+        },
+        {
+          "eval": "__stage.talk('Dan')"
+        },
+        {
+          "wait": 500
+        },
+        {
+          "eval": "__stage.note({ id: 'n7', kind: 'ask', text: 'Ask when the pricing experiments restart', who: null, done: false }, 'Now on pricing: the experiments wait for clean analytics.')"
+        }
+      ],
+      "hold": 2100
+    },
+    {
       "id": "notes",
-      "caption": "Notes from every call",
+      "caption": "Full notes when it ends",
       "ready": ".home",
       "camera": ".page",
       "pad": 0,
@@ -24,10 +71,13 @@
           "click": ".latest-title"
         },
         {
-          "wait": 400
+          "wait": 500
+        },
+        {
+          "hover": "text:Summary"
         }
       ],
-      "hold": 2700
+      "hold": 2100
     },
     {
       "id": "transcript",
@@ -49,7 +99,7 @@
           "click": "text:Transcript"
         }
       ],
-      "hold": 2900
+      "hold": 2600
     },
     {
       "id": "stats",
@@ -71,7 +121,7 @@
           "click": "text:Stats"
         },
         {
-          "wait": 700
+          "wait": 600
         },
         {
           "scroll": ".timeline",
@@ -81,95 +131,72 @@
           "hover": ".timeline-lane:nth-child(2) .timeline-span:nth-child(14)"
         }
       ],
-      "hold": 2600
+      "hold": 2300
     },
     {
       "id": "dictate",
-      "caption": "Hold a key and speak",
-      "ready": ".home",
+      "caption": "Speak instead of typing",
+      "flags": "indicator",
+      "ready": ".indicator-stage",
       "setup": [
         {
-          "click": ".sidebar-nav button:nth-child(3)"
+          "stage": "compose"
         },
         {
-          "wait": 500
+          "wait": 400
         }
       ],
-      "camera": ".hero",
-      "pad": 24,
+      "camera": [
+        120,
+        40,
+        760
+      ],
+      "cursorStart": ".stage-msg p",
       "steps": [
+        {
+          "click": ".stage-compose"
+        },
+        {
+          "eval": "__stage.focus()"
+        },
+        {
+          "wait": 350
+        },
         {
           "cursor": "hide"
         },
         {
-          "wait": 700
-        },
-        {
-          "emit": {
-            "event": "dictation-state",
-            "payload": {
-              "phase": "listening",
-              "error": null
-            }
-          }
-        },
-        {
-          "wait": 1900
-        },
-        {
-          "emit": {
-            "event": "dictation-state",
-            "payload": {
-              "phase": "processing",
-              "error": null
-            }
-          }
-        },
-        {
-          "wait": 700
-        },
-        {
-          "emit": {
-            "event": "dictation-state",
-            "payload": {
-              "phase": "idle",
-              "error": null
-            }
-          }
+          "eval": "__stage.dictate(\"Sounds good, I'll send the rollout plan to support by Wednesday.\")"
         }
       ],
       "hold": 1500
     },
     {
-      "id": "history",
-      "caption": "Every dictation, kept close",
+      "id": "dictations",
+      "caption": "See the time you save",
       "ready": ".home",
       "setup": [
         {
-          "click": ".sidebar-nav button:nth-child(3)"
-        },
-        {
-          "wait": 500
-        },
-        {
-          "click": "text:For the launch"
-        },
-        {
-          "wait": 600
+          "eval": "document.querySelector('.main-scroll').style.opacity = '0'"
         }
       ],
-      "camera": ".page",
-      "pad": 0,
-      "cursorStart": ".history-text",
+      "camera": [
+        236,
+        112,
+        730
+      ],
       "steps": [
         {
-          "wait": 400
+          "cursor": "hide"
         },
         {
-          "click": "text:Copy"
+          "eval": "(async () => { [...document.querySelectorAll('.sidebar .nav-item')].find((b) => b.textContent.trim() === 'Dictations').click(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const m = document.querySelector('.main-scroll'); m.style.transition = 'opacity 250ms ease'; m.style.opacity = '1'; })()"
+        },
+        {
+          "wait": 1200
         }
       ],
-      "hold": 2900
+      "hold": 2300
     }
   ]
 }

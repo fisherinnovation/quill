@@ -18,6 +18,7 @@ The pieces:
 |---|---|
 | `site/video/script.json` | The script: scenes, captions, actions, camera. You write this. |
 | `site/video/render.mjs` | Plays the script in headless Chrome and encodes the video. Run, don't edit (unless it's genuinely missing something). |
+| `site/video/stages/*.js` | Backdrops for scenes whose subject is one of Quill's floating windows (live notes, the dictation pill): a stand-in call or app around it, and helpers the scene calls. |
 | `site/media/hero-{light,dark}.{mp4,jpg}` | The output: video and poster per theme. |
 | `site/video/out/contact-*.jpg` | One frame per scene, for review. Not committed. |
 | `app/src/dev/mock.ts` | The sample data and URL flags the scenes run on. |
@@ -125,15 +126,43 @@ notes scene should be the one in the transcript scene).
   - `{ "emit": { "event": "dictation-state", "payload": {…} } }`: fires a
     backend event through the preview's `mockEmit` (how dictation states and
     new entries appear).
+  - `{ "stage": "call" }`: runs `site/video/stages/call.js` in the page, to
+    build a backdrop and define `window.__stage` helpers that later `eval`
+    steps call (`__stage.note(…)`, `__stage.dictate("…")`).
   - `{ "wait": ms }`, `{ "cursor": "hide" | "show" | target }`, and
     `{ "eval": "js" }` as an escape hatch.
 - Targets are CSS selectors, or `"text:Label"` for the visible button, tab,
   link or list item whose text starts with Label.
 - `hold` is how long the scene rests after its last step. Viewers need about
   1.5 s to take in a finished frame.
+- `push` (optional): how far the camera pushes in over the scene, 0.035 by
+  default; 0 holds it still.
 
-Pacing: the cursor takes about 0.7 s per move. Give each scene one or two
-actions, not five; let the result of an action stay on screen.
+**Floating windows.** The live notes panel (`flags: "live"`) and the
+dictation pill (`flags: "indicator"`) each fill the preview's window, as
+they're separate small windows in the app. Their scenes use a stage to put
+them where they really appear: the panel at the edge of a call
+(`stages/call.js`), the pill and its captions below a message being written
+(`stages/compose.js`). Stages stand in for other apps, so keep them generic:
+no real product's look, name or logo. Build them from the app's colour
+tokens so both themes match.
+
+**Viewport.** At 1000 px wide the main area is under 900 px, so Home stays in
+one column and every page frames at about 780 px. Wider, Home splits into
+two columns and a `.page` camera gets too wide to read.
+
+Pacing: the cursor takes 0.3 to 0.95 s per move, depending on the distance.
+Give each scene one or two actions, not five; let the result of an action
+stay on screen.
+
+**Keeping it lively.** The renderer does the handling: curved cursor paths
+with ease-out, a slight aim offset, a drift at rest, a press and ripple on
+click, typing with a rhythm, a slow push-in, and captions that rise as they
+fade in. Randomness is seeded by scene id, so light and dark match. The
+script's part is to give each scene something that *moves on its own*
+(a note arriving, captions growing, numbers counting up, a waveform) rather
+than a still page with a click, and to end each scene with the cursor
+somewhere purposeful (where the next scene starts, or back on the subject).
 
 ## 5. Render
 
