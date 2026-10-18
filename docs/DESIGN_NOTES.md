@@ -316,6 +316,11 @@ decision someone might otherwise undo.
   localStorage: a per-computer view preference, not a setting.
 - **Insights are part of Home**, not a page of their own, under the
   meetings. Two pages of numbers about the same use were one too many.
+- **Wordmark** (top of Home, the one place the name appears in the app):
+  the quill alone in the accent colour, "Quill" in the system serif
+  (`ui-serif`: New York on macOS, Georgia on Windows; nothing to bundle or
+  download), and the mark's heartbeat run under the word as a signature
+  line from the quill's tip. The line writes itself in once per launch.
 - **Background wash:** the main area has a faint gradient of the palette
   (fuchsia from the top right, sky or grape from the top left), the one
   exception to flat colours: a plain sheet looked flat in both themes. It

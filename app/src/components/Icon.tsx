@@ -55,15 +55,16 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
   );
 }
 
+/** The quill from the mark, in the mark's 896-unit square (from 64, 64). */
+export const FEATHER =
+  "M742 236c-170 40-310 170-370 340l-58 172 40 14 52-120c92-6 196-60 258-150-70 20-130 14-172 2 88-24 176-90 222-168-40 6-82 4-112-6 70-30 120-56 140-84z";
+
 /** The app mark: a flat fuchsia tile with the quill and sound wave. */
 export function Logo({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="64 64 896 896" aria-hidden className="logo">
       <rect x="64" y="64" width="896" height="896" rx="190" fill="#ff1053" />
-      <path
-        d="M742 236c-170 40-310 170-370 340l-58 172 40 14 52-120c92-6 196-60 258-150-70 20-130 14-172 2 88-24 176-90 222-168-40 6-82 4-112-6 70-30 120-56 140-84z"
-        fill="#fff"
-      />
+      <path d={FEATHER} fill="#fff" />
       <path
         d="M250 800h60l30-50 40 100 40-150 40 120 30-20h284"
         fill="none"

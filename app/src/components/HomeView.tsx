@@ -19,6 +19,7 @@ import { callSpeakers, peopleText } from "./MeetingView";
 import { NoMeetings, Status } from "./MeetingsView";
 import { ModelDownload } from "./Models";
 import { useElapsed } from "./RecordButton";
+import { Wordmark } from "./Wordmark";
 import { Keys, timeOfDay } from "./ui";
 import { UpdateBanner } from "./Updates";
 
@@ -68,6 +69,7 @@ export function HomeView({
   return (
     <div className="page home">
       <header className="home-head">
+        <Wordmark />
         <p className="home-date">{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
         <h1 className="home-title">{dayLine(today)}</h1>
         <p className="home-sub">
