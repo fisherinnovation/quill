@@ -4,21 +4,20 @@
 //! to record it; when it ends while Quill is recording, to stop.
 //!
 //! The prompt is its own window at the bottom centre of the screen, where
-//! it's hard to miss. It never takes focus, so it doesn't pull the user out
-//! of their call, but it does take clicks. On macOS a click still activates
-//! Quill (bringing its main window forward), so the prompt notes which app
-//! was in front and hands focus straight back to it.
+//! it's hard to miss. It takes clicks without taking focus or bringing
+//! Quill's main window forward (`floating.rs`), so it doesn't pull the user
+//! out of their call.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use quill_core::calls::{CallEvent, Detector};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::AppState;
 use crate::commands::{CommandError, CommandResult, blocking, lock};
-use crate::focus::ReturnFocus;
+use crate::floating::Place;
 
 pub const LABEL: &str = "prompt";
 /// Sent to the prompt window with what to show ([`Prompt`]).
@@ -28,8 +27,6 @@ pub const EVENT: &str = "call-prompt";
 /// above for its shadow and its rise as it appears.
 const WIDTH: f64 = 400.0;
 const HEIGHT: f64 = 160.0;
-/// Gap above the bottom of the usable screen area (above the Dock).
-const MARGIN: f64 = 16.0;
 
 /// What the prompt is asking.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -46,7 +43,6 @@ pub enum Prompt {
 #[derive(Default)]
 pub struct CallPrompt {
     shown: Mutex<Option<Prompt>>,
-    focus: ReturnFocus,
 }
 
 /// The fade-out the page plays after a click, before the window hides.
@@ -54,7 +50,7 @@ const LEAVE: Duration = Duration::from_millis(180);
 
 /// Creates the (hidden) prompt window, so showing it later is instant.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
+    let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
         .title("Quill")
         .inner_size(WIDTH, HEIGHT)
         .decorations(false)
@@ -66,8 +62,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .skip_taskbar(true)
         .focusable(false)
         .focused(false)
+        // A click on it is a click, though the panel is never active.
+        .accept_first_mouse(true)
         .visible(false)
         .build()?;
+    crate::floating::adopt(&window, false);
     Ok(())
 }
 
@@ -155,12 +154,8 @@ fn show(app: &AppHandle, prompt: Prompt) {
     };
     let state = app.state::<CallPrompt>();
     *lock(&state.shown) = Some(prompt.clone());
-    state.focus.note_front();
-    place(app, &window);
     let _ = app.emit_to(LABEL, EVENT, Some(prompt));
-    if let Err(e) = window.show() {
-        tracing::warn!("couldn't show the call prompt: {e}");
-    }
+    crate::floating::show(&window, (WIDTH, HEIGHT), Place::BottomCentre);
 }
 
 fn hide(app: &AppHandle) {
@@ -169,29 +164,8 @@ fn hide(app: &AppHandle) {
     }
     let _ = app.emit_to(LABEL, EVENT, None::<Prompt>);
     if let Some(window) = app.get_webview_window(LABEL) {
-        let _ = window.hide();
+        crate::floating::hide(&window);
     }
-}
-
-/// Bottom centre of the screen the mouse is on, above the Dock.
-fn place(app: &AppHandle, window: &tauri::WebviewWindow) {
-    let monitor = app
-        .cursor_position()
-        .ok()
-        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
-    let (Some(monitor), Ok(size)) = (monitor, window.outer_size()) else {
-        return;
-    };
-    let area = monitor.work_area();
-    let margin = (MARGIN * monitor.scale_factor()) as i32;
-    let x = area.position.x
-        + (i32::try_from(area.size.width).unwrap_or(0) - i32::try_from(size.width).unwrap_or(0))
-            / 2;
-    let y = area.position.y + i32::try_from(area.size.height).unwrap_or(0)
-        - i32::try_from(size.height).unwrap_or(0)
-        - margin;
-    let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
 /// What the prompt window should show now (it also gets [`EVENT`]s).
@@ -200,25 +174,10 @@ pub fn call_prompt(prompt: tauri::State<'_, CallPrompt>) -> Option<Prompt> {
     lock(&prompt.shown).clone()
 }
 
-/// The pointer is over the prompt: the app in front now is the one to go
-/// back to (the user may have switched since it appeared).
-#[tauri::command]
-pub fn call_prompt_hovered(prompt: tauri::State<'_, CallPrompt>) {
-    prompt.focus.update_front();
-}
-
-/// A button is being pressed: that activated Quill, so hand focus back at
-/// once, before the click completes.
-#[tauri::command]
-pub fn call_prompt_pressed(app: AppHandle, prompt: tauri::State<'_, CallPrompt>) {
-    prompt.focus.give_back(&app);
-}
-
 /// The prompt's buttons: "record", "stop" or "dismiss". The window hides
 /// once the page's fade-out has played.
 #[tauri::command]
 pub async fn answer_call_prompt(app: AppHandle, answer: String) -> CommandResult<()> {
-    app.state::<CallPrompt>().focus.give_back(&app);
     // Answered: starting or stopping below mustn't hide it before its fade.
     *lock(&app.state::<CallPrompt>().shown) = None;
     blocking(move || {

@@ -52,14 +52,8 @@ export function CallPromptCard() {
         className={`call-prompt${leaving ? " leaving" : ""}`}
         role="dialog"
         aria-label="Quill"
-        onMouseEnter={() => {
-          setHovered(true);
-          void api.callPromptHovered();
-        }}
+        onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        // Pressing activates Quill (macOS): hand focus back to the call at
-        // once, rather than after the click.
-        onPointerDown={() => void api.callPromptPressed()}
       >
         <Logo size={30} />
         <div className="call-prompt-text">

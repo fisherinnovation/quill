@@ -277,14 +277,27 @@ decision someone might otherwise undo.
 - **Prompt:** its own always-on-top window at the bottom centre (above the
   Dock, where it's hard to miss) that takes clicks but never focus, so it
   doesn't pull you out of the call. It rises and fades in, and fades out
-  when answered. A click on any of an app's windows still activates the
-  app on macOS (bringing Quill's main window forward), and Tauri windows
-  can't be non-activating panels without swapping their class at runtime,
-  so the prompt notes the app in front (when it appears and on hover) and
-  reactivates it the moment a button is pressed (`quill_insert::refocus`). Unanswered,
+  when answered. It's a floating panel (below). Unanswered,
   it goes after 30 s (60 s for "Stop recording?"). Not shown while
   recording, before onboarding, or with the setting off. Windows support is
   planned (the microphone ConsentStore in the registry).
+
+## Floating panels
+
+- **The call prompt and live notes** take clicks without bringing Quill
+  forward (`app/src-tauri/src/floating.rs`). On macOS a click on any of an
+  app's windows activates the app, which raises all its windows: the main
+  window jumped over the meeting whenever the live notes were touched.
+- **Handing focus back** after the click (noting the app in front and
+  reactivating it, `focus.rs`) wasn't enough: AppKit had already raised
+  the main window, and the race showed. Tauri windows can't be made
+  non-activating panels (tao's window class carries state, so swapping the
+  class at runtime would corrupt it).
+- **So on macOS** each window's web view moves into an `NSPanel` Quill makes
+  itself, styled non-activating, floating, on every desktop and over
+  full-screen apps, and placed in points on the screen under the mouse. The
+  Tauri window is never shown. Windows shows the window as is: an
+  unfocusable window there doesn't activate the app.
 
 ## Live notes
 
@@ -301,9 +314,8 @@ decision someone might otherwise undo.
   before. Item ids stay stable; dismissed items are matched by id or text
   so they can't come back renumbered; the model marks items done when the
   conversation deals with them, and the user can tick them too.
-- **Panel:** its own window at the right edge, content-protected (hidden
-  from screen sharing and recording), never focused (clicks hand focus back
-  to the call, `focus.rs`), collapsible to a tab with the open questions'
+- **Panel:** a floating panel (below) at the right edge, content-protected
+  (hidden from screen sharing and recording), collapsible to a tab with the open questions'
   count. On by default (the owner's choice while they're its only user);
   Settings → Meetings turns it off. Notes and transcript live in memory
   only.

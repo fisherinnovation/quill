@@ -20,8 +20,6 @@ mod app;
 pub mod fn_key;
 
 pub use app::{FrontApp, frontmost_app};
-#[cfg(target_os = "macos")]
-pub use app::{frontmost_pid, refocus};
 
 use std::time::Duration;
 

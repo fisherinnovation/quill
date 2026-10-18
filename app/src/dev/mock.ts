@@ -361,8 +361,6 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   call_prompt: () =>
     flags.get("prompt") === "stop" ? { kind: "stop", app: "Zoom" } : { kind: "record", app: "Google Chrome" },
   answer_call_prompt: () => {},
-  call_prompt_hovered: () => {},
-  call_prompt_pressed: () => {},
   live_notes_state: () => live,
   live_notes_refresh: () => {
     live = { ...live, updating: true };
@@ -387,8 +385,6 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     live = { ...live, collapsed: Boolean(collapsed) };
     void emit("live-notes", live);
   },
-  live_notes_hovered: () => {},
-  live_notes_pressed: () => {},
   meeting_stats: ({ id }) =>
     meetings.find((m) => m.id === id)?.has_transcript ? meetingStats() : { ...meetingStats(), speakers: [], stretches: [] },
   dictation_stats: ({ id }) => {

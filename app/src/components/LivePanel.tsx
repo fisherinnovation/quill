@@ -81,18 +81,12 @@ export function LivePanel() {
     }
   }
 
-  // The panel's buttons activate Quill when pressed (macOS): the backend
-  // hands focus straight back to the call.
-  const pressed = () => void api.liveNotesPressed();
-  const hovered = () => void api.liveNotesHovered();
   const open = state.notes.items.filter((i) => i.kind === "ask" && !i.done).length;
 
   if (state.collapsed) {
     return (
       <button
         className="live-tab"
-        onPointerDown={pressed}
-        onMouseEnter={hovered}
         onClick={() => void api.liveNotesCollapse(false)}
         title="Show live notes"
       >
@@ -112,7 +106,7 @@ export function LivePanel() {
   const ago = since === null ? null : Math.round(sinceUpdate / 60_000);
 
   return (
-    <div className="live-stage" onPointerDown={pressed} onMouseEnter={hovered}>
+    <div className="live-stage">
       <section className="live-panel" aria-label="Live notes">
         <header className="live-head">
           {recording.paused ? (

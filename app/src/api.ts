@@ -437,17 +437,11 @@ export const api = {
   meetingOverviews: () => invoke<MeetingOverview[]>("meeting_overviews"),
   callPrompt: () => invoke<CallPrompt | null>("call_prompt"),
   answerCallPrompt: (answer: "record" | "stop" | "dismiss") => invoke<void>("answer_call_prompt", { answer }),
-  /** The pointer is over the prompt (the app in front now gets focus back after a click). */
-  callPromptHovered: () => invoke<void>("call_prompt_hovered"),
-  /** A prompt button is being pressed: give focus back to the call right away. */
-  callPromptPressed: () => invoke<void>("call_prompt_pressed"),
   liveNotesState: () => invoke<LiveState>("live_notes_state"),
   liveNotesRefresh: () => invoke<void>("live_notes_refresh"),
   liveNotesDismiss: (id: string) => invoke<void>("live_notes_dismiss", { id }),
   liveNotesTick: (id: string, done: boolean) => invoke<void>("live_notes_tick", { id, done }),
   liveNotesCollapse: (collapsed: boolean) => invoke<void>("live_notes_collapse", { collapsed }),
-  liveNotesHovered: () => invoke<void>("live_notes_hovered"),
-  liveNotesPressed: () => invoke<void>("live_notes_pressed"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),

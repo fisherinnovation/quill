@@ -41,6 +41,11 @@ rtrb = "0.4"
 # to notice calls starting. The versions cpal already uses.
 objc2-core-audio = { version = "0.3.2", default-features = false, features = ["std", "AudioHardware"] }
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFString"] }
+# macOS: floating panels that take clicks without activating the app (the
+# app's floating.rs). The versions tauri already uses.
+objc2 = "0.6.5"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPanel", "NSWindow", "NSView", "NSResponder", "NSScreen", "NSEvent", "NSColor", "NSGraphics"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSGeometry", "NSArray"] }
 # Pure-Rust port of WebRTC audio processing; we use its echo canceller (AEC3)
 # to remove speaker sound picked up by the mic.
 sonora = "0.2"

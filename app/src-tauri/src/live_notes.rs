@@ -5,8 +5,8 @@
 //! follow-ups, decisions. A panel at the right edge of the screen shows
 //! them.
 //!
-//! The panel never takes focus (a click hands focus back to the call, see
-//! `focus.rs`) and is hidden from screen sharing and recording, so the other
+//! The panel takes clicks without taking focus or bringing Quill's main
+//! window over the call (`floating.rs`), and is hidden from screen sharing and recording, so the other
 //! people on the call don't see it when you share your screen.
 
 use std::path::PathBuf;
@@ -20,12 +20,10 @@ use quill_core::live_meeting::{self, Item, LiveTranscript, Notes};
 use quill_core::meeting::{MIC_FILE, SYSTEM_FILE};
 use quill_stt::TranscribeOptions;
 use serde::Serialize;
-use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::commands::lock;
-use crate::focus::ReturnFocus;
+use crate::floating::Place;
 use crate::{AppState, pipeline};
 
 pub const LABEL: &str = "live";
@@ -41,7 +39,6 @@ const TICK: Duration = Duration::from_secs(2);
 const WIDTH: f64 = 340.0;
 const MAX_HEIGHT: f64 = 640.0;
 const TAB: (f64, f64) = (46.0, 140.0);
-const MARGIN: f64 = 12.0;
 /// A track that has written nothing this long into the recording is
 /// missing (no permission, no device): count it as silence.
 const MISSING_AFTER: Duration = Duration::from_secs(10);
@@ -70,7 +67,6 @@ pub struct LiveNotes {
     ticked: Mutex<Vec<String>>,
     refresh: AtomicBool,
     stop: Mutex<Option<Arc<AtomicBool>>>,
-    focus: ReturnFocus,
 }
 
 impl LiveNotes {
@@ -83,7 +79,7 @@ impl LiveNotes {
 /// Creates the (hidden) panel window, so showing it later is instant.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     app.manage(LiveNotes::default());
-    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
+    let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
         .title("Quill live notes")
         .inner_size(WIDTH, MAX_HEIGHT)
         .decorations(false)
@@ -95,11 +91,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .skip_taskbar(true)
         .focusable(false)
         .focused(false)
+        // A click on it is a click, though the panel is never active.
+        .accept_first_mouse(true)
         // Not in screen shares or recordings: only the person recording
         // sees it.
         .content_protected(true)
         .visible(false)
         .build()?;
+    crate::floating::adopt(&window, true);
     Ok(())
 }
 
@@ -144,7 +143,7 @@ pub fn stop(app: &AppHandle) {
     lock(&live.state).active = false;
     live.emit(app);
     if let Some(window) = app.get_webview_window(LABEL) {
-        let _ = window.hide();
+        crate::floating::hide(&window);
     }
 }
 
@@ -287,38 +286,10 @@ fn show(app: &AppHandle, collapsed: bool) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
-    let monitor = app
-        .cursor_position()
-        .ok()
-        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
-    if let Some(monitor) = monitor {
-        let scale = monitor.scale_factor();
-        let area = monitor.work_area();
-        let px = |v: f64| (v * scale) as u32;
-        let (w, h) = if collapsed {
-            (px(TAB.0), px(TAB.1))
-        } else {
-            (
-                px(WIDTH),
-                px(MAX_HEIGHT).min(area.size.height.saturating_sub(px(MARGIN * 2.0))),
-            )
-        };
-        let margin = px(MARGIN) as i32;
-        let x = area.position.x + i32::try_from(area.size.width).unwrap_or(0)
-            - i32::try_from(w).unwrap_or(0)
-            - margin;
-        // The tab sits a third of the way down; the panel below the menu bar.
-        let y = if collapsed {
-            area.position.y + i32::try_from(area.size.height / 3).unwrap_or(0)
-        } else {
-            area.position.y + margin
-        };
-        let _ = window.set_size(PhysicalSize::new(w, h));
-        let _ = window.set_position(PhysicalPosition::new(x, y));
-    }
-    if let Err(e) = window.show() {
-        tracing::warn!("couldn't show live notes: {e}");
+    if collapsed {
+        crate::floating::show(&window, TAB, Place::RightThird);
+    } else {
+        crate::floating::show(&window, (WIDTH, MAX_HEIGHT), Place::RightTop);
     }
 }
 
@@ -372,16 +343,4 @@ pub fn live_notes_collapse(app: AppHandle, live: tauri::State<'_, LiveNotes>, co
     lock(&live.state).collapsed = collapsed;
     live.emit(&app);
     show(&app, collapsed);
-}
-
-/// The pointer is over the panel: remember the app to go back to.
-#[tauri::command]
-pub fn live_notes_hovered(live: tauri::State<'_, LiveNotes>) {
-    live.focus.update_front();
-}
-
-/// Something on the panel is being pressed: hand focus back to the call.
-#[tauri::command]
-pub fn live_notes_pressed(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
-    live.focus.give_back(&app);
 }
