@@ -6,7 +6,7 @@
     <title>Quill: meeting notes and dictation, on your computer</title>
     <meta
       name="description"
-      content="Record any call and get a transcript and structured notes, or hold a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded. For macOS and Windows."
+      content="Record any call and get notes while you talk, then a transcript and a full write-up when it ends. Or hold a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded. For macOS and Windows."
     />
     <meta property="og:title" content="Quill: meeting notes without the meeting bot" />
     <meta
@@ -52,8 +52,8 @@
             meeting bot
           </h1>
           <p class="lead reveal">
-            Record any call and get a transcript and structured notes, or hold a key and speak to type anywhere.
-            Audio is transcribed on your computer and never uploaded.
+            Record any call and get notes while you talk, then a transcript and a full write-up when it ends. Or hold
+            a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded.
           </p>
           <div class="hero-actions reveal">
             <a class="btn btn-dark" href="#download">Get Quill</a>
@@ -129,8 +129,27 @@
 
           <article class="card feature reveal">
             <div class="feature-copy">
+              <h3>Notes while you talk</h3>
+              <p>
+                A panel beside the call keeps what to ask before the end, follow-ups and decisions, updated every
+                minute. It's hidden from screen sharing.
+              </p>
+            </div>
+            <ul class="live-notes" aria-label="Example live notes">
+              <li class="done"><span>Who owns the analytics fix?</span><em class="chip lilac">Ask</em></li>
+              <li><span>When do pricing tests restart?</span><em class="chip lilac">Ask</em></li>
+              <li><span>Dan sends the revised timeline</span><em class="chip sky">Follow-up</em></li>
+              <li><span>Launch moves to Thursday</span><em class="chip mint">Decision</em></li>
+            </ul>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
               <h3>Notes worth reading</h3>
-              <p>A TL;DR, decisions, action items with owners, and the discussion by topic. Export to Markdown.</p>
+              <p>
+                When the call ends: a TL;DR, decisions, action items with owners, and the discussion by topic. Export
+                to Markdown.
+              </p>
             </div>
             <div class="note-stack" aria-hidden="true">
               <span>TL;DR</span><span>Decisions</span><span>Action items</span><span>Open questions</span>
@@ -140,10 +159,14 @@
           <article class="card feature reveal">
             <div class="feature-copy">
               <h3>Dictate into any app</h3>
-              <p>Hold a key, speak, let go. Fillers and false starts are tidied only when there's something to fix.</p>
+              <p>
+                Hold a key (or fn on a Mac), speak, let go. Your words show as you say them, and fillers and false
+                starts are tidied only when there's something to fix.
+              </p>
             </div>
             <div class="dictate" aria-hidden="true">
               <div class="keys"><kbd>⌥ Option</kbd><span>+</span><kbd>Space</kbd></div>
+              <p class="caption">Let's move the launch <span>to Thursday</span></p>
               <div class="pill-indicator"><span class="dot"></span><span class="levels" data-bars="14"></span></div>
             </div>
           </article>
@@ -158,6 +181,31 @@
               <li><span>Mail</span><em class="chip lilac">Formal</em></li>
               <li><span>VS Code</span><em class="chip mint">Technical</em></li>
             </ul>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>See how the call went</h3>
+              <p>
+                Who talked and for how long, a timeline of who spoke when, questions asked and the longest monologue.
+                Worked out on your computer.
+              </p>
+            </div>
+            <div class="timeline" aria-hidden="true">
+              <div class="lane">
+                <span class="who me">You</span>
+                <span class="track"><i style="--x: 0%; --w: 16%"></i><i style="--x: 41%; --w: 9%"></i><i style="--x: 71%; --w: 21%"></i></span>
+              </div>
+              <div class="lane">
+                <span class="who sky">Dan</span>
+                <span class="track"><i style="--x: 17%; --w: 23%"></i><i style="--x: 63%; --w: 7%"></i></span>
+              </div>
+              <div class="lane">
+                <span class="who rose">Priya</span>
+                <span class="track"><i style="--x: 51%; --w: 11%"></i><i style="--x: 93%; --w: 7%"></i></span>
+              </div>
+              <p class="muted small">Who spoke when</p>
+            </div>
           </article>
 
           <article class="card feature reveal">
@@ -212,6 +260,10 @@
         <p class="center muted reveal">
           Quill records your microphone and your computer's audio, so if you can hear it, Quill can write it down.
         </p>
+        <p class="center muted reveal">
+          On a Mac, Quill notices when a call app starts using your microphone and offers to record, then to stop
+          when the call ends.
+        </p>
       </section>
 
       <!-- Privacy -->
@@ -225,8 +277,8 @@
             <div class="feature-copy">
               <h3>Audio stays on your computer</h3>
               <p>
-                Whisper transcribes on your own hardware, on the GPU on Apple Silicon. Recordings are kept as compact
-                FLAC files in a folder you choose.
+                Whisper transcribes on your own hardware, on the GPU on Apple Silicon and on Windows graphics cards.
+                Recordings are kept as compact FLAC files in a folder you choose.
               </p>
             </div>
             <div class="local" aria-hidden="true">
@@ -243,8 +295,8 @@
             <div class="feature-copy">
               <h3>You choose where text goes</h3>
               <p>
-                Notes are written by a model you pick: through OpenRouter, only to providers that don't store or train
-                on your data, or with Ollama on your own machine, so nothing leaves it at all.
+                Notes, live notes and dictation clean-up use a model you pick: through OpenRouter, only to providers
+                that don't store or train on your data, or with Ollama on your own machine, so nothing leaves it at all.
               </p>
             </div>
             <div class="choice" role="group" aria-label="Example model choice">
@@ -263,7 +315,10 @@
           </article>
           <article class="card feature small reveal">
             <h3>No telemetry</h3>
-            <p>No analytics, no tracking. Logs stay on your computer and never contain what you said.</p>
+            <p>
+              No analytics, no tracking. Besides your model, Quill only downloads speech models and checks for updates
+              once a day. Logs never contain what you said.
+            </p>
           </article>
           <article class="card feature small reveal">
             <!--if public-->
@@ -283,8 +338,8 @@
           <p class="eyebrow">Compare</p>
           <h2>Pay for what you use, not a seat</h2>
           <p class="lead center-lead">
-            Quill is free. Notes are written by a model you choose, and you pay that provider directly: about a cent per
-            hour of meeting, or nothing with a local model.
+            Quill is free. Notes are written by a model you choose, and you pay that provider directly: about 3 cents
+            an hour of meeting with live notes, or nothing with a local model.
           </p>
         </div>
 
@@ -296,8 +351,8 @@
           <ul class="cost-bars">
             <li class="mine">
               <span class="cost-name">Quill</span>
-              <span class="cost-bar"><i style="--v: 0.03"></i></span>
-              <span class="cost-val">≈ $5<small>model use, or $0 local</small></span>
+              <span class="cost-bar"><i style="--v: 0.1"></i></span>
+              <span class="cost-val">≈ $17<small>model use, or $0 local</small></span>
             </li>
             <li>
               <span class="cost-name">Otter.ai Pro</span>
@@ -399,7 +454,7 @@
           <p class="compare-notes muted small">
             List prices and policies from each company's own pages, checked October 2026; free plans with limits are
             also available. Quill's estimate is OpenRouter's price for the default models with 10 hours of meetings a
-            week. Sources:
+            week, live notes on. Sources:
             <a href="https://wisprflow.ai/pricing">Wispr Flow pricing</a>,
             <a href="https://wisprflow.ai/enterprise-privacy">privacy</a>;
             <a href="https://www.granola.ai/pricing">Granola pricing</a>,
@@ -415,7 +470,7 @@
       <section class="cta card reveal" id="download">
         <h2><span class="accent">Start</span> writing<br />less down</h2>
         <!--if release-->
-        <p class="lead">Quill {{RELEASE_TAG}} is free. Speech models download the first time you open it.</p>
+        <p class="lead">Quill {{RELEASE_TAG}} is free. On first launch it offers to download its speech models (about 1.7 GB).</p>
         <div class="downloads">
           <a class="btn btn-dark dl" data-os="mac" href="{{MAC_URL}}">
             <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" /></svg>

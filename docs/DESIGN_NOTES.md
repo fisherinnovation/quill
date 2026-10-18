@@ -551,6 +551,12 @@ decision someone might otherwise undo.
   dark videos are separate files (about 1.2 MB each); `main.js` picks one
   by `prefers-color-scheme` and leaves the poster with controls under
   `prefers-reduced-motion`.
+- **Quill's cost** in Compare is a year at 10 hours of meetings a week on
+  the default models: about 1 cent an hour for notes and dictation
+  clean-up, plus live notes (on by default) at about 2 cents an hour (60
+  updates of ~$0.0004 with a full 15-minute window; less while the window
+  fills), so about 3 cents an hour and ~$17 a year. Redo it when defaults,
+  prices or live notes' cadence change.
 - CI builds the site on every run, but only deploys when the repository
   variable `SITE_DEPLOY` is `true`, so CI stays green before Pages is
   enabled.
