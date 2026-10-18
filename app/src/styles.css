@@ -3714,6 +3714,35 @@ html.indicator-window #root {
   margin-left: 0;
 }
 
+/* Two columns once the main area is wide enough: meetings on the left,
+   usage on the right. The page widens to hold them. */
+@container (min-width: 900px) {
+  .page.home-wide {
+    max-width: 1180px;
+  }
+
+  .home-wide .home-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 48px;
+    align-items: start;
+  }
+
+  .home-wide .home-column > :first-child,
+  .home-wide .home-usage {
+    margin-top: 0;
+  }
+
+  /* Meetings and dictation stack in the narrower column. */
+  .home-wide .home-usage .insight-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .home-wide .home-usage .row-gap {
+    flex-wrap: wrap;
+  }
+}
+
 /* Usage in one line: numbers in the text's own colour, words quieter. */
 .usage-facts {
   display: flex;
