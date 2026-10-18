@@ -3164,7 +3164,50 @@ html.indicator-window #root {
   margin-bottom: 14px;
 }
 
+/* The 30-day chart: a vertical axis of round steps with faint gridlines,
+   and a tip over the bar the pointer is on. */
+.chart-plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+}
+
+.chart-y {
+  position: relative;
+  min-width: 26px;
+  height: 140px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-y span {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.chart-area {
+  position: relative;
+}
+
+.chart-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  pointer-events: none;
+}
+
+.chart-x {
+  margin-left: 34px;
+}
+
 .bars-chart {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -3180,8 +3223,58 @@ html.indicator-window #root {
   border-radius: 2px 2px 0 0;
 }
 
-.bar-col:hover {
+.bar-col.hovered {
   background: var(--bg-hover);
+}
+
+.bars-chart:has(.hovered) .bar-col:not(.hovered) .bar {
+  opacity: 0.55;
+}
+
+.chart-tip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: chart-tip-in 0.12s ease-out;
+}
+
+.chart-tip.start {
+  transform: translateX(-12px);
+}
+
+.chart-tip.end {
+  transform: translateX(calc(-100% + 12px));
+}
+
+@keyframes chart-tip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.chart-tip-day {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.chart-tip strong {
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tip-sub {
+  font-size: 11.5px;
+  color: var(--text-2);
 }
 
 .bar {
@@ -3275,6 +3368,7 @@ html.indicator-window #root {
 }
 
 .hours-bars {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 2px;
@@ -3295,6 +3389,14 @@ html.indicator-window #root {
   width: 100%;
   background: var(--sky);
   border-radius: 2px;
+}
+
+.hour.hovered {
+  background: var(--bg-hover);
+}
+
+.hours-bars:has(.hovered) .hour:not(.hovered) > div {
+  opacity: 0.55;
 }
 
 .insights-footer {

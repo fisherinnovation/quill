@@ -143,28 +143,94 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Round steps for a chart's vertical axis: 0 and up to three more, ending
+ * at or just above `max`. Words in 1/2/2.5/5 × 10ⁿ; minutes in a quarter
+ * hour, half hour and whole hours.
+ */
+function axisTicks(max: number, kind: "dictation" | "meetings"): number[] {
+  const steps =
+    kind === "meetings"
+      ? [5, 10, 15, 30, 60, 120, 180, 240, 360, 480, 720]
+      : [1, 2, 2.5, 5].flatMap((m) => [1, 10, 100, 1_000, 10_000, 100_000].map((p) => m * p)).sort((a, b) => a - b);
+  const step = steps.find((s) => s * 3 >= max) ?? steps[steps.length - 1];
+  const count = Math.max(1, Math.ceil(max / step));
+  return Array.from({ length: count + 1 }, (_, i) => i * step);
+}
+
+/** "1.2k", "500", "2 h", "45 min": short, for an axis. */
+function axisLabel(v: number, kind: "dictation" | "meetings"): string {
+  if (kind === "meetings") return v === 0 ? "0" : v >= 60 ? `${+(v / 60).toFixed(1)} h` : `${v} min`;
+  return v >= 1000 ? `${+(v / 1000).toFixed(1)}k` : String(v);
+}
+
 function ActivityChart({ days, kind }: { days: Insights["days"]; kind: "dictation" | "meetings" }) {
+  const [hover, setHover] = useState<number | null>(null);
   const values = days.map((day) => (kind === "dictation" ? day.words : day.meeting_ms / 60_000));
   const max = Math.max(...values, 1);
+  const ticks = axisTicks(max, kind);
+  const top = ticks[ticks.length - 1];
   const label = (v: number) => (kind === "dictation" ? `${number.format(v)} words` : duration(v * 60_000));
   const total = values.reduce((a, b) => a + b, 0);
+  const n = days.length;
+  const shown = hover !== null ? days[hover] : null;
   return (
     <div className="activity">
       <div className="activity-total">
         <span className="stat-value">{label(total)}</span>
         <span className="faint small">in the last 30 days</span>
       </div>
-      <div className="bars-chart" role="img" aria-label={`${kind} per day for the last 30 days`}>
-        {days.map((day, i) => (
-          <div key={day.date} className="bar-col" title={`${dayLabel(day.date)}: ${label(values[i])}`}>
-            <div
-              className={`bar ${kind}${values[i] === 0 ? " zero" : ""}`}
-              style={{ height: `${Math.max(values[i] / max, values[i] > 0 ? 0.04 : 0) * 100}%` }}
-            />
+      <div className="chart-plot">
+        <div className="chart-y" aria-hidden>
+          {ticks.map((t) => (
+            <span key={t} style={{ bottom: `${(t / top) * 100}%` }}>
+              {axisLabel(t, kind)}
+            </span>
+          ))}
+        </div>
+        <div className="chart-area">
+          {ticks.slice(1).map((t) => (
+            <span key={t} className="chart-grid" style={{ bottom: `${(t / top) * 100}%` }} aria-hidden />
+          ))}
+          <div
+            className="bars-chart"
+            role="img"
+            aria-label={`${kind === "dictation" ? "Words dictated" : "Meeting time"} per day for the last 30 days`}
+            onMouseLeave={() => setHover(null)}
+          >
+            {days.map((day, i) => (
+              <div
+                key={day.date}
+                className={`bar-col${hover === i ? " hovered" : ""}`}
+                onMouseEnter={() => setHover(i)}
+              >
+                <div
+                  className={`bar ${kind}${values[i] === 0 ? " zero" : ""}`}
+                  style={{ height: `${Math.max(values[i] / top, values[i] > 0 ? 0.03 : 0) * 100}%` }}
+                />
+              </div>
+            ))}
           </div>
-        ))}
+          {shown && hover !== null && (
+            <div
+              className={`chart-tip${hover < 4 ? " start" : hover > n - 5 ? " end" : ""}`}
+              style={{
+                left: `${((hover + 0.5) / n) * 100}%`,
+                bottom: `calc(${Math.min(1, values[hover] / top) * 100}% + 8px)`,
+              }}
+            >
+              <span className="chart-tip-day">{hover === n - 1 ? "Today" : weekdayLabel(shown.date)}</span>
+              <strong>{values[hover] === 0 ? (kind === "dictation" ? "No dictation" : "No meetings") : label(values[hover])}</strong>
+              {kind === "dictation" && shown.dictations > 0 && (
+                <span className="chart-tip-sub">
+                  {shown.dictations} {shown.dictations === 1 ? "dictation" : "dictations"}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="axis">
+      <div className="axis chart-x">
         <span>{dayLabel(days[0]?.date)}</span>
         <span>{dayLabel(days[Math.floor(days.length / 2)]?.date)}</span>
         <span>Today</span>
@@ -174,15 +240,29 @@ function ActivityChart({ days, kind }: { days: Insights["days"]; kind: "dictatio
 }
 
 function HourChart({ hours }: { hours: number[] }) {
+  const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(...hours, 1);
   return (
     <div className="hours">
-      <div className="hours-bars">
+      <div className="hours-bars" onMouseLeave={() => setHover(null)}>
         {hours.map((count, h) => (
-          <div key={h} className="hour" title={`${hourLabel(h)}: ${count} dictations`}>
+          <div key={h} className={`hour${hover === h ? " hovered" : ""}`} onMouseEnter={() => setHover(h)}>
             <div style={{ height: `${(count / max) * 100}%` }} />
           </div>
         ))}
+        {hover !== null && (
+          <div
+            className={`chart-tip${hover < 3 ? " start" : hover > 20 ? " end" : ""}`}
+            style={{ left: `${((hover + 0.5) / 24) * 100}%`, bottom: "calc(100% + 6px)" }}
+          >
+            <span className="chart-tip-day">
+              {hourLabel(hover)} – {hourLabel((hover + 1) % 24)}
+            </span>
+            <strong>
+              {hours[hover]} {hours[hover] === 1 ? "dictation" : "dictations"}
+            </strong>
+          </div>
+        )}
       </div>
       <div className="axis">
         <span>12 AM</span>
@@ -240,6 +320,12 @@ export function duration(ms: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+/** "Tue, Oct 14". */
+function weekdayLabel(date: string): string {
+  const [y, mo, d] = date.split("-").map(Number);
+  return new Date(y, mo - 1, d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
 function dayLabel(date?: string): string {
