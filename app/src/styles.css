@@ -4,8 +4,9 @@
    Neutrals are tinted towards grape so the greys belong to the palette.
    Flat colours and borders. The one exception is the main area's
    background (--bg-wash): a faint wash of the palette, so the page isn't
-   a flat sheet, and Home's faint quill. Nothing else gets gradients or
-   glows.
+   a flat sheet, and Home's faint quill. Boxed content is see-through
+   (--bg-panel) so the wash carries under it. Nothing else gets gradients
+   or glows.
    ========================================================================== */
 :root {
   color-scheme: light dark;
@@ -29,6 +30,12 @@
   --home-art-opacity: 0.5;
   --bg-elevated: #ffffff;
   --bg-subtle: #f5f6f9;
+  /* Boxed content (cards, the latest notes, meeting tiles): see-through,
+     so the wash shows through, with a lighter top edge. */
+  --bg-panel: rgb(255 255 255 / 0.32);
+  --bg-panel-hover: rgb(255 255 255 / 0.6);
+  --border-panel: rgb(108 110 160 / 0.17);
+  --panel-edge: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --bg-hover: rgb(108 110 160 / 0.08);
   --bg-active: rgb(108 110 160 / 0.13);
   --selected: #e4e5ef;
@@ -114,6 +121,10 @@
     --home-art-opacity: 0.45;
     --bg-elevated: #1f1f2b;
     --bg-subtle: #232331;
+    --bg-panel: rgb(193 202 214 / 0.025);
+    --bg-panel-hover: rgb(193 202 214 / 0.05);
+    --border-panel: rgb(193 202 214 / 0.1);
+    --panel-edge: inset 0 1px 0 rgb(255 255 255 / 0.05);
     --bg-hover: rgb(193 202 214 / 0.06);
     --bg-active: rgb(193 202 214 / 0.1);
     --selected: rgb(108 110 160 / 0.3);
@@ -152,6 +163,10 @@
   --home-art-opacity: 0.45;
   --bg-elevated: #1f1f2b;
   --bg-subtle: #232331;
+  --bg-panel: rgb(193 202 214 / 0.025);
+  --bg-panel-hover: rgb(193 202 214 / 0.05);
+  --border-panel: rgb(193 202 214 / 0.1);
+  --panel-edge: inset 0 1px 0 rgb(255 255 255 / 0.05);
   --bg-hover: rgb(193 202 214 / 0.06);
   --bg-active: rgb(193 202 214 / 0.1);
   --selected: rgb(108 110 160 / 0.3);
@@ -789,10 +804,10 @@ kbd {
   width: 100%;
   height: auto;
   padding: 13px 16px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-panel);
   border-radius: 10px;
-  background: var(--bg-elevated);
-  box-shadow: none;
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
   text-align: left;
   font-weight: 400;
   color: var(--text);
@@ -800,7 +815,7 @@ kbd {
 
 .meeting-tile:hover:not(:disabled) {
   border-color: var(--border-strong);
-  background: var(--bg-elevated);
+  background: var(--bg-panel-hover);
 }
 
 .tile-pattern {
@@ -1665,8 +1680,9 @@ mark {
 }
 
 .card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  box-shadow: var(--panel-edge);
   border-radius: var(--radius-lg);
 }
 
@@ -1813,8 +1829,8 @@ mark {
   padding: 20px 22px;
   margin: 20px 0 16px;
   border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
   border-left: 3px solid var(--grape);
   transition: border-color 0.2s;
 }
@@ -3444,9 +3460,10 @@ html.indicator-window #root {
 /* The latest meeting's notes. */
 .latest {
   padding: 20px 22px 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-panel);
   border-radius: 12px;
-  background: var(--bg-elevated);
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
 }
 
 .latest-label {
@@ -3659,6 +3676,7 @@ html.indicator-window #root {
   border: 0;
   border-radius: 0;
   background: none;
+  box-shadow: none;
 }
 
 .home .insight-columns,

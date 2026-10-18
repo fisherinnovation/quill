@@ -382,6 +382,11 @@ decision someone might otherwise undo.
   stays put while pages scroll. The meeting page's sticky header spans the
   whole content area (container units) and is see-through, so it doesn't
   sit on the wash as a box.
+- **See-through boxes:** cards, the latest notes and meeting tiles have a
+  translucent background (`--bg-panel`), a soft border and a faint light
+  top edge, so the wash carries under them instead of stopping at opaque
+  sheets. Floating windows (the call prompt, live notes) stay solid: they
+  sit over other apps.
 - **Home leads with content, not chrome.** A generated-dashboard look
   (greeting, equal cards, a row of KPI tiles, explanatory copy) read as
   robotic. Home now opens with a plain sentence about the day, then the
