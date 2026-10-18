@@ -225,3 +225,25 @@ export function groupByDay<T>(items: T[], when: (item: T) => string): [string, T
 export function timeOfDay(rfc3339: string): string {
   return new Date(rfc3339).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
+
+/** 0 → 1 over most of a second, eased, once per mount (at once with reduced motion). */
+export function useCountUp(): number {
+  const [progress, setProgress] = useState(() =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0,
+  );
+  const started = useRef<number | null>(null);
+  useEffect(() => {
+    if (progress >= 1) return;
+    let frame = 0;
+    const tick = (now: number) => {
+      started.current ??= now;
+      const t = Math.min(1, (now - started.current) / 900);
+      setProgress(1 - Math.pow(1 - t, 3));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // Runs once: progress only grows.
+  }, []);
+  return progress;
+}

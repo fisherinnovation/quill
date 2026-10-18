@@ -192,7 +192,11 @@ If something stops the write-up, the step that failed is marked and the reason g
         id: "meetings-page",
         title: "The Meetings page and search",
         keywords: "list library find search transcripts",
-        body: `**Meetings** lists every meeting by day. Each shows the first point of its notes, who was there, its length, its action items and how much you spoke, over a faint picture of the conversation's back and forth.
+        body: `At the top, **Meetings** shows what's happening (ready to record, recording, or writing up) over a weave of your recent conversations, each a ribbon of who was talking. Below it are this week's numbers: meetings, time on calls (with the last seven days), how much of the talking was you, and action items.
+
+**Meetings** lists every meeting by day. Each shows the first point of its notes, who was there, its length, its action items and how much you spoke, over a faint picture of the conversation's back and forth.
+
+Filters above the list show only meetings with action items, new ones, ones that need attention (not transcribed, nothing said, or failed), or meetings with the people you meet most.
 
 The search box looks through every transcript. Results show the matching line and who said it; click one to open the meeting at that moment.`,
       },

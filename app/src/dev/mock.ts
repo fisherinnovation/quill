@@ -153,7 +153,7 @@ const CAPTION =
 const OVERVIEW_DETAILS: Record<string, [string[], string, number]> = {
   m1: [["Speaker 1", "Speaker 2", "Speaker 3"], "Ship the onboarding redesign Friday behind a flag, at 10% of new sign-ups.", 3],
   m2: [["Priya"], "Priya takes over the analytics pipeline; the SDK retry bug is first.", 2],
-  m4: [["Speaker 1", "Speaker 2"], "Settings get grouped like System Settings, with search at the top.", 4],
+  m4: [["Priya", "Speaker 2"], "Settings get grouped like System Settings, with search at the top.", 4],
   m5: [["Northwind"], "Northwind wants SSO before rollout; a pilot with 20 seats starts in November.", 1],
   m6: [["Dan", "Speaker 2", "Speaker 3", "Speaker 4"], "Two finalists for the design role; references this week.", 2],
 };

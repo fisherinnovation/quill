@@ -1,39 +1,58 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import {
   api,
   clock,
   errorText,
+  isMac,
   minutes,
+  type Insights,
   type Meeting,
   type MeetingOverview,
   type Progress,
+  type RecordingState,
   type SearchHit,
 } from "../api";
-import { Icon, Logo } from "./Icon";
+import { ConversationWeave } from "./ConversationWeave";
+import { Icon, type IconName, Logo } from "./Icon";
+import { duration } from "./Insights";
+import { useElapsed } from "./RecordButton";
 import { writeUpFraction, writeUpStatus } from "./WriteUp";
-import { groupByDay, timeOfDay } from "./ui";
+import { groupByDay, timeOfDay, useCountUp } from "./ui";
 
 /** Meetings shown before "Show more", and how many more each click shows. */
 const PAGE = 30;
 
+/** A week, for "this week" numbers. */
+const WEEK_MS = 7 * 86_400_000;
+
+/** Which meetings the list shows: all, a kind, or those with someone. */
+type Filter = { kind: "all" | "actions" | "new" | "attention" } | { person: string };
+
+/** A name the user gave, not a placeholder. */
+const named = (p: string) => !/^Speaker \d+$/.test(p) && p !== "Others";
+
 /**
  * Every meeting, newest first and grouped by day, with search across the
- * transcripts.
+ * transcripts. Above them, a hero woven from recent conversations, this
+ * week's numbers, and filters by kind and by person.
  */
 export function MeetingsView({
   meetings,
   progress,
-  recordingId,
+  recording,
   fresh,
   onSelect,
 }: {
   meetings: Meeting[];
   progress: Record<string, Progress>;
-  recordingId: string | null;
+  recording: RecordingState;
   /** Meetings written up since the user last opened them. */
   fresh: Set<string>;
   onSelect: (id: string, atMs?: number) => void;
 }) {
+  const recordingId = recording.recording ? recording.meeting_id : null;
+  const [insights, setInsights] = useState<Insights | null>(null);
+  const [filter, setFilter] = useState<Filter>({ kind: "all" });
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +65,40 @@ export function MeetingsView({
       .meetingOverviews()
       .then((all) => setOverviews(new Map(all.map((o) => [o.id, o]))))
       .catch(() => {});
+    api
+      .getInsights()
+      .then(setInsights)
+      .catch(() => setInsights(null));
   }, [meetings]);
+
+  const attention = (m: Meeting) =>
+    m.id !== recordingId && (m.empty || !m.has_transcript || progress[m.id]?.stage === "failed");
+  // The people met most (by name), for filters: up to three, met at least twice.
+  const people = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const o of overviews.values()) {
+      for (const p of new Set(o.people.filter(named))) count.set(p, (count.get(p) ?? 0) + 1);
+    }
+    return [...count.entries()]
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name]) => name);
+  }, [overviews]);
+  const matches = (m: Meeting, f: Filter) => {
+    if ("person" in f) return overviews.get(m.id)?.people.includes(f.person) ?? false;
+    switch (f.kind) {
+      case "actions":
+        return (overviews.get(m.id)?.action_items ?? 0) > 0;
+      case "new":
+        return fresh.has(m.id);
+      case "attention":
+        return attention(m);
+      default:
+        return true;
+    }
+  };
+  const listed = meetings.filter((m) => matches(m, filter));
 
   // Search as you type, debounced so we don't query on every keystroke.
   useEffect(() => {
@@ -66,6 +118,17 @@ export function MeetingsView({
     return () => clearTimeout(timer);
   }, [query]);
 
+  const recent = meetings
+    .map((m) => overviews.get(m.id))
+    .filter((o): o is MeetingOverview => o !== undefined);
+  const weekAgo = Date.now() - WEEK_MS;
+  const thisWeek = meetings.filter((m) => Date.parse(m.started_at) >= weekAgo);
+  const actionsThisWeek = thisWeek.reduce((n, m) => n + (overviews.get(m.id)?.action_items ?? 0), 0);
+  const writing = meetings.find((m) => {
+    const p = progress[m.id];
+    return p && p.stage !== "done" && p.stage !== "failed";
+  });
+
   return (
     <div className="page meetings">
       <header className="page-head">
@@ -78,6 +141,21 @@ export function MeetingsView({
           </p>
         </div>
       </header>
+
+      {meetings.length > 0 && (
+        <>
+          <Hero
+            recording={recording}
+            meeting={meetings.find((m) => m.id === recordingId)}
+            writing={writing}
+            progress={writing ? progress[writing.id] : undefined}
+            insights={insights}
+            recent={recent}
+            onOpen={onSelect}
+          />
+          {insights && <WeekNumbers insights={insights} actions={actionsThisWeek} />}
+        </>
+      )}
 
       {meetings.length > 0 && (
         <label className="search page-search">
@@ -118,7 +196,15 @@ export function MeetingsView({
         <NoMeetings />
       ) : (
         <>
-          {groupByDay(meetings.slice(0, shown), (m) => m.started_at).map(([label, group, oneDay]) => (
+          <Filters
+            meetings={meetings}
+            people={people}
+            filter={filter}
+            count={(f) => meetings.filter((m) => matches(m, f)).length}
+            onChange={setFilter}
+          />
+          {listed.length === 0 && <p className="muted filter-none">No meetings here yet.</p>}
+          {groupByDay(listed.slice(0, shown), (m) => m.started_at).map(([label, group, oneDay]) => (
             <section className="group" key={label}>
               <h2 className="group-title">{label}</h2>
               <ul className="meeting-tiles">
@@ -138,7 +224,7 @@ export function MeetingsView({
               </ul>
             </section>
           ))}
-          {meetings.length > shown && (
+          {listed.length > shown && (
             <button className="show-more" onClick={() => setShown((n) => n + PAGE)}>
               Show more meetings
             </button>
@@ -204,6 +290,189 @@ function MeetingTile({
         {share !== null && <span className="dot-sep">you spoke {share}%</span>}
       </span>
     </button>
+  );
+}
+
+/**
+ * The top of the page: what's happening (ready, recording, writing up),
+ * this week in a line, over a weave of recent conversations.
+ */
+function Hero({
+  recording,
+  meeting,
+  writing,
+  progress,
+  insights,
+  recent,
+  onOpen,
+}: {
+  recording: RecordingState;
+  /** The meeting being recorded. */
+  meeting?: Meeting;
+  /** A meeting being written up. */
+  writing?: Meeting;
+  progress?: Progress;
+  insights: Insights | null;
+  recent: MeetingOverview[];
+  onOpen: (id: string) => void;
+}) {
+  const elapsed = useElapsed(recording);
+  const [error, setError] = useState<string | null>(null);
+  const phase = recording.recording ? "recording" : writing ? "writing" : "idle";
+  const m = insights?.meetings;
+  const share = m?.my_talk_share != null ? Math.round(m.my_talk_share * 100) : null;
+
+  async function record() {
+    try {
+      setError(null);
+      await api.startRecording();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  return (
+    <div className={`hero meetings-hero ${phase}${recording.paused ? " paused" : ""}`}>
+      <ConversationWeave overviews={recent} phase={phase} />
+      <div className="hero-body">
+        <span className="hero-status">
+          <span className="hero-dot" />
+          {phase === "recording"
+            ? `${recording.paused ? "Paused" : "Recording"} · ${clock(elapsed)}`
+            : phase === "writing" && progress
+              ? `Writing up · ${writeUpStatus(progress)}`
+              : "Ready to record"}
+        </span>
+        <div className="hero-title">
+          {phase === "recording"
+            ? (meeting?.title ?? "Recording")
+            : phase === "writing"
+              ? writing?.title
+              : m && m.ms_last_7_days > 0
+                ? `${duration(m.ms_last_7_days)} on calls this week`
+                : "No calls yet this week"}
+        </div>
+        <p>
+          {phase === "recording"
+            ? "Stop when the call ends, and the notes follow."
+            : phase === "writing"
+              ? "Turning the call into a transcript and notes."
+              : m && m.count_last_7_days > 0
+                ? `${m.count_last_7_days} ${m.count_last_7_days === 1 ? "meeting" : "meetings"} this week${share !== null ? `, and ${share}% of the talking was you` : ""}.`
+                : isMac
+                  ? "Record when a call starts, or let Quill offer when it notices one."
+                  : "Record when a call starts, from here or the tray icon."}
+        </p>
+        {phase === "idle" ? (
+          <button className="primary" onClick={() => void record()}>
+            <span className="rec-dot" /> Record meeting
+          </button>
+        ) : (
+          <button onClick={() => onOpen((phase === "recording" ? meeting?.id : writing?.id) ?? "")}>
+            Open <Icon name="chevron-right" size={13} />
+          </button>
+        )}
+        {error && <p className="error-text small">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** This week's numbers, counting up once. */
+function WeekNumbers({ insights, actions }: { insights: Insights; actions: number }) {
+  const m = insights.meetings;
+  const progress = useCountUp();
+  const week = insights.days.slice(-7);
+  const busiest = Math.max(1, ...week.map((d) => d.meeting_ms));
+  const stats: { icon: IconName; value: number; format: (v: number) => string; label: string; chart?: boolean }[] = [
+    {
+      icon: "users",
+      value: m.count_last_7_days,
+      format: (v) => String(Math.round(v)),
+      label: "meetings this week",
+    },
+    {
+      icon: "clock",
+      value: m.ms_last_7_days,
+      format: (v) => duration(v),
+      label: "on calls this week",
+      chart: true,
+    },
+    {
+      icon: "mic",
+      value: (m.my_talk_share ?? 0) * 100,
+      format: (v) => (m.my_talk_share != null ? `${Math.round(v)}%` : "–"),
+      label: "of the talking is you",
+    },
+    {
+      icon: "check",
+      value: actions,
+      format: (v) => String(Math.round(v)),
+      label: "action items this week",
+    },
+  ];
+  return (
+    <div className="stat-tiles">
+      {stats.map((s) => (
+        <div className="stat-tile" key={s.label}>
+          <Icon name={s.icon} size={15} />
+          <strong>{s.format(s.value * progress)}</strong>
+          <span>{s.label}</span>
+          {s.chart && (
+            <span className="stat-spark" aria-hidden>
+              {week.map((d) => (
+                <i key={d.date} style={{ height: `${Math.max(8, (d.meeting_ms / busiest) * 100) * progress}%` }} />
+              ))}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** All, a kind, or the people met most. Each chip counts its meetings. */
+function Filters({
+  meetings,
+  people,
+  filter,
+  count,
+  onChange,
+}: {
+  meetings: Meeting[];
+  people: string[];
+  filter: Filter;
+  count: (f: Filter) => number;
+  onChange: (f: Filter) => void;
+}) {
+  const kinds: { kind: "actions" | "new" | "attention"; label: string }[] = [
+    { kind: "actions", label: "Action items" },
+    { kind: "new", label: "New" },
+    { kind: "attention", label: "Needs attention" },
+  ];
+  const on = (f: Filter) => JSON.stringify(f) === JSON.stringify(filter);
+  const chips = [
+    ...kinds.map((k) => ({ f: { kind: k.kind } as Filter, label: k.label, person: false })),
+    ...people.map((p) => ({ f: { person: p } as Filter, label: p, person: true })),
+  ].filter((c) => count(c.f) > 0 || on(c.f));
+  if (chips.length === 0) return null;
+  return (
+    <div className="kind-filter meeting-filter" role="group" aria-label="Show">
+      <button className={`kind-chip${on({ kind: "all" }) ? " on" : ""}`} aria-pressed={on({ kind: "all" })} onClick={() => onChange({ kind: "all" })}>
+        All <span className="kind-count">{meetings.length}</span>
+      </button>
+      {chips.map((c) => (
+        <button
+          key={c.label}
+          className={`kind-chip${c.person ? " person" : ""}${"kind" in c.f ? ` ${c.f.kind}` : ""}${on(c.f) ? " on" : ""}`}
+          aria-pressed={on(c.f)}
+          onClick={() => onChange(on(c.f) ? { kind: "all" } : c.f)}
+        >
+          {c.person ? <span className="person-initial">{c.label.charAt(0)}</span> : <span className="kind-dot" />}
+          {c.label} <span className="kind-count">{count(c.f)}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 

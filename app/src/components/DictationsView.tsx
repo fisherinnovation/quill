@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   api,
   type DictationEntry,
@@ -12,7 +12,7 @@ import { PastePermission, withRule } from "./DictationSettings";
 import { Icon, type IconName } from "./Icon";
 import { duration } from "./Insights";
 import { ModelDownload } from "./Models";
-import { Banner, Group, Keys, Row, groupByDay, timeOfDay } from "./ui";
+import { Banner, Group, Keys, Row, groupByDay, timeOfDay, useCountUp } from "./ui";
 import { VoiceWave } from "./VoiceWave";
 
 /**
@@ -287,9 +287,9 @@ function Numbers({ insights }: { insights: Insights }) {
   ];
   const progress = useCountUp();
   return (
-    <div className="dictation-numbers">
+    <div className="stat-tiles">
       {stats.map((s) => (
-        <div className="dictation-number" key={s.label}>
+        <div className="stat-tile" key={s.label}>
           <Icon name={s.icon} size={15} />
           <strong>{s.format(s.value * progress)}</strong>
           <span>{s.label}</span>
@@ -297,28 +297,6 @@ function Numbers({ insights }: { insights: Insights }) {
       ))}
     </div>
   );
-}
-
-/** 0 → 1 over most of a second, eased, once per mount (at once with reduced motion). */
-function useCountUp(): number {
-  const [progress, setProgress] = useState(() =>
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0,
-  );
-  const started = useRef<number | null>(null);
-  useEffect(() => {
-    if (progress >= 1) return;
-    let frame = 0;
-    const tick = (now: number) => {
-      started.current ??= now;
-      const t = Math.min(1, (now - started.current) / 900);
-      setProgress(1 - Math.pow(1 - t, 3));
-      if (t < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-    // Runs once: progress only grows.
-  }, []);
-  return progress;
 }
 
 function wordCount(d: DictationEntry): number {

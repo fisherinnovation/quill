@@ -261,7 +261,7 @@ export function App() {
             <MeetingsView
               meetings={meetings}
               progress={progress}
-              recordingId={recording.meeting_id}
+              recording={recording}
               fresh={fresh}
               onSelect={(id, at) => setView({ kind: "meeting", id, at })}
             />

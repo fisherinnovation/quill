@@ -402,6 +402,14 @@ decision someone might otherwise undo.
   is hidden and holds still with reduced motion. Below it, the all-time
   numbers count up once; each day in the history shows its totals, and
   each dictation a badge for its app.
+- **Meetings page:** the hero is woven from recent meetings
+  (`ConversationWeave.tsx`, a canvas): each a ribbon of its 96-slice
+  conversation shape, coloured by speaker as on the tiles, drifting
+  sideways, rows in alternate directions; faster and brighter while
+  recording or writing up. With fewer than three meetings it weaves made-up
+  ones. Below, this week's numbers count up (the same tiles as Dictations),
+  and filters pick meetings with action items, new ones, ones needing
+  attention, or with one of the up to three people met at least twice.
 - **Dictation colours** say what happened to each one, one colour per
   outcome so they don't compete: not typed (left on the clipboard,
   fuchsia, the one to act on) before corrected (grape) before tidied up

@@ -1951,15 +1951,67 @@ mark {
   color: var(--text-3);
 }
 
-/* All-time numbers under the hero. */
-.dictation-numbers {
+/* The Meetings hero: the same card, over a weave of recent conversations
+   (ConversationWeave.tsx), reflecting what's happening now. */
+.conversation-weave {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  opacity: var(--wave-opacity);
+  mask-image: linear-gradient(to right, transparent 30%, rgb(0 0 0 / 0.45) 52%, #000 76%);
+  transition: opacity 0.4s ease;
+}
+
+.meetings-hero .hero-body > button {
+  margin-top: 6px;
+  gap: 7px;
+}
+
+.meetings-hero .hero-body > button .rec-dot {
+  width: 8px;
+  height: 8px;
+  background: #fff;
+}
+
+.meetings-hero.recording {
+  border-color: rgb(255 16 83 / 0.45);
+}
+
+.meetings-hero.recording .hero-dot {
+  background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.meetings-hero.recording.paused .hero-dot {
+  animation: none;
+}
+
+.meetings-hero.writing {
+  border-color: color-mix(in srgb, var(--grape) 45%, var(--border-panel));
+}
+
+.meetings-hero.writing .hero-dot {
+  background: var(--grape-text);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.meetings-hero.recording .conversation-weave,
+.meetings-hero.writing .conversation-weave {
+  opacity: calc(var(--wave-opacity) + 0.2);
+}
+
+/* Numbers under a page's hero (Dictations, Meetings), counting up once. */
+.stat-tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 8px;
 }
 
-.dictation-number {
+.stat-tile {
+  position: relative;
   display: grid;
   gap: 2px;
   padding: 14px 16px 12px;
@@ -1969,20 +2021,20 @@ mark {
   box-shadow: var(--panel-edge);
 }
 
-.dictation-number .icon {
+.stat-tile .icon {
   margin-bottom: 6px;
   color: var(--accent-text);
 }
 
-.dictation-number:nth-child(2) .icon {
+.stat-tile:nth-child(2) .icon {
   color: var(--grape-text);
 }
 
-.dictation-number:nth-child(3) .icon {
+.stat-tile:nth-child(3) .icon {
   color: var(--sky-text);
 }
 
-.dictation-number strong {
+.stat-tile strong {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -1990,13 +2042,73 @@ mark {
   white-space: nowrap;
 }
 
-.dictation-number span {
+.stat-tile > span {
   font-size: 12px;
   color: var(--text-2);
 }
 
+/* A tile's last seven days, as small bars at its top right. */
+.stat-spark {
+  position: absolute;
+  top: 13px;
+  right: 14px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: 56px;
+  height: 16px;
+}
+
+.stat-spark i {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--grape-text);
+  opacity: 0.55;
+}
+
+.stat-spark i:last-child {
+  opacity: 0.95;
+}
+
+.meeting-filter {
+  margin: 18px 0 -6px;
+}
+
+.person-initial {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: var(--bg-hover);
+}
+
+.kind-chip.on .person-initial {
+  color: #fff;
+  background: var(--grape-text);
+}
+
+.kind-chip.actions {
+  --kind: var(--grape-text);
+}
+
+.kind-chip.new {
+  --kind: var(--accent);
+}
+
+.kind-chip.attention {
+  --kind: var(--text-3);
+}
+
+.filter-none {
+  margin: 26px 0 0;
+}
+
 @container (max-width: 640px) {
-  .dictation-numbers {
+  .stat-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
