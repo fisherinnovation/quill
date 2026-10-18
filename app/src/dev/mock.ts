@@ -274,6 +274,85 @@ if (flags.has("backlog")) {
   );
 }
 
+// Saved dictation samples to review (Settings → Dictation → Review…).
+let reviewSamples = [
+  ["2026-10-16_091204", "Can you send me the deck before the call with Priya?", null, "Slack", 3800, "Can you send me the deck before the call with Priya?"],
+  ["2026-10-16_093517", "The retry loop in sync client never caps the delay.", "The retry loop in sync client, um, never caps the delay.", "Cursor", 4600, "The retry loop in sync_client never caps the delay."],
+  ["2026-10-16_101145", "Let's ship the onboarding redesign Friday behind a flag.", null, "Slack", 3900, null],
+  ["2026-10-16_112030", "Quil should open the notes when the call ends.", null, "Notion", 3300, null],
+  ["2026-10-16_140212", "Thanks, that fixed it.", null, "Messages", 1500, null],
+  ["2026-10-16_151840", "For the launch we need three things:\n1. The landing page\n2. The pricing table\n3. The onboarding emails", "For the launch we need three things. First, the landing page. Second, the pricing table. And third, the onboarding emails.", "Notion", 9100, null],
+].map(([name, typed, whisper, app, duration_ms, reference]) => ({
+  name: name as string,
+  typed: typed as string,
+  whisper: (whisper as string | null) ?? (typed as string),
+  app: app as string,
+  polish_model: whisper ? "google/gemini-3.5-flash-lite" : null,
+  duration_ms: duration_ms as number,
+  reference: reference as string | null,
+}));
+
+function sampleReview() {
+  // Rough word errors, enough for the preview: words that differ by position.
+  const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9_\s']/g, " ").split(/\s+/).filter(Boolean);
+  const diff = (ref: string, hyp: string) => {
+    const [r, h] = [words(ref), words(hyp)];
+    const errors: string[] = [];
+    for (let i = 0; i < Math.max(r.length, h.length); i++) {
+      if (r[i] !== h[i]) errors.push(r[i] && h[i] ? `${h[i]}→${r[i]}` : r[i] ? `-${r[i]}` : `+${h[i]}`);
+    }
+    return errors;
+  };
+  const list = reviewSamples.map((s) => ({ ...s, errors: s.reference ? diff(s.reference, s.typed) : [] }));
+  const tally = (pick: (s: (typeof list)[number]) => string) => {
+    const t = { reference_words: 0, substitutions: 0, deletions: 0, insertions: 0 };
+    for (const s of list) {
+      if (!s.reference) continue;
+      t.reference_words += words(s.reference).length;
+      t.substitutions += diff(s.reference, pick(s)).length;
+    }
+    return t;
+  };
+  const counts = new Map<string, number>();
+  for (const s of list) for (const e of s.errors) counts.set(e, (counts.get(e) ?? 0) + 1);
+  return {
+    samples: list,
+    accuracy: {
+      reviewed: list.filter((s) => s.reference).length,
+      typed: tally((s) => s.typed),
+      whisper: tally((s) => s.whisper),
+      cleaned: list.filter((s) => s.reference && s.polish_model).length,
+      common: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
+    },
+  };
+}
+
+/** A second of soft tone as a WAV, standing in for a sample's audio. */
+function toneWav(): ArrayBuffer {
+  const rate = 16_000;
+  const n = rate * 1.2;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const str = (o: number, t: string) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF");
+  v.setUint32(4, 36 + n * 2, true);
+  str(8, "WAVEfmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  str(36, "data");
+  v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const env = Math.sin((Math.PI * i) / n);
+    v.setInt16(44 + i * 2, Math.sin((2 * Math.PI * 220 * i) / rate) * env * 3000, true);
+  }
+  return buf;
+}
+
 const fresh = flags.has("nomodels");
 let models = [
   ["turbo", "speech", "large-v3 with a 4-layer decoder; near large-v3 accuracy, much faster", 1_624_555_275, !fresh, true, false],
@@ -625,6 +704,14 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     dictations = [];
   },
   dictation_samples: () => samples,
+  sample_review: () => sampleReview(),
+  sample_audio: () => toneWav(),
+  set_sample_reference: ({ name, text }) => {
+    reviewSamples = reviewSamples.map((r) => (r.name === name ? { ...r, reference: String(text).trim() } : r));
+  },
+  delete_sample: ({ name }) => {
+    reviewSamples = reviewSamples.filter((r) => r.name !== name);
+  },
   show_dictation_samples: () => {},
   clear_dictation_samples: () => {
     samples = { count: 0, bytes: 0 };

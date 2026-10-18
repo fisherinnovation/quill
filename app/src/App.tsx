@@ -16,6 +16,7 @@ import { RecordButton } from "./components/RecordButton";
 import { Onboarding } from "./components/Onboarding";
 import { DictationsView } from "./components/DictationsView";
 import { HelpView } from "./components/HelpView";
+import { SamplesReview } from "./components/SamplesReview";
 import { HomeView } from "./components/HomeView";
 import { DictationEntryView } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
@@ -29,6 +30,8 @@ type View =
   | { kind: "dictation" }
   | { kind: "dictation-entry"; id: number }
   | { kind: "help" }
+  /** Reviewing saved dictation samples (from Settings → Dictation). */
+  | { kind: "samples" }
   | { kind: "settings"; tab?: SettingsTab };
 
 /** How long a finished write-up's outcome shows on its meeting. */
@@ -52,6 +55,8 @@ function section(view: View): Section {
       return "meetings";
     case "dictation-entry":
       return "dictation";
+    case "samples":
+      return "settings";
     default:
       return view.kind;
   }
@@ -267,7 +272,14 @@ export function App() {
             />
           )}
           {view.kind === "help" && <HelpView />}
-          {view.kind === "settings" && <SettingsView key={view.tab ?? "general"} tab={view.tab} />}
+          {view.kind === "settings" && (
+            <SettingsView
+              key={view.tab ?? "general"}
+              tab={view.tab}
+              onReviewSamples={() => setView({ kind: "samples" })}
+            />
+          )}
+          {view.kind === "samples" && <SamplesReview onBack={() => setView({ kind: "settings", tab: "dictation" })} />}
           {view.kind === "dictation" && (
             <DictationsView
               state={dictation}

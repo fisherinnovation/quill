@@ -231,6 +231,15 @@ decision someone might otherwise undo.
   counts. Where several forms are right ("section 4" or "four"), the
   reference uses the one Quill produces. Samples are FLAC (about 1 MB per
   minute) and outside the database, so deleting them is one folder.
+- **Reviewing samples in the app:** writing references by hand in a text
+  editor didn't happen, so the app has a review page (Settings →
+  Dictation → Testing accuracy → Review…). Each sample plays as it's shown
+  beside what was typed, already in an editable box: keeping it (⌘↵) says
+  it was right, editing and saving records what was said. Most samples
+  are right, so most take one keystroke. It scores what was typed and
+  Whisper's own text against the references as it goes (word error rate,
+  now in `quill_core::wer` so the app can use it), and lists the
+  commonest mistakes, the candidates for vocabulary and replacements.
 - **Planned:** opt-in learning by watching the inserted text through
   Accessibility for about a minute. First check which apps expose it.
 

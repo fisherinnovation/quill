@@ -4715,6 +4715,300 @@ html.indicator-window #root {
   }
 }
 
+/* Reviewing dictation samples (SamplesReview.tsx): one at a time, with
+   accuracy above as you go and every sample listed below. */
+.review-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0 14px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.review-progress strong {
+  color: var(--text);
+}
+
+.review-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--bg-hover);
+}
+
+.review-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--sky-text);
+  transition: width 0.4s ease;
+}
+
+.accuracy-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-panel);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
+}
+
+.accuracy-main {
+  display: grid;
+  flex: none;
+}
+
+.accuracy-main strong {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.accuracy-main span {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.accuracy-side {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.accuracy-side p {
+  margin: 0;
+}
+
+.accuracy-side strong {
+  color: var(--text);
+}
+
+.accuracy-common {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.accuracy-common span,
+.review-errors span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.accuracy-common em {
+  margin-left: 5px;
+  font-style: normal;
+  color: var(--text-3);
+}
+
+.review-card {
+  padding: 18px 20px 14px;
+  border: 1px solid color-mix(in srgb, var(--sky) 40%, var(--border-panel));
+  border-radius: 14px;
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.review-play {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--sky-text);
+  background: var(--sky-soft);
+  box-shadow: none;
+}
+
+.review-play .review-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.review-ring,
+.review-ring-done {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.review-ring {
+  stroke: transparent;
+}
+
+.review-ring-done {
+  stroke: var(--sky-text);
+  stroke-dasharray: 100;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+.review-meta {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.review-meta strong {
+  font-size: 14px;
+}
+
+.review-meta > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.review-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sky-text);
+  background: var(--sky-soft);
+}
+
+.review-state.errors {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.review-whisper {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.review-whisper span,
+.review-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.review-text {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.review-errors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.review-actions .primary kbd {
+  height: 18px;
+  min-width: 0;
+  margin-left: 8px;
+  padding: 0 5px;
+  font-size: 11px;
+  color: inherit;
+  background: rgb(255 255 255 / 0.18);
+  border: 0;
+}
+
+.review-keys {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.review-keys kbd {
+  height: 18px;
+  min-width: 0;
+  padding: 0 5px;
+  font-size: 10.5px;
+}
+
+.review-list .item-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.review-list .item-row > :not(.icon) {
+  grid-column: auto;
+}
+
+.review-list .item-row.current {
+  background: var(--bg-active);
+}
+
+.review-list .item-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+
+.review-dot.right {
+  box-shadow: none;
+  background: var(--sky-text);
+}
+
+.review-dot.errors {
+  box-shadow: none;
+  background: var(--accent);
+}
+
 /* Help (HelpView.tsx): a table of contents beside the articles, and
    search over them. The articles keep a readable measure. */
 .page.help {

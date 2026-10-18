@@ -61,7 +61,7 @@ impl Alignment {
 }
 
 /// Error counts, summed over one or more alignments.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
 pub struct Tally {
     pub reference_words: usize,
     pub substitutions: usize,

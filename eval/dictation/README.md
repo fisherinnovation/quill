@@ -64,12 +64,16 @@ one Quill produces, so every error is a real one.
    folder's `dictation-samples/` as `<time>.flac` (the audio Whisper heard),
    `<time>.typed.txt` (what was typed) and `<time>.json` (the app it went
    into, Whisper's text and the clean-up model).
-2. Copy the clips worth keeping, with their files, to
+2. Review them in the app: **Settings → Dictation → Testing accuracy →
+   Review…** plays each one and shows what was typed; fix it into what you
+   said (or keep it if it's right) and it's saved as `<time>.txt`, the
+   reference, beside the clip. The page shows the accuracy of what was
+   typed, and of Whisper alone, as you go, and the commonest mistakes.
+   (By hand: copy `<time>.typed.txt` to `<time>.txt` and fix it.)
+3. To keep clips for later runs, copy them with their files to
    `eval/dictation/private/` (gitignored: real dictations never go in the
-   repo).
-3. For each one, copy `<time>.typed.txt` to `<time>.txt` and fix it to what
-   you meant to type (listen to the clip if unsure).
-4. Score them:
+   repo); `quill-cli dictate` can also read them where they are.
+4. Score them again with the current settings, models or prompt:
 
    ```sh
    QUILL_OPENROUTER_API_KEY=$(security find-generic-password -s com.fisherinnovation.quill -a openrouter -w) \

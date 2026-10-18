@@ -894,6 +894,60 @@ pub async fn clear_dictation_samples(app: AppHandle) -> CommandResult<()> {
     .await
 }
 
+/// The samples to review, and how accurate the reviewed ones were.
+#[derive(Serialize)]
+pub struct SampleReview {
+    samples: Vec<samples::Sample>,
+    accuracy: samples::Accuracy,
+}
+
+#[tauri::command]
+pub async fn sample_review(app: AppHandle) -> CommandResult<SampleReview> {
+    blocking(move || {
+        let dir = samples::dir(&app.state::<AppState>().data_dir);
+        let list = samples::list(&dir).map_err(|e| CommandError::Other(e.to_string()))?;
+        let accuracy = samples::accuracy(&list);
+        Ok(SampleReview {
+            samples: list,
+            accuracy,
+        })
+    })
+    .await
+}
+
+/// A sample's audio (FLAC), to play while reviewing it.
+#[tauri::command]
+pub async fn sample_audio(app: AppHandle, name: String) -> CommandResult<tauri::ipc::Response> {
+    blocking(move || {
+        let dir = samples::dir(&app.state::<AppState>().data_dir);
+        let path =
+            samples::audio_path(&dir, &name).map_err(|e| CommandError::Other(e.to_string()))?;
+        let bytes = std::fs::read(path).map_err(|e| CommandError::Other(e.to_string()))?;
+        Ok(tauri::ipc::Response::new(bytes))
+    })
+    .await
+}
+
+/// Saves what should have been typed for a sample.
+#[tauri::command]
+pub async fn set_sample_reference(app: AppHandle, name: String, text: String) -> CommandResult<()> {
+    blocking(move || {
+        let dir = samples::dir(&app.state::<AppState>().data_dir);
+        samples::set_reference(&dir, &name, &text).map_err(|e| CommandError::Other(e.to_string()))
+    })
+    .await
+}
+
+/// Deletes one sample.
+#[tauri::command]
+pub async fn delete_sample(app: AppHandle, name: String) -> CommandResult<()> {
+    blocking(move || {
+        let dir = samples::dir(&app.state::<AppState>().data_dir);
+        samples::remove(&dir, &name).map_err(|e| CommandError::Other(e.to_string()))
+    })
+    .await
+}
+
 /// Whether Quill may simulate the paste keystroke (macOS Accessibility).
 #[tauri::command]
 pub async fn paste_permission(app: AppHandle) -> CommandResult<bool> {

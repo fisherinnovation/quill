@@ -8,7 +8,9 @@
 pub mod judge;
 pub mod report;
 pub mod store;
-pub mod wer;
+/// Word error rate, from `quill_core` (the app scores reviewed dictation
+/// samples with it too).
+pub use quill_core::wer;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

@@ -317,6 +317,42 @@ export interface WriteUp {
   outcome: Outcome | null;
 }
 
+/** A saved dictation sample (quill_core::samples::Sample). */
+export interface Sample {
+  name: string;
+  typed: string;
+  /** Whisper's text, before clean-up. */
+  whisper: string;
+  app: string | null;
+  /** The clean-up model, if it changed the text. */
+  polish_model: string | null;
+  duration_ms: number;
+  /** What should have been typed, once reviewed. */
+  reference: string | null;
+  /** What was typed wrong, against the reference: "quil→quill", "-the", "+um". */
+  errors: string[];
+}
+
+/** Word error counts (quill_core::wer::Tally). */
+export interface WordTally {
+  reference_words: number;
+  substitutions: number;
+  deletions: number;
+  insertions: number;
+}
+
+export interface SampleReview {
+  samples: Sample[];
+  accuracy: {
+    reviewed: number;
+    typed: WordTally;
+    whisper: WordTally;
+    cleaned: number;
+    /** The commonest mistakes in what was typed, with how often. */
+    common: [string, number][];
+  };
+}
+
 /** What came out of a finished write-up. */
 export interface Outcome {
   words: number;
@@ -563,6 +599,13 @@ export const api = {
   showDictationSamples: () => invoke<void>("show_dictation_samples"),
   /** Deletes the samples, and any references written for them. */
   clearDictationSamples: () => invoke<void>("clear_dictation_samples"),
+  /** The saved samples, oldest first, and how accurate the reviewed ones were. */
+  sampleReview: () => invoke<SampleReview>("sample_review"),
+  /** A sample's audio, as FLAC bytes. */
+  sampleAudio: (name: string) => invoke<ArrayBuffer>("sample_audio", { name }),
+  /** Saves what should have been typed: the sample's reference. */
+  setSampleReference: (name: string, text: string) => invoke<void>("set_sample_reference", { name, text }),
+  deleteSample: (name: string) => invoke<void>("delete_sample", { name }),
   /** Saves a fixed version and returns it with all pending and accepted suggestions. */
   correctDictation: (id: number, text: string) =>
     invoke<{ entry: DictationEntry; suggestions: Suggestion[] }>("correct_dictation", { id, text }),

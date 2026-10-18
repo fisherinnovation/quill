@@ -26,9 +26,12 @@ import { Banner, Group, Keys, LANGUAGES, Row, Switch } from "./ui";
 export function DictationSettingsTab({
   settings,
   update,
+  onReviewSamples,
 }: {
   settings: DictationSettings;
   update: (patch: Partial<DictationSettings>) => void;
+  /** Opens the page that reviews the saved samples. */
+  onReviewSamples?: () => void;
 }) {
   const [systemLanguage, setSystemLanguage] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -209,6 +212,7 @@ export function DictationSettingsTab({
       </Group>
 
       <Samples
+        onReview={onReviewSamples}
         enabled={settings.save_samples}
         onChange={(save_samples) => update({ save_samples })}
       />
@@ -299,11 +303,24 @@ function Learned({
  * Keeping dictations' audio to measure accuracy with `quill-cli dictate`
  * (eval/dictation/README.md).
  */
-function Samples({ enabled, onChange }: { enabled: boolean; onChange: (on: boolean) => void }) {
+function Samples({
+  enabled,
+  onChange,
+  onReview,
+}: {
+  enabled: boolean;
+  onChange: (on: boolean) => void;
+  onReview?: () => void;
+}) {
   const [usage, setUsage] = useState<SamplesUsage | null>(null);
+  const [reviewed, setReviewed] = useState<number | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   useEffect(() => {
     void api.dictationSamples().then(setUsage);
+    void api
+      .sampleReview()
+      .then((r) => setReviewed(r.accuracy.reviewed))
+      .catch(() => {});
     const unlisten = events.onDictationSamples(setUsage);
     return () => void unlisten.then((f) => f());
   }, []);
@@ -316,6 +333,16 @@ function Samples({ enabled, onChange }: { enabled: boolean; onChange: (on: boole
       >
         <Switch label="Save dictations for testing" checked={enabled} onChange={onChange} />
       </Row>
+      {usage && usage.count > 0 && onReview && (
+        <Row
+          label="Check what was typed"
+          hint={`Listen to each sample and fix what was typed. Your fixes measure accuracy on your own voice.${reviewed !== null ? ` ${reviewed} of ${usage.count} reviewed.` : ""}`}
+        >
+          <button className="primary" onClick={onReview}>
+            Review…
+          </button>
+        </Row>
+      )}
       {usage && usage.count > 0 && (
         <Row
           label={`${usage.count} saved`}

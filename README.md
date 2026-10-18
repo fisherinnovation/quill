@@ -192,7 +192,7 @@ In **Settings → Dictation** you can change the shortcut, choose the language (
 
 Nothing is learned until you click **Add**, and learned rules can be removed under **Settings → Dictation → Words**. Ordinary word changes ("their" → "there") aren't learned, because as a rule for every dictation they'd be wrong as often as right. With clean-up on, **About you** tells the clean-up model about you (your role, names you use, spelling preferences) so it gets them right. It's never added to your text.
 
-**Testing accuracy.** **Settings → Dictation → Save dictations for testing** (off by default) keeps the audio of each dictation and what was typed, on your computer only, so you can measure how often Quill gets your words right with `quill-cli dictate`; see [`eval/dictation/README.md`](eval/dictation/README.md). It takes about 1 MB per minute of speech, and the same section shows how many are saved and deletes them.
+**Testing accuracy.** **Settings → Dictation → Save dictations for testing** (off by default) keeps the audio of each dictation and what was typed, on your computer only. **Review…** in the same section plays each one beside what was typed; fix it into what you said (or keep it) and Quill shows how many words it got right, as typed and from Whisper alone, and your commonest mistakes. The fixes are references for `quill-cli dictate`, to measure changes on your own voice; see [`eval/dictation/README.md`](eval/dictation/README.md). It takes about 1 MB per minute of speech, and the same section shows how many are saved and deletes them.
 
 ### Per-app styles
 
@@ -267,7 +267,7 @@ Inside it:
 - `models/`: downloaded Whisper, VAD and speaker models.
 - `settings.toml`: settings (safe to edit while Quill isn't running).
 - `logs/`: daily log files, kept for two weeks.
-- `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`) and the app it went into (`.json`).
+- `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`), the app it went into (`.json`), and once reviewed, what you said (`.txt`).
 
 Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately (**Reset** at the bottom of Home). Saved dictation samples are deleted from **Settings → Dictation → Testing accuracy**.
 

@@ -357,6 +357,16 @@ The chips above the list show how many of each there are; click one to show only
 History is kept only on your computer. Turn it off or delete it all in **Settings → Dictation → History**; words Quill has learned stay.`,
       },
       {
+        id: "accuracy",
+        title: "Measuring accuracy",
+        keywords: "accuracy test samples review wer mistakes errors word error rate",
+        body: `To see how often Quill gets your words right, turn on **Settings → Dictation → Save dictations for testing** and dictate as usual. Each dictation's audio and what was typed are kept, only on your computer (about 1 MB per minute of speech).
+
+Then click **Review…** in the same section. Each sample plays as it appears, beside what was typed. If it's right, keep it (\`key:${MOD}\` \`key:Enter\`); if not, fix it into what you said and save. Quill shows the share of words typed right, the same from Whisper alone before clean-up, and your commonest mistakes, which are good candidates for [Vocabulary and replacements](#words).
+
+Delete a sample that's muddled or recorded by accident. Delete them all in the same section when you're done.`,
+      },
+      {
         id: "language",
         title: "Languages",
         keywords: "language multilingual detect auto spanish french german",

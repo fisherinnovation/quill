@@ -38,7 +38,14 @@ const TABS: [SettingsTab, string][] = [
   ["storage", "Storage"],
 ];
 
-export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTab }) {
+export function SettingsView({
+  tab: initialTab = "general",
+  onReviewSamples,
+}: {
+  tab?: SettingsTab;
+  /** Opens the review of saved dictation samples. */
+  onReviewSamples?: () => void;
+}) {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [settings, setSettings] = useState<Settings | null>(null);
   // Saved on their own (save_dictation_settings rebinds the shortcut;
@@ -242,7 +249,11 @@ export function SettingsView({ tab: initialTab = "general" }: { tab?: SettingsTa
       )}
 
       {tab === "dictation" && (
-        <DictationSettingsTab settings={dictation} update={(patch) => setDictation({ ...dictation, ...patch })} />
+        <DictationSettingsTab
+          settings={dictation}
+          update={(patch) => setDictation({ ...dictation, ...patch })}
+          onReviewSamples={onReviewSamples}
+        />
       )}
 
       {tab === "models" && (
