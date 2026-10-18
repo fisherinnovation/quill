@@ -588,8 +588,11 @@ kbd {
   transition: grid-template-columns 0.18s ease;
 }
 
+/* Collapsed on macOS, the column is centred under the window buttons
+   (16 pt in, about 59 pt wide on macOS 26), with as much room on their
+   right as on their left. */
 :root[data-platform="mac"] {
-  --sidebar-collapsed: 78px;
+  --sidebar-collapsed: 92px;
 }
 
 .app.sidebar-collapsed {
@@ -693,8 +696,11 @@ kbd {
   padding: 0;
 }
 
+/* Icons the width of the record button, so the column lines up. */
 .sidebar.collapsed .nav-item {
   justify-content: center;
+  justify-self: center;
+  width: 40px;
   padding: 0;
 }
 
@@ -703,7 +709,8 @@ kbd {
 }
 
 .sidebar.collapsed .sidebar-toggle {
-  width: 100%;
+  justify-self: center;
+  width: 40px;
 }
 
 .nav-dot {

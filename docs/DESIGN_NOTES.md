@@ -361,9 +361,11 @@ decision someone might otherwise undo.
   the pulse line kept clear of the feather so they don't merge at 22 pt.
   On Windows it's the full-colour logo, since a black glyph disappears on
   a dark taskbar.
-- **Collapsing the sidebar** leaves icons only (78 px on macOS, to stay
-  clear of the window buttons; 60 px on Windows), each named by a tooltip
-  that includes its status ("Meetings · Recording"); badges become dots.
+- **Collapsing the sidebar** leaves icons only: 92 px on macOS, centred
+  under the window buttons (about 59 pt wide on macOS 26; at 78 px they
+  nearly touched the border), 60 px on Windows. Each icon is 40 px wide
+  like the record button and named by a tooltip that includes its status
+  ("Meetings · Recording"); badges become dots.
   ⌘\ or Ctrl+\ toggles it. The choice is kept in the webview's
   localStorage: a per-computer view preference, not a setting.
 - **Insights are part of Home**, not a page of their own, beside or under
