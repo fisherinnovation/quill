@@ -7,10 +7,6 @@
 
 use tauri::AppHandle;
 
-/// Request ids are this plus the meeting id, so a click knows which
-/// meeting, and a newer notification for a meeting replaces the older.
-const PREFIX: &str = "quill.meeting.";
-
 /// Shows a notification about meeting `id`.
 pub fn meeting(app: &AppHandle, id: &str, title: &str, body: &str) {
     #[cfg(target_os = "macos")]
@@ -38,7 +34,9 @@ mod mac {
     };
     use tauri::AppHandle;
 
-    use super::PREFIX;
+    /// Request ids are this plus the meeting id, so a click knows which
+    /// meeting, and a newer notification for a meeting replaces the older.
+    const PREFIX: &str = "quill.meeting.";
 
     /// For the delegate, which AppKit calls without context.
     static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -139,8 +137,7 @@ mod mac {
 mod win {
     use std::sync::Mutex;
 
-    // `Manager` for `app.config()`.
-    use tauri::{AppHandle, Manager};
+    use tauri::AppHandle;
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::Foundation::TypedEventHandler;
     use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
