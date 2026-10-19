@@ -110,6 +110,11 @@ light and dark themes.
 - Use [Conventional Commits](https://www.conventionalcommits.org) prefixes:
   `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, with an optional
   scope (`feat(dictation): …`).
+- `feat` and `fix` subjects become the release notes
+  ([`scripts/release-notes.sh`](scripts/release-notes.sh)), so write them for
+  people using Quill: what they can do now, or what no longer goes wrong
+  ("live captions while speaking", not "add caption stream"). The `site`
+  scope is left out of them.
 - In the description, say what changed and why, how you tested it (and on
   which OS), and anything a reviewer should look at closely.
 - Update the README when behaviour changes, and

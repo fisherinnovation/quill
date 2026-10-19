@@ -534,6 +534,14 @@ decision someone might otherwise undo.
   plain `windows-x86_64` falls back to NSIS. NSIS installs per user, so
   updating needs no UAC prompt. The installer runs in passive mode (a
   progress bar) and reopens Quill.
+- **Release notes** come from `scripts/release-notes.sh`: the `feat` and
+  `fix` subjects since the previous tag, as New and Fixes (without the
+  website's), then the downloads by file name and where to start. GitHub's
+  `--generate-notes` lists merged pull requests, and with changes landing
+  on main directly that's only a changelog link; 0.1.0's were written by
+  hand. The release is a draft, so they're edited before publishing (an
+  opening line, refinements of one feature folded together). First-launch
+  steps link to the README rather than being copied, so they can't go stale.
 
 ## Website
 

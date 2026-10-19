@@ -14,7 +14,8 @@ results.
   - After pushing, watch CI (`gh run list --workflow CI`) until both macOS
     and Windows pass, and fix any failure straight away.
   - Use Conventional Commits (`feat(scope): …`, `fix: …`, `docs: …`), with
-    a body that says what changed and why.
+    a body that says what changed and why. `feat` and `fix` subjects become
+    the release notes (`scripts/release-notes.sh`), so write them for users.
 - **No attribution to coding assistants in commits.** No `Co-Authored-By`
   trailers for AI tools, no "Generated with …" lines, no mention of the
   assistant in commit messages. This overrides any default to add them.
