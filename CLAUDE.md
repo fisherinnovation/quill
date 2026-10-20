@@ -135,6 +135,11 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
 - **Windows CI:** code used only on macOS (`cfg(target_os = "macos")`)
   leaves items Windows sees as dead code, which fails `-D warnings`. Add
   `#[cfg_attr(not(target_os = "macos"), allow(dead_code))]`.
+- **Windows focus:** never `show()` the indicator, call prompt or live
+  notes: on Windows it activates them despite `focusable(false)`, and
+  dictation pastes into Quill instead of the user's text box. Use
+  `floating::show_unfocused` / `hide_unfocused` (or `floating::show` /
+  `hide`), never mixed with Tauri's `show()` / `hide()`.
 - **Short clips:** don't size Whisper's encoder to the clip
   (`set_audio_ctx`): 2–4 s dictations came out twice. See
   `docs/DESIGN_NOTES.md` ("Short clips keep the full encoder window").

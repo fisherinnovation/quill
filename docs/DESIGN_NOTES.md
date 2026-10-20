@@ -231,6 +231,18 @@ decision someone might otherwise undo.
 - **Insertion:** copy to the clipboard (marked concealed, so clipboard
   managers skip it), simulate ⌘V, then restore the previous text or image.
   Without Accessibility the text is left on the clipboard.
+- **The indicator must never take focus** (Windows). It's built unfocusable
+  (`WS_EX_NOACTIVATE`), but that only stops clicks from activating it:
+  tao's `show()` uses `ShowWindow(SW_SHOW)`, which activates it anyway
+  (`focused(false)` only covers a window built visible). The dictation
+  shortcut gives Quill the right to take the foreground, so showing the
+  indicator, including the switch to "Typing…" just before the paste, could
+  take the focus from the text box and the Ctrl+V went to the indicator:
+  often enough to notice, and the log still said `inserted=Pasted`. The
+  indicator, call prompt and live notes are shown with
+  `ShowWindowAsync(SW_SHOWNOACTIVATE)` and hidden with `SW_HIDE`
+  (`floating::show_unfocused`); tao then doesn't know they're visible, so
+  its own `hide()` would do nothing.
 - **Per-app style:** Quill reads only the frontmost app's identity (bundle
   id and name via NSWorkspace; the executable on Windows), never its
   windows or contents. The Casual rule (drop a one-sentence message's final
