@@ -39,8 +39,8 @@ pub struct TranscribeOptions {
     /// Text that primes the decoder: custom vocabulary, names, spelling style.
     pub initial_prompt: Option<String>,
     /// Tune for a clip of a few seconds (dictation) rather than a recording:
-    /// greedy decoding and an encoder sized to the clip, which cuts latency
-    /// several times over. Leave off for meetings.
+    /// greedy decoding, and VAD trimming only the outer silence. Leave off
+    /// for meetings.
     pub short_clip: bool,
     /// Don't retry at higher temperatures when the decode looks unsure.
     /// For live dictation's passes over audio that ends mid-word, where

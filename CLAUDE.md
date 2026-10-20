@@ -135,6 +135,9 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
 - **Windows CI:** code used only on macOS (`cfg(target_os = "macos")`)
   leaves items Windows sees as dead code, which fails `-D warnings`. Add
   `#[cfg_attr(not(target_os = "macos"), allow(dead_code))]`.
+- **Short clips:** don't size Whisper's encoder to the clip
+  (`set_audio_ctx`): 2–4 s dictations came out twice. See
+  `docs/DESIGN_NOTES.md` ("Short clips keep the full encoder window").
 - **Release CPU baseline:** release builds set `GGML_NATIVE=OFF`. Built for
   the runner's CPU, whisper.cpp used AVX-512 and the Windows app crashed on
   most desktop CPUs. A crash with no `panic:` in the log and exception

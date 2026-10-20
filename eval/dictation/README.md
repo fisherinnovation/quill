@@ -93,7 +93,8 @@ headset.
 **Whisper** (`turbo`, resident, Metal; `short_clip` mode: greedy decoding, the
 encoder sized to the clip, VAD trimming outer silence only): median 0.27 s,
 max 0.46 s for 3–12 s clips. Same text as the meeting settings, which took
-0.6–0.7 s (beam search, full 30 s encoder window).
+0.6–0.7 s (beam search, full 30 s encoder window). The encoder is no longer
+sized to the clip; see the 2026-10-20 results below.
 
 - Auto-detecting the language on the shortened encoder window produced
   nonsense ("Tex Tex"); detecting it first on the full window fixes that but
@@ -135,3 +136,29 @@ Polish removed the self-correction ("3, no wait") and the spoken list's
 "first… second… and third". All three remaining errors are in `fillers`:
 Whisper wrote "stand up" for "standup" and "10.30" for "10:30", and dropped
 the "um"s itself, so `needs_polish` didn't send it to the model.
+
+## Results (2026-10-20, Windows 11, RTX 4070 SUPER, Vulkan)
+
+**Short clips were typed twice.** With the encoder sized to the clip, half of
+one user's 2–4 s dictations came out as the sentence twice ("Can you send it
+over? Can you send it over?"); none shorter or longer did. Reproduced with 40
+Windows text-to-speech clips (SAPI voices David and Zira, 0.4 s of silence
+before and 0.8 s after, as `make_clips.sh` does; 2.5–8.5 s), `--no-polish -l en`:
+
+| Encoder window | Doubled | WER | Whisper median |
+|---|---:|---:|---:|
+| Sized to the clip (+64 frames) | 10 / 40 | 28.0% | 155 ms |
+| At least 400 frames (8 s) | 3 / 40 | 9.1% | 174 ms |
+| At least 750 frames (15 s) | 1 / 40 | 4.7% | 202 ms |
+| At least 1000 frames (20 s) | 0 / 40 | 2.6% | 202 ms |
+| **Full 30 s (now)** | **0 / 40** | **2.6%** | 208 ms |
+
+The repeat happens inside one decode (`single_segment` still doubled 4 of 8),
+on the CPU too (8 / 40, 815 ms median) and on Vulkan without flash attention
+(8 / 40). Timestamps were off as well: 0–15 s for a 4 s clip.
+
+With the full window, `--stream` (live captions) matches a single pass on all
+40 clips (before: 33), WER 2.6% (before: 10.8%); the wait after release went
+from a median of 159 ms (max 914) to 215 ms (max 284), and passes while
+speaking from 150 ms (max 546) to 202 ms (max 407). `-l auto` gives the same
+WER at ~50 ms more per clip.

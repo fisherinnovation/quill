@@ -208,30 +208,11 @@ impl Transcriber for WhisperTranscriber {
             None => (Cow::Borrowed(pcm_16k_mono), None),
         };
 
-        if opts.short_clip {
-            if opts.language.is_none() {
-                // Language detection on the shortened context below picks
-                // nonsense ("Tex Tex" for English), so detect it first with
-                // the full one, in a separate state: reusing this one left
-                // its encoder sized for 30 s and the decode came out garbled.
-                let mut detect = self.ctx.create_state()?;
-                detect.pcm_to_mel(&audio, self.threads)?;
-                let (id, _) = detect.lang_detect(0, self.threads)?;
-                tracing::debug!(language = ?whisper_rs::get_lang_str(id), "detected language");
-                if let Some(language) = whisper_rs::get_lang_str(id) {
-                    params.set_language(Some(language));
-                }
-            }
-            // The encoder always processes a 30 s window (1500 frames of
-            // 20 ms) unless told otherwise. Sizing it to the clip, plus ~1.3 s
-            // of margin, made a 4 s clip 4.5x faster on turbo with the same
-            // text. (Not for long audio: quality drops when it's cut short.)
-            let frames = audio.len().div_ceil(320) + 64;
-            if frames < 1500 {
-                params.set_audio_ctx(i32::try_from(frames).unwrap_or(1500));
-            }
-        }
-
+        // The encoder keeps its full 30 s window even for short clips. Sizing
+        // it to the clip (`set_audio_ctx`) was faster, but on 2–4 s clips
+        // Whisper then often typed the sentence twice, on CPU and GPU alike,
+        // and its timestamps ran past the end of the audio (see "Short clips"
+        // in docs/DESIGN_NOTES.md).
         state.full(params, &audio)?;
 
         let mut segments = Vec::new();
