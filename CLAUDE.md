@@ -117,7 +117,7 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
 - **URL flags:** `?onboarding ?recording ?listening ?processing ?failed
   ?nopaste ?empty ?light ?dark ?indicator ?prompt ?prompt=stop
   ?live ?live=empty ?about ?others ?nomodels ?noollama
-  ?nokey ?fn ?update ?backlog`.
+  ?nokey ?fn ?update ?backlog ?gpus`.
 - **Themes:** check light (`?light`) and dark (`?dark`).
 - **Clicking in the preview:** the first click after a page load is often
   lost. Use `find` refs, or click twice.

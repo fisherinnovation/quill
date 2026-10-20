@@ -4,10 +4,12 @@
 //! Input is always 16 kHz mono `f32` PCM; `quill-audio` handles getting audio
 //! into that shape.
 
+pub mod gpu;
 pub mod models;
 mod vad;
 mod whisper;
 
+pub use gpu::{Gpu, GpuChoice};
 pub use whisper::{WhisperConfig, WhisperTranscriber, gpu_backend};
 
 use serde::{Deserialize, Serialize};

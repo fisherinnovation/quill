@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 whisper-rs.workspace = true
+whisper-rs-sys.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 sha2.workspace = true
@@ -38,6 +39,7 @@ vulkan = ["whisper-rs/vulkan"]
 
 [dev-dependencies]
 quill-audio.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

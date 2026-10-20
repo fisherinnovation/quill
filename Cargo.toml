@@ -57,6 +57,9 @@ sonora = "0.2"
 # `tracing_backend` routes whisper.cpp's own log output into `tracing`
 # instead of letting it print straight to stderr.
 whisper-rs = { version = "0.16", features = ["tracing_backend"] }
+# whisper.cpp's C API, for what whisper-rs doesn't wrap: listing the graphics
+# cards ggml can use (quill-stt's `gpu` module). The version whisper-rs uses.
+whisper-rs-sys = "0.15"
 # Speaker diarization (pyannote segmentation + speaker embeddings + clustering)
 # through the official sherpa-onnx bindings. Pinned exactly: its build script
 # downloads the matching prebuilt C++ libraries (onnxruntime included) from

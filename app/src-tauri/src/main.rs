@@ -195,6 +195,7 @@ fn main() {
             commands::process_meeting,
             commands::split_speakers,
             models::models_info,
+            models::graphics_cards,
             models::download_needed_models,
             models::download_model,
             models::delete_model,

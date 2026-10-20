@@ -49,12 +49,22 @@ decision someone might otherwise undo.
     `vulkan-1.dll` and wouldn't start without it. The installer ships the
     loader next to the exe. With a loader but no usable GPU, ggml's Vulkan
     registration catches the error and whisper.cpp uses the CPU.
-  - whisper.cpp takes the first GPU Vulkan lists, integrated or dedicated
-    (`gpu_device` 0). Not yet measured on a PC with both.
-  - Don't call `whisper_rs::vulkan::list_devices()` to show the device: it
-    creates a logical device per GPU, and with no driver ggml's instance
-    setup throws through FFI. whisper.cpp logs the device it picks at info
-    (`RUST_LOG=info,whisper_rs=info`).
+  - whisper.cpp takes the card at `gpu_device` among ggml's GPU devices,
+    which Vulkan lists dedicated and integrated alike in the driver's
+    order, and by default the first: on a PC that lists its integrated
+    graphics first, the slower one. So Quill chooses (`quill_stt::gpu`):
+    the card picked in **Settings → Models → Graphics card**, by name
+    (positions shift with drivers and hardware), else a dedicated card
+    with the most memory, else integrated graphics. Dedicated comes before
+    memory because integrated graphics report shared system memory, which
+    can be more than a card's. Or the CPU, for a card that misbehaves.
+    Logged when Whisper loads (`gpu=`); `quill-cli gpus` lists the cards.
+    Not yet measured on a PC with both.
+  - List cards through ggml's device registry (`ggml_backend_dev_*`), the
+    path whisper.cpp itself takes when loading: its Vulkan registration
+    catches a missing driver and lists no GPU. Don't call
+    `whisper_rs::vulkan::list_devices()`: it creates a logical device per
+    GPU, and with no driver ggml's instance setup throws through FFI.
 - **whisper.cpp's built-in VAD does nothing through whisper-rs.**
   whisper.cpp only runs it in `whisper_full()`, and whisper-rs calls
   `whisper_full_with_state()`. `quill-stt` therefore runs Silero itself

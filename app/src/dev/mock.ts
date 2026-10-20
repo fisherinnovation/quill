@@ -199,6 +199,7 @@ const settings = {
   offer_to_record_calls: true,
   live_notes: true,
   notify_notes_ready: true,
+  gpu: { kind: "automatic" },
   dictation: {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
@@ -578,6 +579,18 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   process_meeting: ({ id }) => startWriteUp(String(id), false),
   split_speakers: () => null,
   models_info: () => modelsInfo(),
+  // ?gpus: a PC listing its integrated graphics first, as Windows can.
+  graphics_cards: () =>
+    flags.has("gpus")
+      ? {
+          choosable: true,
+          cards: [
+            { name: "Intel(R) UHD Graphics 770", integrated: true, memory_bytes: 16 * 2 ** 30 },
+            { name: "NVIDIA GeForce RTX 4070", integrated: false, memory_bytes: 12 * 2 ** 30 },
+          ],
+          automatic: "NVIDIA GeForce RTX 4070",
+        }
+      : { choosable: false, cards: [{ name: "Apple M3 Pro", integrated: false, memory_bytes: 28 * 2 ** 30 }], automatic: "Apple M3 Pro" },
   footprint: () => {
     const parts = [
       { key: "recordings", bytes: 3_412_000_000 },

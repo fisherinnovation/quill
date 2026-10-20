@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
+use quill_stt::GpuChoice;
 use serde::{Deserialize, Serialize};
 
 /// Summary model: accurate, cheap, fast, with a 1M-token context.
@@ -51,7 +52,9 @@ pub struct Settings {
     /// A system notification when a meeting's notes are ready (or couldn't
     /// be written), if Quill isn't in front.
     pub notify_notes_ready: bool,
-    // Tables must come after plain values in TOML, so keep this last.
+    // Tables must come after plain values in TOML, so keep these last.
+    /// Which graphics card transcribes, where there's a choice (Windows).
+    pub gpu: GpuChoice,
     pub dictation: DictationSettings,
 }
 
@@ -169,6 +172,7 @@ impl Default for Settings {
             offer_to_record_calls: true,
             live_notes: true,
             notify_notes_ready: true,
+            gpu: GpuChoice::Automatic,
             dictation: DictationSettings::default(),
         }
     }
@@ -225,6 +229,7 @@ mod tests {
             summary_model: "ollama:qwen3:8b".into(),
             recordings_dir: Some("/Volumes/Archive/Quill".into()),
             theme: Theme::Dark,
+            gpu: GpuChoice::Named("NVIDIA GeForce RTX 4070".into()),
             dictation: DictationSettings {
                 vocabulary: vec!["Quill".into(), "OpenRouter".into()],
                 replacements: vec![Replacement {

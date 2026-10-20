@@ -8,6 +8,7 @@ mod compact;
 mod diarize;
 mod dictate;
 mod eval;
+mod gpus;
 mod import;
 mod keys;
 mod library;
@@ -72,6 +73,8 @@ enum Command {
     MicUsers(mic_users::Args),
     /// Replay a recording through live notes (the panel during meetings)
     LiveNotes(live_notes::Args),
+    /// List the graphics cards Quill can transcribe on, and which it picks
+    Gpus,
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -101,6 +104,7 @@ fn main() -> anyhow::Result<()> {
         Command::Compact(args) => compact::run(args),
         Command::MicUsers(args) => mic_users::run(args),
         Command::LiveNotes(args) => live_notes::run(args, &models_dir),
+        Command::Gpus => gpus::run(),
     }
 }
 

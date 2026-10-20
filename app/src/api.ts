@@ -86,7 +86,29 @@ export interface Settings {
   live_notes: boolean;
   /** A system notification when a meeting's notes are ready, if Quill isn't in front. */
   notify_notes_ready: boolean;
+  /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
+  gpu: GpuChoice;
   dictation: DictationSettings;
+}
+
+/** Which graphics card transcribes: a card is remembered by name. */
+export type GpuChoice = { kind: "automatic" } | { kind: "cpu" } | { kind: "named"; name: string };
+
+/** A graphics card speech recognition can run on (quill_stt::Gpu). */
+export interface Gpu {
+  name: string;
+  integrated: boolean;
+  /** 0 if unknown; for integrated graphics, the shared memory it can use. */
+  memory_bytes: number;
+}
+
+/** What Settings → Models offers (src-tauri/src/models.rs). */
+export interface GraphicsCards {
+  /** False with Metal (macOS), where there's one GPU. */
+  choosable: boolean;
+  cards: Gpu[];
+  /** The card Automatic picks, if any. */
+  automatic: string | null;
 }
 
 /** A live note (quill_core::live_meeting::Item). */
@@ -556,6 +578,7 @@ export const api = {
   resetRecordingsDir: () => invoke<StorageInfo>("reset_recordings_dir"),
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
   modelsInfo: () => invoke<ModelsInfo>("models_info"),
+  graphicsCards: () => invoke<GraphicsCards>("graphics_cards"),
   footprint: () => invoke<Footprint>("footprint"),
   /** Recordings with nothing said in them (not recording or processing). */
   emptyRecordings: () => invoke<{ count: number; bytes: number }>("empty_recordings"),

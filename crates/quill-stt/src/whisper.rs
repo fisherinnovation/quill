@@ -8,7 +8,9 @@ use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperVadContext,
 };
 
-use crate::{ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, vad};
+use crate::{
+    GpuChoice, ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, gpu, vad,
+};
 
 /// Load-time settings for a Whisper model.
 #[derive(Debug, Clone)]
@@ -17,6 +19,8 @@ pub struct WhisperConfig {
     /// includes a GPU backend; see [`gpu_backend`].
     /// Set to `false` to force CPU, e.g. for benchmarking.
     pub use_gpu: bool,
+    /// Which graphics card, when there's a choice (see [`gpu`]).
+    pub gpu: GpuChoice,
     /// CPU threads for the parts that run on the CPU.
     pub threads: usize,
     /// Silero VAD model (`ggml-silero-*.bin`). When set, voice activity
@@ -32,6 +36,7 @@ impl Default for WhisperConfig {
         let cores = std::thread::available_parallelism().map_or(4, |n| n.get());
         Self {
             use_gpu: true,
+            gpu: GpuChoice::Automatic,
             threads: cores.min(8),
             vad_model: None,
         }
@@ -72,13 +77,30 @@ impl WhisperTranscriber {
         whisper_rs::install_logging_hooks();
 
         let backend = gpu_backend().filter(|_| config.use_gpu);
-        let use_gpu = backend.is_some();
-        // whisper.cpp names the device it picks only in its own (filtered)
-        // log; run with RUST_LOG=info,whisper_rs=info to see it. Without a
-        // usable GPU it falls back to the CPU on its own.
-        tracing::info!(backend = backend.unwrap_or("CPU"), "loading whisper model");
+        // The card, by its position among whisper.cpp's GPUs; none means the
+        // CPU (no backend, no usable card, or the user chose the CPU).
+        let gpus = if backend.is_some() {
+            gpu::gpus()
+        } else {
+            Vec::new()
+        };
+        let device = gpu::choose(&gpus, &config.gpu);
+        let use_gpu = device.is_some();
+        tracing::info!(
+            backend = if use_gpu {
+                backend.unwrap_or("CPU")
+            } else {
+                "CPU"
+            },
+            gpu = device.map_or("none", |i| gpus[i].name.as_str()),
+            gpus = gpus.len(),
+            "loading whisper model"
+        );
         let mut params = WhisperContextParameters::default();
         params.use_gpu(use_gpu);
+        if let Some(device) = device {
+            params.gpu_device(i32::try_from(device).unwrap_or(0));
+        }
         // Flash attention is a faster attention kernel; a clear win on Metal.
         params.flash_attn(use_gpu);
         let ctx = WhisperContext::new_with_params(model_path, params)?;

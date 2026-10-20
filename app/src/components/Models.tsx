@@ -6,6 +6,8 @@ import {
   events,
   fileManager,
   fileSize,
+  type GpuChoice,
+  type GraphicsCards,
   type ModelEntry,
   type ModelsInfo,
   type Settings,
@@ -20,7 +22,9 @@ import { Banner, Group, Row } from "./ui";
  */
 export function useModels() {
   const [info, setInfo] = useState<ModelsInfo | null>(null);
-  const [progress, setProgress] = useState<Record<string, DownloadProgress>>({});
+  const [progress, setProgress] = useState<Record<string, DownloadProgress>>(
+    {},
+  );
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () =>
@@ -61,9 +65,21 @@ const SPEECH_LABELS: Record<string, string> = {
   base: "Base",
   tiny: "Tiny (fastest)",
 };
-const SPEECH_ORDER = ["turbo", "turbo-q5", "large-v3", "medium", "small", "base", "tiny"];
+const SPEECH_ORDER = [
+  "turbo",
+  "turbo-q5",
+  "large-v3",
+  "medium",
+  "small",
+  "base",
+  "tiny",
+];
 
-type Pending = { role: string; action: "delete" | "redownload" } | { unused: true } | { all: true } | null;
+type Pending =
+  | { role: string; action: "delete" | "redownload" }
+  | { unused: true }
+  | { all: true }
+  | null;
 
 /**
  * Settings → Models, organised by job: each thing Quill does that needs a
@@ -86,7 +102,9 @@ export function ModelsGroup({
   if (!info) return null;
 
   const byName = (name: string) => info.models.find((m) => m.name === name);
-  const speechModels = SPEECH_ORDER.map(byName).filter((m): m is ModelEntry => !!m);
+  const speechModels = SPEECH_ORDER.map(byName).filter(
+    (m): m is ModelEntry => !!m,
+  );
   const speech = byName(settings.stt_model);
   const vad = info.models.filter((m) => m.kind === "vad");
   const speakers = info.models.filter((m) => m.for_speakers);
@@ -96,7 +114,8 @@ export function ModelsGroup({
     (m) =>
       m.downloaded &&
       fraction(m) === null &&
-      ((m.kind === "speech" && m.name !== settings.stt_model) || (m.kind === "speakers" && !m.for_speakers)),
+      ((m.kind === "speech" && m.name !== settings.stt_model) ||
+        (m.kind === "speakers" && !m.for_speakers)),
   );
   const unusedBytes = unused.reduce((n, m) => n + m.size_bytes, 0);
 
@@ -112,11 +131,13 @@ export function ModelsGroup({
   }
 
   /** Runs `action` on each model in turn, keeping the last result. */
-  const each = (models: ModelEntry[], action: (name: string) => Promise<ModelsInfo>) => async () => {
-    let last = info;
-    for (const m of models) last = await action(m.name);
-    return last;
-  };
+  const each =
+    (models: ModelEntry[], action: (name: string) => Promise<ModelsInfo>) =>
+    async () => {
+      let last = info;
+      for (const m of models) last = await action(m.name);
+      return last;
+    };
 
   const confirm = (text: string, label: string, onYes: () => void) => (
     <span className="model-confirm">
@@ -155,11 +176,23 @@ export function ModelsGroup({
     const size = fileSize(files.reduce((n, m) => n + m.size_bytes, 0));
     const fractions = files.map(fraction);
     const downloading = fractions.some((f) => f !== null);
-    const done = files.reduce((n, m, i) => n + (m.downloaded ? 1 : (fractions[i] ?? 0)) * m.size_bytes, 0);
+    const done = files.reduce(
+      (n, m, i) => n + (m.downloaded ? 1 : (fractions[i] ?? 0)) * m.size_bytes,
+      0,
+    );
     const total = files.reduce((n, m) => n + m.size_bytes, 0);
     const ready = files.length > 0 && files.every((m) => m.downloaded);
-    const asking = pending && "role" in pending && pending.role === id ? pending.action : null;
-    const state = !enabled ? "off" : downloading ? "downloading" : ready ? "ready" : "missing";
+    const asking =
+      pending && "role" in pending && pending.role === id
+        ? pending.action
+        : null;
+    const state = !enabled
+      ? "off"
+      : downloading
+        ? "downloading"
+        : ready
+          ? "ready"
+          : "missing";
 
     let status: ReactNode;
     if (asking === "delete") {
@@ -188,10 +221,16 @@ export function ModelsGroup({
       status = (
         <span className="job-status">
           <span className="model-status in-use">Downloaded</span> {size}
-          <button className="link-button" onClick={() => setPending({ role: id, action: "redownload" })}>
+          <button
+            className="link-button"
+            onClick={() => setPending({ role: id, action: "redownload" })}
+          >
             Re-download
           </button>
-          <button className="link-button" onClick={() => setPending({ role: id, action: "delete" })}>
+          <button
+            className="link-button"
+            onClick={() => setPending({ role: id, action: "delete" })}
+          >
             Delete
           </button>
         </span>
@@ -202,7 +241,13 @@ export function ModelsGroup({
           <span className="model-status missing">Not downloaded</span> {size}
           <button
             className="link-button"
-            onClick={() => void Promise.all(files.filter((m) => !m.downloaded).map((m) => api.downloadModel(m.name)))}
+            onClick={() =>
+              void Promise.all(
+                files
+                  .filter((m) => !m.downloaded)
+                  .map((m) => api.downloadModel(m.name)),
+              )
+            }
           >
             Download now
           </button>
@@ -252,7 +297,8 @@ export function ModelsGroup({
               const next = byName(e.target.value);
               update({ stt_model: e.target.value });
               // Fetch it now rather than at the next meeting or dictation.
-              if (next && !next.downloaded && fraction(next) === null) void api.downloadModel(next.name);
+              if (next && !next.downloaded && fraction(next) === null)
+                void api.downloadModel(next.name);
             }}
           >
             {speechModels.map((m) => (
@@ -264,6 +310,10 @@ export function ModelsGroup({
           </select>
         ),
       })}
+      <GraphicsCardRow
+        choice={settings.gpu}
+        onChange={(gpu) => update({ gpu })}
+      />
       {localJob({
         id: "vad",
         label: "Silence detection",
@@ -311,7 +361,9 @@ export function ModelsGroup({
           <ModelPicker
             purpose="cleanup"
             value={settings.dictation.polish_model}
-            onChange={(polish_model) => update({ dictation: { ...settings.dictation, polish_model } })}
+            onChange={(polish_model) =>
+              update({ dictation: { ...settings.dictation, polish_model } })
+            }
           />
         </div>
       </div>
@@ -332,7 +384,9 @@ export function ModelsGroup({
           }
         >
           {!(pending && "unused" in pending) && (
-            <button onClick={() => setPending({ unused: true })}>Delete {fileSize(unusedBytes)}</button>
+            <button onClick={() => setPending({ unused: true })}>
+              Delete {fileSize(unusedBytes)}
+            </button>
           )}
         </Row>
       )}
@@ -351,9 +405,14 @@ export function ModelsGroup({
       >
         {!(pending && "all" in pending) && (
           <span className="row-gap">
-            <button onClick={() => void api.showModelsDir()}>Show in {fileManager}</button>
+            <button onClick={() => void api.showModelsDir()}>
+              Show in {fileManager}
+            </button>
             {info.bytes_on_disk > 0 && (
-              <button className="ghost" onClick={() => setPending({ all: true })}>
+              <button
+                className="ghost"
+                onClick={() => setPending({ all: true })}
+              >
                 Delete all…
               </button>
             )}
@@ -365,11 +424,89 @@ export function ModelsGroup({
 }
 
 /**
+ * Which graphics card speech recognition runs on. Shown where there's a
+ * choice to make (Windows: Vulkan lists integrated graphics too, and
+ * sometimes first); with Metal there's one GPU, so nothing.
+ */
+function GraphicsCardRow({
+  choice,
+  onChange,
+}: {
+  choice: GpuChoice;
+  onChange: (choice: GpuChoice) => void;
+}) {
+  const [info, setInfo] = useState<GraphicsCards | null>(null);
+  useEffect(() => {
+    api
+      .graphicsCards()
+      .then(setInfo)
+      .catch(() => setInfo(null));
+  }, []);
+  if (!info?.choosable) return null;
+
+  const value = choice.kind === "named" ? `named:${choice.name}` : choice.kind;
+  // A card chosen before that isn't listed now (removed, or renamed by a driver).
+  const missing =
+    choice.kind === "named" && !info.cards.some((c) => c.name === choice.name)
+      ? choice.name
+      : null;
+  const choose = (value: string) =>
+    onChange(
+      value === "automatic" || value === "cpu"
+        ? { kind: value }
+        : { kind: "named", name: value.slice("named:".length) },
+    );
+
+  return (
+    <div className="row stack model-job">
+      <div className="row-label">
+        <span>Graphics card</span>
+        <p className="row-hint">
+          {missing
+            ? `${missing} isn't available, so Quill uses ${info.automatic ?? "the CPU"}.`
+            : "Speech recognition runs on it. Automatic prefers a dedicated card to integrated graphics. A change applies the next time Quill transcribes."}
+        </p>
+      </div>
+      <div className="model-job-body">
+        <select value={value} onChange={(e) => choose(e.target.value)}>
+          <option value="automatic">
+            {info.automatic
+              ? `Automatic (${info.automatic})`
+              : "Automatic (no card found, so the CPU)"}
+          </option>
+          {info.cards.map((c, i) => (
+            <option key={i} value={`named:${c.name}`}>
+              {c.name}
+              {c.integrated
+                ? " · integrated"
+                : c.memory_bytes > 0
+                  ? // Quoted in binary GB: a "12 GB" card has 12 GiB.
+                    ` · ${Math.round(c.memory_bytes / 2 ** 30)} GB`
+                  : ""}
+            </option>
+          ))}
+          {missing && (
+            <option value={`named:${missing}`}>
+              {missing} (not available)
+            </option>
+          )}
+          <option value="cpu">CPU only (slower)</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Downloads what the settings need, with progress: in onboarding, and on
  * the Dictation page when the speech model is missing. Renders nothing once
  * everything is there.
  */
-export function ModelDownload({ variant }: { variant: "onboarding" | "banner" }) {
+export function ModelDownload({
+  variant,
+}: {
+  variant: "onboarding" | "banner";
+}) {
   const { info, fraction } = useModels();
   // Every model that was missing while this was on screen, so progress
   // counts the whole set rather than restarting as each one finishes, and
@@ -382,7 +519,8 @@ export function ModelDownload({ variant }: { variant: "onboarding" | "banner" })
   const missingNames = relevant.filter((m) => !m.downloaded).map((m) => m.name);
   const missingKey = missingNames.join(",");
   useEffect(() => {
-    if (missingKey) setPlan((p) => [...new Set([...p, ...missingKey.split(",")])]);
+    if (missingKey)
+      setPlan((p) => [...new Set([...p, ...missingKey.split(",")])]);
   }, [missingKey]);
   if (!info) return null;
 
@@ -397,9 +535,14 @@ export function ModelDownload({ variant }: { variant: "onboarding" | "banner" })
     ) : null;
   }
 
-  const planned = relevant.filter((m) => plan.includes(m.name) || !m.downloaded);
+  const planned = relevant.filter(
+    (m) => plan.includes(m.name) || !m.downloaded,
+  );
   const total = planned.reduce((n, m) => n + m.size_bytes, 0);
-  const done = planned.reduce((n, m) => n + (m.downloaded ? 1 : (fraction(m) ?? 0)) * m.size_bytes, 0);
+  const done = planned.reduce(
+    (n, m) => n + (m.downloaded ? 1 : (fraction(m) ?? 0)) * m.size_bytes,
+    0,
+  );
   const downloading = planned.some((m) => fraction(m) !== null);
   const percent = Math.round((done / Math.max(total, 1)) * 100);
   const start = () => void api.downloadNeededModels();
@@ -409,11 +552,16 @@ export function ModelDownload({ variant }: { variant: "onboarding" | "banner" })
       <Banner
         kind="info"
         icon="download"
-        action={downloading ? undefined : <button onClick={start}>Download ({fileSize(total)})</button>}
+        action={
+          downloading ? undefined : (
+            <button onClick={start}>Download ({fileSize(total)})</button>
+          )
+        }
       >
         {downloading ? (
           <div className="banner-text">
-            Downloading the speech model · {percent}%. Dictation works as soon as it's done.
+            Downloading the speech model · {percent}%. Dictation works as soon
+            as it's done.
             <div className="progress">
               <div style={{ width: `${percent}%` }} />
             </div>
@@ -429,8 +577,9 @@ export function ModelDownload({ variant }: { variant: "onboarding" | "banner" })
       <div>
         <strong>Download the speech models</strong>
         <p className="muted small">
-          {fileSize(total)}, from Hugging Face, checked before use. They run on this computer, so audio never
-          leaves it. {downloading && "You can keep going while this finishes."}
+          {fileSize(total)}, from Hugging Face, checked before use. They run on
+          this computer, so audio never leaves it.{" "}
+          {downloading && "You can keep going while this finishes."}
         </p>
         {downloading && (
           <div className="progress">

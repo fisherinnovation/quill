@@ -403,10 +403,15 @@ Time saved compares your speaking speed with typing at a typical rate. The numbe
       {
         id: "speech-models",
         title: "Speech models",
-        keywords: "whisper model size download delete re-download accuracy speed vad speaker",
+        keywords: "whisper model size download delete re-download accuracy speed vad speaker gpu graphics card vulkan",
         body: `**Settings → Models** lists each job that needs a model (speech recognition, silence detection, telling speakers apart, meeting notes and dictation clean-up), which model does it, and whether it's downloaded.
 
-- **Whisper** turns speech into text. Larger sizes are more accurate and slower; the default, \`turbo\`, is a good balance. Pick another and it downloads straight away.
+- **Whisper** turns speech into text. Larger sizes are more accurate and slower; the default, \`turbo\`, is a good balance. Pick another and it downloads straight away.${
+          isMac
+            ? ""
+            : `
+- **Graphics card**: which one speech recognition runs on. **Automatic** prefers a dedicated card to integrated graphics and names the card it picked; choose another, or **CPU only** if a card misbehaves. The change applies the next time Quill transcribes.`
+        }
 - Any model can be **re-downloaded** (a fresh, checked copy) or **deleted**; a deleted model downloads again when next needed.
 - Downloads no job uses are gathered at the end to delete in one go.
 

@@ -14,6 +14,7 @@ use std::sync::Mutex;
 use quill_core::settings::Settings;
 use quill_core::speakers;
 use quill_stt::models::{self, ModelInfo};
+use quill_stt::{Gpu, GpuChoice, gpu};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -270,6 +271,36 @@ fn info(app: &AppHandle) -> Result<ModelsInfo, String> {
 #[tauri::command]
 pub fn models_info(app: AppHandle) -> CommandResult<ModelsInfo> {
     info(&app).map_err(CommandError::Other)
+}
+
+/// The graphics cards speech recognition can run on, for Settings → Models.
+#[derive(Debug, Serialize)]
+pub struct GraphicsCards {
+    /// Whether to offer a choice: not with Metal, where there's one GPU.
+    choosable: bool,
+    cards: Vec<Gpu>,
+    /// The card Automatic picks, if any.
+    automatic: Option<String>,
+}
+
+#[tauri::command]
+pub async fn graphics_cards() -> CommandResult<GraphicsCards> {
+    // Listing starts the GPU backend the first time, which can take a moment.
+    crate::commands::blocking(|| {
+        let backend = quill_stt::gpu_backend();
+        let cards = if backend.is_some() {
+            gpu::gpus()
+        } else {
+            Vec::new()
+        };
+        let automatic = gpu::choose(&cards, &GpuChoice::Automatic).map(|i| cards[i].name.clone());
+        Ok(GraphicsCards {
+            choosable: backend.is_some_and(|b| b != "Metal"),
+            cards,
+            automatic,
+        })
+    })
+    .await
 }
 
 /// Downloads whatever the current settings need, in the background.

@@ -13,7 +13,7 @@ use quill_core::speakers;
 use quill_core::summary;
 use quill_llm::Privacy;
 use quill_stt::models::{self, ModelInfo};
-use quill_stt::{TranscribeOptions, WhisperConfig, WhisperTranscriber};
+use quill_stt::{GpuChoice, TranscribeOptions, WhisperConfig, WhisperTranscriber};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -204,6 +204,7 @@ impl Job {
 pub struct LoadedTranscriber {
     model: String,
     vad: bool,
+    gpu: GpuChoice,
     transcriber: Arc<WhisperTranscriber>,
 }
 
@@ -612,6 +613,7 @@ pub fn transcriber(
     if let Some(t) = cached.as_ref()
         && t.model == settings.stt_model
         && t.vad == settings.vad
+        && t.gpu == settings.gpu
     {
         return Ok(Arc::clone(&t.transcriber));
     }
@@ -626,6 +628,7 @@ pub fn transcriber(
     };
     let config = WhisperConfig {
         vad_model,
+        gpu: settings.gpu.clone(),
         ..WhisperConfig::default()
     };
     let transcriber =
@@ -633,6 +636,7 @@ pub fn transcriber(
     *cached = Some(LoadedTranscriber {
         model: settings.stt_model.clone(),
         vad: settings.vad,
+        gpu: settings.gpu.clone(),
         transcriber: Arc::clone(&transcriber),
     });
     Ok(transcriber)
