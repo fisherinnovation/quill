@@ -8,11 +8,18 @@ results.
 
 ## Rules
 
+- **Pull requests:**
+  - Every change goes through a pull request, maintainers' included. Never
+    commit to `main`: branch off an up-to-date `main`, named for the kind
+    of change (`feat/…`, `fix/…`, `docs/…`), one concern per branch.
+  - Run the checks, push the branch and open the PR with `gh pr create`.
+    Title it like a commit (it's the subject if the PR is squash-merged);
+    in the body, say what changed, why, and how it was tested (on which
+    OS).
+  - Watch CI on the PR (`gh pr checks --watch`) until both macOS and
+    Windows pass, and fix any failure straight away.
+  - The maintainer merges. Don't merge unless asked.
 - **Commits:**
-  - Contributors open pull requests (see CONTRIBUTING.md); maintainers may
-    commit and push directly to `main`.
-  - After pushing, watch CI (`gh run list --workflow CI`) until both macOS
-    and Windows pass, and fix any failure straight away.
   - Use Conventional Commits (`feat(scope): …`, `fix: …`, `docs: …`), with
     a body that says what changed and why. `feat` and `fix` subjects become
     the release notes (`scripts/release-notes.sh`), so write them for users.
