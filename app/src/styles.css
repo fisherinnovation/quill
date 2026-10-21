@@ -1286,12 +1286,17 @@ mark {
      the background wash), with its contents still in line with the page. */
   margin: 0 calc(50% - 50cqw) 20px;
   padding: 4px calc(50cqw - 50%) 0;
-  /* See-through enough to show the wash, blurred enough to read over
-     whatever scrolls under it. */
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.2s;
+}
+
+/* Frosted only while stuck, with the page scrolling under it: at rest a
+   background would start a darker band below "← Meetings" (useStuck).
+   See-through enough to show the wash, blurred enough to read over. */
+.meeting-header.stuck {
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--border);
 }
 
 .meeting-title-row {
