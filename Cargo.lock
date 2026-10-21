@@ -4099,7 +4099,7 @@ dependencies = [
 
 [[package]]
 name = "quill-app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "block2",
@@ -4130,7 +4130,7 @@ dependencies = [
 
 [[package]]
 name = "quill-audio"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "claxon",
  "cpal",
@@ -4148,7 +4148,7 @@ dependencies = [
 
 [[package]]
 name = "quill-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4169,7 +4169,7 @@ dependencies = [
 
 [[package]]
 name = "quill-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "directories",
@@ -4193,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "quill-diarize"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "quill-stt",
  "serde",
@@ -4204,7 +4204,7 @@ dependencies = [
 
 [[package]]
 name = "quill-eval"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "csv",
@@ -4223,7 +4223,7 @@ dependencies = [
 
 [[package]]
 name = "quill-insert"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "arboard",
  "enigo",
@@ -4241,7 +4241,7 @@ dependencies = [
 
 [[package]]
 name = "quill-llm"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "keyring",
@@ -4256,7 +4256,7 @@ dependencies = [
 
 [[package]]
 name = "quill-stt"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "quill-audio",
  "reqwest",
