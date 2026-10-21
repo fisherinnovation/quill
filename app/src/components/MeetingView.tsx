@@ -179,8 +179,9 @@ export function MeetingView({
 
   return (
     <article className="page meeting">
-      <BackLink label="Meetings" onClick={onBack} />
       <header ref={header} className={`meeting-header${stuck ? " stuck" : ""}`}>
+        {/* In the header, so the way back stays in view as the page scrolls. */}
+        <BackLink label="Meetings" onClick={onBack} />
         <div className="meeting-title-row">
           <Title
             value={meeting.title}

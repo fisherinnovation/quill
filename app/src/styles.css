@@ -1291,9 +1291,12 @@ mark {
 }
 
 /* Frosted only while stuck, with the page scrolling under it: at rest a
-   background would start a darker band below "← Meetings" (useStuck).
-   See-through enough to show the wash, blurred enough to read over. */
-.meeting-header.stuck {
+   background would start a darker band at the top of the page (useStuck).
+   See-through enough to show the wash, blurred enough to read over. The
+   title-bar strip above the page (macOS) is frosted with it, so the bar
+   reads as one from the top of the window, with no edge between them. */
+.meeting-header.stuck,
+.main:has(.meeting-header.stuck) > .drag {
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
