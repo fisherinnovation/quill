@@ -633,6 +633,15 @@ decision someone might otherwise undo.
   protocol with Node's built-in WebSocket and assembles with ffmpeg, so it
   adds no npm packages. The screencast only records at the device scale
   Chrome itself runs at, hence `--force-device-scale-factor`.
+- **The hero video on wide screens** (over 960 px) is a pane beside the
+  copy: exactly as tall as it, turned 50° in 3D to face it, so the far,
+  inner edge is the smaller one, and that edge fades in from transparent.
+  The angle is what lets a 16:10 pane as tall as the copy fit beside it
+  inside the page's width: at 40° it ran under the headline. Between about
+  960 and 1100 px, where the headline wraps less, the pane is capped by its
+  column's width (container units) and sits centred. The video is out of
+  the layout's flow, so the copy alone sets the row's height. Phones and
+  narrow windows keep the flat, stacked video.
 - Captions sit on a scrim in the app's background colour, present from a
   scene's first frame so crossfades don't flash text through it. Light and
   dark videos are separate files (about 1.2 MB each); `main.js` picks one
