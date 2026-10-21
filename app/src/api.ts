@@ -226,6 +226,18 @@ export interface AppStyleInfo extends AppStyle {
   words: number;
 }
 
+/** From the end of speech to the text typed: the wait the user notices. */
+export interface WaitInsights {
+  count: number;
+  median_ms: number;
+  p90_ms: number;
+  /** How the median splits: still holding the key after speaking, then Quill. */
+  held_ms: number;
+  quill_ms: number;
+  last_7_days_ms: number | null;
+  previous_7_days_ms: number | null;
+}
+
 export interface Insights {
   dictation: {
     count: number;
@@ -235,6 +247,8 @@ export interface Insights {
     minutes_saved: number;
     median_latency_ms: number | null;
     polished_share: number;
+    /** Time to insert over the last 30 days (quill_core::insights::WaitInsights); null until measured. */
+    wait: WaitInsights | null;
   };
   meetings: {
     count: number;
@@ -248,7 +262,15 @@ export interface Insights {
   };
   streak_days: number;
   /** Last 30 days, oldest first; `date` is a local YYYY-MM-DD. */
-  days: { date: string; words: number; dictations: number; meeting_ms: number }[];
+  days: {
+    date: string;
+    words: number;
+    dictations: number;
+    meeting_ms: number;
+    /** That day's median and 90th-percentile time to insert, if measured. */
+    wait_ms: number | null;
+    wait_p90_ms: number | null;
+  }[];
   /** Dictations by local hour, 0–23. */
   hours: number[];
   typing_wpm: number;
@@ -278,6 +300,8 @@ export interface DictationEntry {
   app: string | null;
   /** That app's identifier (bundle id or executable), for its icon. */
   app_id: string | null;
+  /** From the end of speech to the text typed; null if it couldn't be told. */
+  wait_ms: number | null;
   /** The user's fixed version, if they corrected it. */
   corrected: string | null;
 }

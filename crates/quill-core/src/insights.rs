@@ -49,8 +49,30 @@ pub struct DictationInsights {
     pub minutes_saved: f64,
     /// Median time from releasing the shortcut to the text appearing.
     pub median_latency_ms: Option<u64>,
+    /// Time to insert over the last [`CHART_DAYS`] days: from the end of
+    /// speech to the text typed, the wait the user notices. `None` until a
+    /// dictation has one.
+    pub wait: Option<WaitInsights>,
     /// Share of dictations the clean-up step changed, 0–1.
     pub polished_share: f64,
+}
+
+/// Time to insert, over the last [`CHART_DAYS`] days.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct WaitInsights {
+    /// Dictations it was measured on.
+    pub count: u64,
+    pub median_ms: u64,
+    /// 90th percentile: the slow end of what the user lives with.
+    pub p90_ms: u64,
+    /// Of the median, how it splits: still holding the key after speaking,
+    /// and Quill transcribing and typing after the release (medians of the
+    /// same dictations, so they roughly add up).
+    pub held_ms: u64,
+    pub quill_ms: u64,
+    /// Median over the last 7 days, and over the 7 before, for the trend.
+    pub last_7_days_ms: Option<u64>,
+    pub previous_7_days_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -73,6 +95,9 @@ pub struct Day {
     pub words: u64,
     pub dictations: u64,
     pub meeting_ms: u64,
+    /// That day's median and 90th-percentile time to insert, if measured.
+    pub wait_ms: Option<u64>,
+    pub wait_p90_ms: Option<u64>,
 }
 
 /// Computes insights from the library as of `now` (which also gives the
@@ -86,6 +111,15 @@ pub fn compute(library: &Library, now: &Zoned) -> Result<Insights, LibraryError>
     insights.apps = library.dictation_apps()?;
     insights.apps.truncate(TOP_APPS);
     Ok(insights)
+}
+
+/// The value below which a share `p` (0–1) of `sorted` falls (nearest rank).
+fn percentile(sorted: &[u64], p: f64) -> Option<u64> {
+    if sorted.is_empty() {
+        return None;
+    }
+    let rank = (p * sorted.len() as f64).ceil() as usize;
+    sorted.get(rank.clamp(1, sorted.len()) - 1).copied()
 }
 
 fn from_data(
@@ -122,6 +156,8 @@ fn from_data(
             words: 0,
             dictations: 0,
             meeting_ms: 0,
+            wait_ms: None,
+            wait_p90_ms: None,
         })
         .collect();
     let day_index = |date: Date| -> Option<usize> {
@@ -139,6 +175,13 @@ fn from_data(
     let mut audio_ms = 0_u64;
     let mut latencies = Vec::with_capacity(stats.len());
     let mut polished = 0_u64;
+    // Time to insert, by chart day, and its parts over the chart and weeks.
+    let mut day_waits: Vec<Vec<u64>> = vec![Vec::new(); CHART_DAYS];
+    let (mut waits, mut held, mut quill) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut this_week, mut last_week) = (Vec::new(), Vec::new());
+    let previous_week_start = week_start
+        .checked_sub(jiff::Span::new().days(7))
+        .unwrap_or(week_start);
     for s in stats {
         d.words += s.words;
         audio_ms += s.audio_ms;
@@ -155,6 +198,19 @@ fn from_data(
         if let Some(i) = day_index(date) {
             days[i].words += s.words;
             days[i].dictations += 1;
+            if let Some(wait) = s.wait_ms {
+                day_waits[i].push(wait);
+                waits.push(wait);
+                held.push(wait.saturating_sub(s.latency_ms));
+                quill.push(s.latency_ms.min(wait));
+            }
+        }
+        if let Some(wait) = s.wait_ms {
+            if date >= week_start {
+                this_week.push(wait);
+            } else if date >= previous_week_start {
+                last_week.push(wait);
+            }
         }
         hours[usize::try_from(at.hour()).unwrap_or(0) % 24] += 1;
     }
@@ -165,6 +221,31 @@ fn from_data(
     d.minutes_saved = (d.words as f64 / TYPING_WPM - speaking_minutes).max(0.0);
     latencies.sort_unstable();
     d.median_latency_ms = latencies.get(latencies.len() / 2).copied();
+    for (day, mut w) in days.iter_mut().zip(day_waits) {
+        w.sort_unstable();
+        day.wait_ms = percentile(&w, 0.5);
+        day.wait_p90_ms = percentile(&w, 0.9);
+    }
+    for list in [
+        &mut waits,
+        &mut held,
+        &mut quill,
+        &mut this_week,
+        &mut last_week,
+    ] {
+        list.sort_unstable();
+    }
+    if let (Some(median_ms), Some(p90_ms)) = (percentile(&waits, 0.5), percentile(&waits, 0.9)) {
+        d.wait = Some(WaitInsights {
+            count: u64::try_from(waits.len()).unwrap_or(u64::MAX),
+            median_ms,
+            p90_ms,
+            held_ms: percentile(&held, 0.5).unwrap_or(0),
+            quill_ms: percentile(&quill, 0.5).unwrap_or(0),
+            last_7_days_ms: percentile(&this_week, 0.5),
+            previous_7_days_ms: percentile(&last_week, 0.5),
+        });
+    }
     if d.count > 0 {
         d.polished_share = polished as f64 / d.count as f64;
     }
@@ -249,6 +330,7 @@ mod tests {
             pasted: true,
             app_id: None,
             app: None,
+            wait_ms: None,
         }
     }
 
@@ -304,6 +386,47 @@ mod tests {
         assert_eq!(i.days[CHART_DAYS - 3].meeting_ms, 30 * 60_000);
         // Nothing yet today, but the 10th and 9th were active.
         assert_eq!(i.streak_days, 2);
+    }
+
+    #[test]
+    fn time_to_insert_by_day_with_its_parts_and_trend() {
+        let timed = |at: &str, wait_ms: u64, latency_ms: u64| DictationStat {
+            wait_ms: Some(wait_ms),
+            latency_ms,
+            ..stat(at, 10, 3_000, false)
+        };
+        let stats = [
+            // Today: held 0.4 s after speaking, then Quill took 0.3 s.
+            timed("2026-10-11T14:00:00Z", 700, 300),
+            timed("2026-10-11T15:00:00Z", 900, 300),
+            timed("2026-10-11T16:00:00Z", 2_000, 400),
+            // Ten days ago: slower.
+            timed("2026-10-01T15:00:00Z", 1_500, 500),
+            // Before the change: no end of speech known.
+            stat("2026-10-11T17:00:00Z", 10, 3_000, false),
+        ];
+        let i = from_data(&stats, &[], &[], 0, 0.0, &now());
+        let wait = i.dictation.wait.expect("measured");
+        assert_eq!(wait.count, 4);
+        assert_eq!(wait.median_ms, 900);
+        assert_eq!(wait.p90_ms, 2_000);
+        assert_eq!(wait.held_ms, 600, "median of 400, 600, 1000, 1600");
+        assert_eq!(wait.quill_ms, 300);
+        assert_eq!(wait.last_7_days_ms, Some(900));
+        assert_eq!(wait.previous_7_days_ms, Some(1_500));
+        let today = i.days.last().unwrap();
+        assert_eq!((today.wait_ms, today.wait_p90_ms), (Some(900), Some(2_000)));
+        assert_eq!(i.days[i.days.len() - 2].wait_ms, None);
+
+        let none = from_data(
+            &[stat("2026-10-11T17:00:00Z", 10, 3_000, false)],
+            &[],
+            &[],
+            0,
+            0.0,
+            &now(),
+        );
+        assert_eq!(none.dictation.wait, None);
     }
 
     #[test]

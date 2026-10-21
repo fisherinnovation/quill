@@ -358,8 +358,10 @@ A misspelled name ("Quil" → "Quill") becomes a vocabulary word; words typed ap
       {
         id: "history",
         title: "Your dictation history",
-        keywords: "history past dictations copy lost text clipboard",
+        keywords: "history past dictations copy lost text clipboard time to insert wait delay latency speed",
         body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into, shown by its icon. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
+
+**Time to insert** is how long you wait from when you stop speaking to the text appearing: the time you keep holding the shortcut after your last word, plus Quill transcribing and typing after you let go. Quill finds where your speech ended with the same silence detection it uses to skip quiet stretches, after the text is typed, so measuring it adds no delay. The panel shows the last week's median against the week before, how it splits between holding the key and Quill, and the last 30 days, each day's median with its slowest 1 in 10 marked above. Each dictation shows its own wait too. It's measured with **Skip silence** on (the default), from the dictations made since it was added.
 
 Each dictation is colour-coded by what happened to it:
 

@@ -15,6 +15,7 @@ import { ModelDownload } from "./Models";
 import { AppIcon } from "./AppIcon";
 import { Banner, Group, Keys, Row, groupByDay, timeOfDay, useCountUp } from "./ui";
 import { VoiceWave } from "./VoiceWave";
+import { TimeToInsert } from "./Insights";
 
 /**
  * The Dictations page: whether dictation is ready, fixes waiting for the
@@ -84,6 +85,7 @@ export function DictationsView({
         onSettings={onSettings}
       />
       {insights && insights.dictation.count > 0 && <Numbers insights={insights} />}
+      {insights && insights.dictation.count > 0 && <TimeToInsert insights={insights} />}
       <ModelDownload variant="banner" />
       {state.error && (
         <Banner kind="error" icon="alert">

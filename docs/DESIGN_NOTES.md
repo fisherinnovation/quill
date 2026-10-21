@@ -305,6 +305,20 @@ decision someone might otherwise undo.
 - **Planned:** opt-in learning by watching the inserted text through
   Accessibility for about a minute. First check which apps expose it.
 
+- **Time to insert** is the measure of dictation speed that matches what
+  users feel: from the end of speech to the text typed. `latency_ms`
+  starts at the key's release, but people keep holding the key a moment
+  after their last word, and that's waiting too. The end of speech comes
+  from Silero VAD on the whole clip (`WhisperTranscriber::speech_end`: the
+  end of its last speech region), run after the paste so measuring adds no
+  delay; `wait_ms` = clip length − end of speech + `latency_ms`. Stored
+  with each dictation and in `dictation_stats` (migration 9), NULL when
+  there's no VAD model. Insights give the median, 90th percentile and its
+  split (median hold, median Quill) over the 30-day chart, the last 7 days
+  against the 7 before, and per-day medians and 90th percentiles for the
+  chart. The 90th percentile is there because the slow tail is what's
+  remembered. A tap-to-stop dictation counts the time to the second tap as
+  holding.
 ## Insights and logs
 
 - Dictation numbers come from a `dictation_stats` table (counts only, no

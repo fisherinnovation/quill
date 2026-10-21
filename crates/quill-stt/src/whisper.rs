@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperVadContext,
@@ -119,6 +120,20 @@ impl WhisperTranscriber {
         };
 
         Ok(Self { ctx, threads, vad })
+    }
+
+    /// Where speech ends in 16 kHz mono `pcm`: the end of the last stretch
+    /// Silero VAD hears as speech. For measuring how long a dictation took
+    /// to arrive after the speaker stopped talking. `None` without a VAD
+    /// model, or with no speech.
+    pub fn speech_end(&self, pcm: &[f32]) -> Option<Duration> {
+        let mut vad = self
+            .vad
+            .as_ref()?
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (_, end) = *vad::detect_speech(&mut vad, pcm).ok()?.last()?;
+        Some(Duration::from_secs_f64(end as f64 / 16_000.0))
     }
 }
 

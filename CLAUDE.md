@@ -186,7 +186,9 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   any change to the dictation path with `quill-cli dictate` and the clips
   in `eval/dictation` (`--stream` for live captions, which also need
   checking on real long dictations: synthetic clips are too short to lock
-  anything in).
+  anything in). What users feel is *time to insert*, from the end of
+  speech to the text typed (`wait_ms` in the logs and in
+  `dictation_stats`); the Dictations page charts it over 30 days.
 
 ## Data on this machine
 
