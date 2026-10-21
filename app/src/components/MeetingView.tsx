@@ -36,6 +36,35 @@ interface Props {
   onBack: () => void;
 }
 
+/**
+ * Whether a sticky element is stuck to the top of the page's scroller: the
+ * meeting header is frosted only then, while something scrolls under it, so
+ * at rest it shows the same wash as the rest of the page.
+ */
+function useStuck(ref: React.RefObject<HTMLElement | null>, ready: boolean) {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    const scroller = el?.closest(".main-scroll");
+    if (!el || !scroller) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      setStuck(el.getBoundingClientRect().top <= scroller.getBoundingClientRect().top + 1);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    update();
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [ref, ready]);
+  return stuck;
+}
+
 export function MeetingView({
   id,
   jumpTo,
@@ -58,6 +87,8 @@ export function MeetingView({
   const [exported, setExported] = useState<{ path: string } | { error: string } | null>(null);
   // When speakers were last renamed or re-split here, to flag older notes.
   const [speakersEditedAt, setSpeakersEditedAt] = useState<number | null>(null);
+  const header = useRef<HTMLElement>(null);
+  const stuck = useStuck(header, detail !== null);
 
   useEffect(() => {
     api
@@ -115,7 +146,7 @@ export function MeetingView({
   return (
     <article className="page meeting">
       <BackLink label="Meetings" onClick={onBack} />
-      <header className="meeting-header">
+      <header ref={header} className={`meeting-header${stuck ? " stuck" : ""}`}>
         <div className="meeting-title-row">
           <Title
             value={meeting.title}
