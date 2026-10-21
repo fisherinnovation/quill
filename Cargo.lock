@@ -4140,6 +4140,7 @@ dependencies = [
  "objc2-core-foundation",
  "rtrb",
  "rubato",
+ "serde",
  "sonora",
  "tempfile",
  "thiserror 2.0.21",

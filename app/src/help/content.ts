@@ -276,7 +276,7 @@ It's worked out from the transcript on your computer. Word lists are English-fir
       {
         id: "dictating",
         title: "Dictating",
-        keywords: "dictate speak voice typing shortcut hold tap cancel",
+        keywords: "dictate speak voice typing shortcut hold tap cancel sound beep chime",
         body: `Put your cursor in any text field, then either:
 
 - **Hold** \`key:${ALT}\` \`key:Space\` while you speak, and let go to type, or
@@ -285,6 +285,8 @@ It's worked out from the transcript on your computer. Word lists are English-fir
 Press \`key:Esc\` to cancel. A small pill near the bottom of the screen shows your microphone level while it listens and "Typing…" while it works. Text appears about a third of a second after you let go.
 
 Quill types by pasting. Whatever was on your clipboard is put back afterwards, and the dictated text is hidden from clipboard managers.
+
+A short sound plays as Quill starts and stops listening, and another if it cancels. Pick a different one (Classic, Soft, Bubble, Wood, Glass, Marimba, Chirp or Digital), or none, under **Settings → Dictation → Sound**; choosing one plays it.
 
 Change the shortcut in **Settings → Dictation → Shortcut**.${isMac ? " You can also use the fn key on its own; see [Dictating with fn](#fn-key)." : ""}`,
       },

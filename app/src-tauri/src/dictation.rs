@@ -369,7 +369,7 @@ impl Controller {
             crate::tray::show_window(&self.app);
             let _ = self.app.emit(crate::NAVIGATE_EVENT, "dictation");
             // The Dictation page shows the download's progress.
-            cue::play(Cue::Cancel);
+            cue::play(Cue::Cancel, settings.dictation.sound);
             return;
         }
         if self.mic.as_ref().is_none_or(|m| !m.is_healthy()) {
@@ -390,7 +390,7 @@ impl Controller {
             indicator::caption(&self.app, &Caption::default());
             self.live = Some(LiveWorker::spawn(self.app.clone(), mic.tap(), settings));
         }
-        cue::play(Cue::Start);
+        cue::play(Cue::Start, sounds(&self.app));
         *lock(&self.shared.error) = None;
         self.listening = Some(Listening {
             since,
@@ -465,7 +465,7 @@ impl Controller {
             notify(&self.app, &self.shared);
             return;
         }
-        cue::play(Cue::Stop);
+        cue::play(Cue::Stop, sounds(&self.app));
         tracing::debug!(?audio, held = ?listening.since.elapsed(), "processing dictation");
         self.shared.pending.fetch_add(1, Ordering::SeqCst);
         notify(&self.app, &self.shared);
@@ -478,7 +478,7 @@ impl Controller {
             shared.pending.fetch_sub(1, Ordering::SeqCst);
             if let Err(e) = result {
                 tracing::error!("dictation failed: {e}");
-                cue::play(Cue::Cancel);
+                cue::play(Cue::Cancel, sounds(&app));
                 *lock(&shared.error) = Some(e);
             }
             notify(&app, &shared);
@@ -492,7 +492,7 @@ impl Controller {
             if let Some(mic) = &self.mic {
                 mic.cancel();
             }
-            cue::play(Cue::Cancel);
+            cue::play(Cue::Cancel, sounds(&self.app));
             notify(&self.app, &self.shared);
         }
     }
@@ -507,7 +507,7 @@ impl Controller {
 
     fn fail(&self, error: String) {
         tracing::error!("dictation: {error}");
-        cue::play(Cue::Cancel);
+        cue::play(Cue::Cancel, sounds(&self.app));
         *lock(&self.shared.error) = Some(error);
         notify(&self.app, &self.shared);
     }
@@ -805,7 +805,22 @@ async fn process(
     Ok(())
 }
 
+/// The sounds the user chose for dictation.
+fn sounds(app: &AppHandle) -> cue::Sounds {
+    lock(&app.state::<AppState>().settings).dictation.sound
+}
+
 // ---- Commands -------------------------------------------------------------
+
+/// Plays a set of dictation sounds, start then stop, to choose one by ear.
+#[tauri::command]
+pub fn preview_dictation_sound(sound: cue::Sounds) {
+    cue::play(Cue::Start, sound);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(450));
+        cue::play(Cue::Stop, sound);
+    });
+}
 
 #[tauri::command]
 pub fn dictation_state(dictation: tauri::State<'_, Dictation>) -> DictationState {

@@ -202,8 +202,13 @@ export interface DictationSettings {
   save_samples: boolean;
   /** Show what's being said, above the dictation pill, while speaking. */
   live_captions: boolean;
+  /** The sounds dictation plays to start, stop and cancel. */
+  sound: Sounds;
   app_styles: AppStyle[];
 }
+
+/** A set of dictation sounds (quill_audio::cue::Sounds). */
+export type Sounds = "classic" | "soft" | "bubble" | "wood" | "glass" | "marimba" | "chirp" | "digital" | "off";
 
 /** Saved dictation samples (Dictation → Save samples). */
 export interface SamplesUsage {
@@ -660,6 +665,8 @@ export const api = {
   dictationState: () => invoke<DictationState>("dictation_state"),
   /** Saves and rebinds the hotkey; rejects (keeping the old settings) if it can't be bound. */
   saveDictationSettings: (dictation: DictationSettings) => invoke<void>("save_dictation_settings", { dictation }),
+  /** Plays a set of dictation sounds, start then stop. */
+  previewDictationSound: (sound: Sounds) => invoke<void>("preview_dictation_sound", { sound }),
   /** Newest first: up to `limit` entries older than `before` (an id), or the newest. */
   listDictations: (before: number | null, limit: number) =>
     invoke<DictationEntry[]>("list_dictations", { before, limit }),

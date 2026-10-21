@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
+use quill_audio::cue::Sounds;
 use quill_stt::GpuChoice;
 use serde::{Deserialize, Serialize};
 
@@ -102,6 +103,8 @@ pub struct DictationSettings {
     pub save_samples: bool,
     /// Show what's being said while dictating (`quill_core::live`).
     pub live_captions: bool,
+    /// The sounds dictation plays to start, stop and cancel.
+    pub sound: Sounds,
     /// Styles chosen for particular apps, overriding the built-in ones
     /// (`dictation::style_for`).
     pub app_styles: Vec<AppStyle>,
@@ -144,6 +147,7 @@ impl Default for DictationSettings {
             keep_history: true,
             save_samples: false,
             live_captions: true,
+            sound: Sounds::Classic,
             app_styles: Vec::new(),
         }
     }
@@ -231,6 +235,7 @@ mod tests {
             theme: Theme::Dark,
             gpu: GpuChoice::Named("NVIDIA GeForce RTX 4070".into()),
             dictation: DictationSettings {
+                sound: Sounds::Marimba,
                 vocabulary: vec!["Quill".into(), "OpenRouter".into()],
                 replacements: vec![Replacement {
                     from: "open router".into(),

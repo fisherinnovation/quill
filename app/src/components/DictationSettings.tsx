@@ -12,6 +12,7 @@ import {
   type Style,
   type Replacement,
   type SamplesUsage,
+  type Sounds,
   type Suggestion,
 } from "../api";
 import { Icon } from "./Icon";
@@ -19,6 +20,19 @@ import { ModelPicker } from "./ModelPicker";
 import { AppIcon } from "./AppIcon";
 import { ModelDownload } from "./Models";
 import { Banner, Group, Keys, LANGUAGES, Row, Switch } from "./ui";
+
+/** The sound sets, in the order offered (quill_audio::cue::Sounds). */
+const SOUNDS: [Sounds, string][] = [
+  ["classic", "Classic (default)"],
+  ["soft", "Soft"],
+  ["bubble", "Bubble"],
+  ["wood", "Wood"],
+  ["glass", "Glass"],
+  ["marimba", "Marimba"],
+  ["chirp", "Chirp"],
+  ["digital", "Digital"],
+  ["off", "No sound"],
+];
 
 /**
  * Settings → Dictation: the shortcut, clean-up, styles, words, history and
@@ -98,6 +112,33 @@ export function DictationSettingsTab({
               </option>
             ))}
           </select>
+        </Row>
+        <Row label="Sound" hint="Played as dictation starts and stops listening. Choosing one plays it.">
+          <span className="row-gap">
+            <select
+              value={settings.sound}
+              onChange={(e) => {
+                const sound = e.target.value as Sounds;
+                update({ sound });
+                void api.previewDictationSound(sound);
+              }}
+            >
+              {SOUNDS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <button
+              className="icon-btn"
+              title="Play"
+              aria-label="Play the sound"
+              disabled={settings.sound === "off"}
+              onClick={() => void api.previewDictationSound(settings.sound)}
+            >
+              <Icon name="play" size={13} />
+            </button>
+          </span>
         </Row>
       </Group>
 

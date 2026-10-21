@@ -36,7 +36,7 @@ pub fn check_access(dir: &Path, duration: Duration) -> Result<Vec<TrackSummary>,
     let recording = capture::start(&requests)?;
     // Give the tap a moment to start before the chime plays.
     std::thread::sleep(Duration::from_millis(300));
-    let chime = cue::start(Cue::Chime);
+    let chime = cue::start(Cue::Chime, cue::Sounds::default());
     if let Err(e) = &chime {
         // Not fatal: the microphone result is still useful, and the system
         // track may pick up other audio.
