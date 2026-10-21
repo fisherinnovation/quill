@@ -171,6 +171,33 @@ decision someone might otherwise undo.
   `review.md`, and evaluate on real meetings in
   `eval/transcripts/private/`, not only the synthetic one.
 
+## Action items
+
+- **Read from the notes, not asked for separately.** The summary prompts
+  already write `- **Owner** — task — due date` under "## Action items",
+  so `quill_core::action_items` parses that section when notes are saved
+  (in the same transaction) instead of a second model call or a new prompt
+  version. In the owner's 7 real summaries, every item followed that format
+  and every other bullet was a placeholder ("None", "No action items were
+  assigned"), so placeholders are skipped; counting them is also what made
+  the Meetings page show "1 action item" for meetings with none.
+- **Stored with their ticks** in `action_items`, one row per item, synced
+  from the latest notes. Re-summarizing rewords items, so an item keeps its
+  id and tick if its task shares at least 60% of its words with an earlier
+  one (Jaccard over words longer than two letters); items the new notes
+  drop are deleted. The notes themselves are never rewritten: the Summary
+  tab and Home render the section as a checklist from the table instead.
+  Libraries from before it read their existing notes once (migration 8).
+- **Yours, then others'.** An item is yours when its owner is "You" (or
+  "Me", in v1 notes), alone or with others; the rest are "Waiting on
+  others", by person, for following up.
+- **Due dates** are worked out from the meeting's local day: weekdays mean
+  the coming one ("next Thursday" the one in the following week), "end of
+  the week" Friday, plus today/tomorrow, end of month, "in two weeks" and
+  calendar dates (a date without a year more than 60 days before the
+  meeting is next year's). Anything else, like "after the launch", stays
+  as written and isn't flagged.
+
 ## Dictation
 
 - **Latency:** Whisper `short_clip` mode (greedy decoding, VAD trimming

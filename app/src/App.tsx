@@ -18,6 +18,8 @@ import { DictationsView } from "./components/DictationsView";
 import { HelpView } from "./components/HelpView";
 import { SamplesReview } from "./components/SamplesReview";
 import { HomeView } from "./components/HomeView";
+import { ActionItemsView } from "./components/ActionItemsView";
+import { refreshActionItems, useActionItems } from "./actionItems";
 import { DictationEntryView } from "./components/DictationHistory";
 import { Banner } from "./components/ui";
 import { type Toast, Toasts } from "./components/Toasts";
@@ -26,6 +28,8 @@ type View =
   | { kind: "home" }
   | { kind: "meetings" }
   | { kind: "meeting"; id: string; at?: number }
+  /** Action items from every meeting's notes. */
+  | { kind: "actions" }
   /** The Dictations page ("dictation", as the backend's navigate event names it). */
   | { kind: "dictation" }
   | { kind: "dictation-entry"; id: number }
@@ -64,6 +68,7 @@ function section(view: View): Section {
 
 export function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const actionItems = useActionItems();
   const [view, setView] = useState<View>({ kind: "home" });
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState<RecordingState>({
@@ -88,6 +93,8 @@ export function App() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   const refresh = useCallback(async () => {
+    // Notes written, or a meeting deleted, change the action items too.
+    void refreshActionItems();
     try {
       setMeetings(await api.listMeetings());
     } catch (e) {
@@ -217,6 +224,7 @@ export function App() {
         recording={recording.recording}
         working={Object.values(progress).filter((p) => p.stage !== "done" && p.stage !== "failed").length}
         dictation={dictation.phase}
+        openActions={actionItems?.filter((i) => i.mine && !i.done_at).length ?? 0}
         collapsed={collapsed}
         onToggle={toggleSidebar}
         header={<RecordButton state={recording} onError={setError} compact={collapsed} />}
@@ -271,6 +279,7 @@ export function App() {
               onSelect={(id, at) => setView({ kind: "meeting", id, at })}
             />
           )}
+          {view.kind === "actions" && <ActionItemsView onOpenMeeting={(id) => setView({ kind: "meeting", id })} />}
           {view.kind === "help" && <HelpView />}
           {view.kind === "settings" && (
             <SettingsView

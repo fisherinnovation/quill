@@ -57,6 +57,25 @@ export interface MeetingDetail {
   summaries: StoredSummary[]; // newest first
 }
 
+/** An action item from a meeting's notes (quill_core::library::ActionItem). */
+export interface ActionItem {
+  id: number;
+  meeting_id: string;
+  meeting_title: string;
+  meeting_started_at: string;
+  /** "You", "Priya"…, or null if the notes named no one. */
+  owner: string | null;
+  /** The owner is the person recording ("You"). */
+  mine: boolean;
+  task: string;
+  /** As written, e.g. "by Thursday". */
+  due_text: string | null;
+  /** YYYY-MM-DD, worked out from due_text and the meeting's day. */
+  due_date: string | null;
+  /** When it was ticked off; null while open. */
+  done_at: string | null;
+}
+
 export interface SearchHit {
   meeting_id: string;
   title: string;
@@ -580,6 +599,8 @@ export const api = {
   resetRecordingsDir: () => invoke<StorageInfo>("reset_recordings_dir"),
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
   modelsInfo: () => invoke<ModelsInfo>("models_info"),
+  actionItems: () => invoke<ActionItem[]>("action_items"),
+  setActionItemDone: (id: number, done: boolean) => invoke<ActionItem>("set_action_item_done", { id, done }),
   graphicsCards: () => invoke<GraphicsCards>("graphics_cards"),
   /** PNG data URLs by app id; null where there's no icon (src-tauri/src/icons.rs). */
   appIcons: (ids: string[]) => invoke<Record<string, string | null>>("app_icons", { ids }),

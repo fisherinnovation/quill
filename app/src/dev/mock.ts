@@ -47,6 +47,50 @@ The team agreed to ship the onboarding redesign on **Friday** behind a feature f
 - Should the invite step move after the first project is created?
 `;
 
+/** A local date `days` from now, YYYY-MM-DD. */
+const dayFromNow = (days: number) => new Date(now + days * D).toLocaleDateString("en-CA");
+
+/** Sample action items across meetings: due soon, overdue, undated and done. */
+const item = (
+  id: number,
+  meeting: [string, string, number],
+  owner: string | null,
+  task: string,
+  due?: [string, number],
+  doneAgo?: number,
+) => ({
+  id,
+  meeting_id: meeting[0],
+  meeting_title: meeting[1],
+  meeting_started_at: iso(meeting[2]),
+  owner,
+  mine: owner === "You",
+  task,
+  due_text: due?.[0] ?? null,
+  due_date: due ? dayFromNow(due[1]) : null,
+  done_at: doneAgo === undefined ? null : iso(doneAgo),
+});
+const PRODUCT: [string, string, number] = ["m1", "Product sync", 2 * H];
+const ONE_ON_ONE: [string, string, number] = ["m2", "1:1 with Priya", 5 * H];
+const DESIGN: [string, string, number] = ["m4", "Design review: settings", D + 6 * H];
+const NORTHWIND: [string, string, number] = ["m5", "Customer call — Northwind", 4 * D];
+const HIRING: [string, string, number] = ["m6", "Hiring sync", 12 * D];
+let actionItems = flags.has("empty")
+  ? []
+  : [
+      item(1, PRODUCT, "You", "Send the rollout plan to support", ["by Wednesday", 1]),
+      item(2, PRODUCT, "Priya", "Fix the duplicate `signup_completed` events", ["Thursday", 2]),
+      item(3, PRODUCT, "Dan", "Prepare two pricing-page variants for the next sprint"),
+      item(4, ONE_ON_ONE, "You", "Share the promotion packet template with Priya", ["end of the week", 3]),
+      item(5, ONE_ON_ONE, "Priya", "Draft her goals for next quarter", ["next Monday", 6]),
+      item(6, DESIGN, "You", "Group the settings pages like System Settings", ["by Monday", -2]),
+      item(7, DESIGN, "You", "Check contrast on the dark theme"),
+      item(8, NORTHWIND, "You", "Send Northwind the SSO pricing", ["today", 0]),
+      item(9, NORTHWIND, "Sam", "Confirm the pilot start date"),
+      item(10, HIRING, "You", "Book the onsite interviews", ["this week", -8], 2 * D),
+      item(11, HIRING, "Dan", "Write up the take-home rubric", undefined, 5 * D),
+    ];
+
 // ?others: the call side as one "Others" track, as before speakers are told apart.
 const other = (n: number) => (flags.has("others") ? "Others" : `Speaker ${n}`);
 let SEGMENTS = [
@@ -597,6 +641,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   process_meeting: ({ id }) => startWriteUp(String(id), false),
   split_speakers: () => null,
   models_info: () => modelsInfo(),
+  action_items: () => actionItems,
+  set_action_item_done: ({ id, done }) => {
+    actionItems = actionItems.map((i) => (i.id === id ? { ...i, done_at: done ? new Date().toISOString() : null } : i));
+    return actionItems.find((i) => i.id === id);
+  },
   // ?gpus: a PC listing its integrated graphics first, as Windows can.
   graphics_cards: () =>
     flags.has("gpus")

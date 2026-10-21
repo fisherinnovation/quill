@@ -55,6 +55,23 @@ pub async fn meeting_overviews(
     blocking(move || Ok(app.state::<AppState>().library.overviews()?)).await
 }
 
+/// Every meeting's action items, for the Action items page, the sidebar's
+/// count and the checkboxes in a meeting's notes.
+#[tauri::command]
+pub async fn action_items(app: AppHandle) -> CommandResult<Vec<quill_core::library::ActionItem>> {
+    blocking(move || Ok(app.state::<AppState>().library.action_items()?)).await
+}
+
+/// Ticks an action item off, or back on.
+#[tauri::command]
+pub fn set_action_item_done(
+    state: State<'_, AppState>,
+    id: i64,
+    done: bool,
+) -> CommandResult<quill_core::library::ActionItem> {
+    Ok(state.library.set_action_item_done(id, done)?)
+}
+
 #[tauri::command]
 pub fn get_meeting(state: State<'_, AppState>, id: String) -> CommandResult<MeetingDetail> {
     Ok(state.library.get(&id)?)
