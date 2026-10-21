@@ -147,9 +147,13 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   dictation pastes into Quill instead of the user's text box. Use
   `floating::show_unfocused` / `hide_unfocused` (or `floating::show` /
   `hide`), never mixed with Tauri's `show()` / `hide()`.
-- **Short clips:** don't size Whisper's encoder to the clip
-  (`set_audio_ctx`): 2–4 s dictations came out twice. See
-  `docs/DESIGN_NOTES.md` ("Short clips keep the full encoder window").
+- **Short clips:** sized to the clip, Whisper's encoder (`set_audio_ctx`)
+  makes 2–4 s dictations come out twice. On Metal it's sized to the clip
+  plus 3 s anyway, since the full window costs ~0.5 s there, and repeated
+  segments are dropped (`without_repeats`); Vulkan and the CPU keep the
+  full window. Measure any change to either with `quill-cli dictate` on
+  short clips. See `docs/DESIGN_NOTES.md` ("Short clips on Metal" and
+  "Short clips keep the full encoder window").
 - **Release CPU baseline:** release builds set `GGML_NATIVE=OFF`. Built for
   the runner's CPU, whisper.cpp used AVX-512 and the Windows app crashed on
   most desktop CPUs. A crash with no `panic:` in the log and exception
