@@ -328,6 +328,17 @@ decision someone might otherwise undo.
 - **Planned:** opt-in learning by watching the inserted text through
   Accessibility for about a minute. First check which apps expose it.
 
+- **Sounds are synthesized**, not files (`quill_audio::cue`): each cue is a
+  few notes with an attack, an exponential decay and a fade to zero at the
+  end, so nothing clicks. Sets differ in timbre: overtones (inharmonic for
+  wood and glass, the 4th harmonic for marimba, odd harmonics for the
+  digital beep) and pitch glides (bubble, chirp). Start rises and stop falls
+  in every set; cancel is two low notes. Classic, the default, is the
+  original pair of blips, kept sample for sample (a test checks it against
+  the old formula). Levels were tuned so each set's peak is within
+  0.5–1.6× Classic's; Soft and Chirp sit a little lower on purpose (gentle,
+  and 2–3 kHz sounds louder than its peak). The access-check chime doesn't
+  follow the setting.
 - **Time to insert** is the measure of dictation speed that matches what
   users feel: from the end of speech to the text typed. `latency_ms`
   starts at the key's release, but people keep holding the key a moment

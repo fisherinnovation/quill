@@ -229,6 +229,7 @@ fn main() {
             onboarding::finish_onboarding,
             dictation::dictation_state,
             dictation::save_dictation_settings,
+            dictation::preview_dictation_sound,
             dictation::list_dictations,
             dictation::get_dictation,
             dictation::dictation_stats,
