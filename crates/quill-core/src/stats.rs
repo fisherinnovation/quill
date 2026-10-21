@@ -629,6 +629,7 @@ mod tests {
             latency_ms: 900,
             pasted: true,
             app: None,
+            app_id: None,
             corrected: None,
         };
         let stats = dictation(&entry, Some(150.0));

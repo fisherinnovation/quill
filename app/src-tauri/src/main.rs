@@ -13,6 +13,7 @@ mod calls;
 mod commands;
 mod dictation;
 mod floating;
+mod icons;
 mod indicator;
 mod live_notes;
 mod llm_models;
@@ -196,6 +197,7 @@ fn main() {
             commands::split_speakers,
             models::models_info,
             models::graphics_cards,
+            icons::app_icons,
             models::download_needed_models,
             models::download_model,
             models::delete_model,

@@ -16,6 +16,7 @@ import {
 } from "../api";
 import { Icon } from "./Icon";
 import { ModelPicker } from "./ModelPicker";
+import { AppIcon } from "./AppIcon";
 import { ModelDownload } from "./Models";
 import { Banner, Group, Keys, LANGUAGES, Row, Switch } from "./ui";
 
@@ -418,7 +419,12 @@ function AppStyles({
           return (
             <Row
               key={app.app_id}
-              label={app.name}
+              label={
+                <span className="app-label">
+                  <AppIcon id={app.app_id} name={app.name} />
+                  {app.name}
+                </span>
+              }
               hint={style === app.built_in ? `${styleHint(style)} (automatic)` : styleHint(style)}
             >
               <select value={style} onChange={(e) => choose(app, e.target.value as Style)}>

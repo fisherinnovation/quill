@@ -12,6 +12,7 @@ import { PastePermission, withRule } from "./DictationSettings";
 import { Icon, type IconName } from "./Icon";
 import { duration } from "./Insights";
 import { ModelDownload } from "./Models";
+import { AppIcon } from "./AppIcon";
 import { Banner, Group, Keys, Row, groupByDay, timeOfDay, useCountUp } from "./ui";
 import { VoiceWave } from "./VoiceWave";
 
@@ -166,7 +167,7 @@ export function DictationsView({
                   {group.map((d) => (
                     <li key={d.id}>
                       <button className={`item-row dictation-row ${kindOf(d)}`} onClick={() => onOpen(d.id)}>
-                        <AppBadge app={d.app} />
+                        <AppIcon id={d.app_id} name={d.app} />
                         <span className="dictation-row-body">
                           <span className="item-text">{dictationTitle(d)}</span>
                           <span className="item-meta">
@@ -400,11 +401,4 @@ function clock(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** An app's first letter, so the list scans by app. */
-function AppBadge({ app }: { app: string | null }) {
-  return (
-    <span className="app-badge" aria-hidden>
-      {app ? app.trim().charAt(0).toUpperCase() : <Icon name="mic" size={13} />}
-    </span>
-  );
-}
+

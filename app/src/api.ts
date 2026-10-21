@@ -257,6 +257,8 @@ export interface DictationEntry {
   pasted: boolean;
   /** The app it was typed into. */
   app: string | null;
+  /** That app's identifier (bundle id or executable), for its icon. */
+  app_id: string | null;
   /** The user's fixed version, if they corrected it. */
   corrected: string | null;
 }
@@ -579,6 +581,8 @@ export const api = {
   showRecordingsDir: () => invoke<void>("show_recordings_dir"),
   modelsInfo: () => invoke<ModelsInfo>("models_info"),
   graphicsCards: () => invoke<GraphicsCards>("graphics_cards"),
+  /** PNG data URLs by app id; null where there's no icon (src-tauri/src/icons.rs). */
+  appIcons: (ids: string[]) => invoke<Record<string, string | null>>("app_icons", { ids }),
   footprint: () => invoke<Footprint>("footprint"),
   /** Recordings with nothing said in them (not recording or processing). */
   emptyRecordings: () => invoke<{ count: number; bytes: number }>("empty_recordings"),

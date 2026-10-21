@@ -18,6 +18,7 @@
 mod app;
 #[cfg(target_os = "macos")]
 pub mod fn_key;
+pub mod icon;
 
 pub use app::{FrontApp, frontmost_app};
 

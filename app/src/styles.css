@@ -3437,6 +3437,24 @@ html.indicator-window #root {
   background: var(--bg-active);
 }
 
+/* The app's own icon in place of its letter: icons bring their own shape. */
+.app-badge.has-icon {
+  background: none;
+  border-radius: 0;
+}
+
+.app-badge.has-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.app-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .app-name {
   font-weight: 600;
   overflow: hidden;

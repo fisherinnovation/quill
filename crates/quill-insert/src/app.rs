@@ -77,6 +77,7 @@ pub fn frontmost_app() -> Option<FrontApp> {
     ok.ok()?;
     let path = String::from_utf16_lossy(&buffer[..len as usize]);
     let file = path.rsplit(['\\', '/']).next()?.to_string();
+    remember_path(&file.to_lowercase(), &path);
     let stem = file.strip_suffix(".exe").unwrap_or(&file);
     let mut name: Vec<char> = stem.chars().collect();
     if let Some(first) = name.first_mut() {
@@ -91,4 +92,24 @@ pub fn frontmost_app() -> Option<FrontApp> {
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn frontmost_app() -> Option<FrontApp> {
     None
+}
+
+/// Where each app seen in front lives, by id: a Windows id is only the
+/// executable's name, and its icon needs the full path. Kept in memory only,
+/// since a path names the user's folders.
+#[cfg(windows)]
+static PATHS: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, String>>> =
+    std::sync::LazyLock::new(Default::default);
+
+#[cfg(windows)]
+fn remember_path(id: &str, path: &str) {
+    if let Ok(mut paths) = PATHS.lock() {
+        paths.insert(id.to_string(), path.to_string());
+    }
+}
+
+/// The executable of an app seen in front since Quill started.
+#[cfg(windows)]
+pub(crate) fn path_of(id: &str) -> Option<String> {
+    PATHS.lock().ok()?.get(&id.to_lowercase()).cloned()
 }

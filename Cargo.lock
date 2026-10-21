@@ -4101,6 +4101,7 @@ dependencies = [
 name = "quill-app"
 version = "0.2.0"
 dependencies = [
+ "base64 0.22.1",
  "block2",
  "jiff",
  "objc2",
@@ -4226,10 +4227,12 @@ version = "0.2.0"
 dependencies = [
  "arboard",
  "enigo",
+ "objc2",
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-core-graphics",
  "objc2-foundation",
+ "png 0.18.1",
  "serde",
  "thiserror 2.0.21",
  "tracing",

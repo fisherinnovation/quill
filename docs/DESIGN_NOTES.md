@@ -283,6 +283,17 @@ decision someone might otherwise undo.
 - Dictation numbers come from a `dictation_stats` table (counts only, no
   text), so they survive turning history off or clearing it. Time saved
   is measured against typing at 40 wpm.
+- App icons beside dictations, top apps and per-app styles come from the
+  installed app, looked up by the id Quill records (`quill_insert::icon`):
+  on macOS the bundle id, through NSWorkspace, even when the app isn't
+  running; on Windows the shell's icon for the executable. A Windows id is
+  only the executable's name, so the full path is remembered in memory
+  when the app is seen in front (a path names the user's folders, so it's
+  never stored); until then, and for uninstalled apps, the app's letter
+  shows. Icons are cached in memory as PNG data URLs, never written to
+  disk. `dictations.app_id` (filled for older rows from `dictation_stats`
+  by app name) lets the history find them. Microsoft Store apps show as
+  their host process, so neither their name nor icon is right yet.
 - Logs are daily files kept for two weeks, panics included, and never
   contain transcripts, notes, dictated text or keys.
 - Meeting and dictation stats (`quill_core::stats`) are computed from the

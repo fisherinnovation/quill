@@ -239,6 +239,24 @@ async function installUpdate() {
   location.search = flags.toString();
 }
 
+/** Sample apps: their ids (as Quill records them) and stand-in icons. */
+const MOCK_APPS: Record<string, { id: string; color?: string; glyph: string }> = {
+  Slack: { id: "com.tinyspeck.slackmacgap", color: "#4a154b", glyph: "#" },
+  Mail: { id: "com.apple.mail", color: "#1a8cff", glyph: "✉" },
+  Code: { id: "com.microsoft.vscode", color: "#0065a9", glyph: "❮❯" },
+  Cursor: { id: "com.todesktop.230313mzl4w4u92", color: "#111111", glyph: "▲" },
+  Messages: { id: "com.apple.mobilesms", color: "#30d158", glyph: "…" },
+  "Google Chrome": { id: "com.google.chrome", color: "#ea4335", glyph: "●" },
+  Notion: { id: "notion.id", glyph: "N" },
+};
+
+function mockIcon(color: string, glyph: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="13" fill="${color}"/><text x="32" y="42" font-family="-apple-system, sans-serif" font-size="26" font-weight="700" fill="#fff" text-anchor="middle">${glyph}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const withAppId = <T extends { app: string | null }>(d: T) => ({ ...d, app_id: d.app ? (MOCK_APPS[d.app]?.id ?? null) : null });
+
 let dictations: {
   id: number;
   created_at: string;
@@ -708,8 +726,23 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   dictation_state: () => ({ phase, error: flags.has("failed") ? "Quill isn't allowed to paste, so the text is on your clipboard." : null }),
   list_dictations: ({ before, limit }) =>
-    dictations.filter((d) => before == null || d.id < Number(before)).slice(0, Number(limit)),
-  get_dictation: ({ id }) => dictations.find((d) => d.id === id),
+    dictations
+      .filter((d) => before == null || d.id < Number(before))
+      .slice(0, Number(limit))
+      .map(withAppId),
+  get_dictation: ({ id }) => {
+    const d = dictations.find((d) => d.id === id);
+    return d && withAppId(d);
+  },
+  // Stand-in icons: a tile in each app's colour. Notion has none, to show
+  // the letter fallback.
+  app_icons: ({ ids }) =>
+    Object.fromEntries(
+      (ids as string[]).map((id) => {
+        const app = Object.values(MOCK_APPS).find((a) => a.id === id);
+        return [id, app?.color ? mockIcon(app.color, app.glyph) : null];
+      }),
+    ),
   delete_dictation: ({ id }) => {
     dictations = dictations.filter((d) => d.id !== id);
   },

@@ -343,7 +343,7 @@ A misspelled name ("Quil" → "Quill") becomes a vocabulary word; words typed ap
         id: "history",
         title: "Your dictation history",
         keywords: "history past dictations copy lost text clipboard",
-        body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
+        body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into, shown by its icon. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
 
 Each dictation is colour-coded by what happened to it:
 
@@ -462,7 +462,7 @@ Transcription already runs locally. With both models in Ollama, Quill's only net
 
 Through OpenRouter, requests go only to providers that don't keep or train on your data. **Zero data retention only** (**Settings → General → OpenRouter**) is stricter and supported by fewer models. With Ollama, nothing leaves at all.
 
-For dictation, Quill reads the *name* of the app you're typing into (for its style and your top apps), never its windows or contents.${isMac ? " To offer to record calls, it checks which apps are using a microphone, never their audio." : ""}`,
+For dictation, Quill reads the *name* of the app you're typing into (for its style and your top apps) and shows its icon, never its windows or contents.${isMac ? " To offer to record calls, it checks which apps are using a microphone, never their audio." : ""}`,
       },
       {
         id: "data-location",

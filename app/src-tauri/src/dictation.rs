@@ -749,6 +749,7 @@ async fn process(
         latency_ms,
         pasted,
         app: target.as_ref().map(|a| a.name.clone()),
+        app_id: target.as_ref().map(|a| a.id.clone()),
         corrected: None,
     };
     // Numbers only (no text), for the Insights page, whatever the history

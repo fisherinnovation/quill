@@ -125,6 +125,16 @@ ALTER TABLE meetings ADD COLUMN keep_empty INTEGER NOT NULL DEFAULT 0;
 UPDATE meetings SET transcribed = 1
 WHERE EXISTS (SELECT 1 FROM segments s WHERE s.meeting_id = meetings.id);
 ",
+    "
+-- The identifier of the app dictated into (bundle id / executable), for its
+-- icon. Earlier dictations get it from the stats, matched by app name.
+ALTER TABLE dictations ADD COLUMN app_id TEXT;
+UPDATE dictations SET app_id = (
+    SELECT s.app_id FROM dictation_stats s
+    WHERE s.app = dictations.app AND s.app_id IS NOT NULL
+    ORDER BY s.id DESC LIMIT 1
+) WHERE app IS NOT NULL;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -206,6 +216,9 @@ pub struct DictationEntry {
     pub pasted: bool,
     /// The app it was typed into, e.g. "Slack".
     pub app: Option<String>,
+    /// That app's identifier (bundle id or executable), for its icon.
+    #[serde(default)]
+    pub app_id: Option<String>,
     /// The user's fixed version, if they corrected it.
     #[serde(default)]
     pub corrected: Option<String>,
@@ -279,7 +292,7 @@ pub const DICTATION_HISTORY_LIMIT: i64 = 500;
 
 /// The `dictations` columns [`dictation_row`] reads, in its order.
 const DICTATION_COLUMNS: &str =
-    "id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected";
+    "id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected, app_id";
 
 fn dictation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DictationEntry> {
     Ok(DictationEntry {
@@ -293,6 +306,7 @@ fn dictation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DictationEntry> {
         pasted: r.get(7)?,
         app: r.get(8)?,
         corrected: r.get(9)?,
+        app_id: r.get(10)?,
     })
 }
 
@@ -720,8 +734,8 @@ impl Library {
         let raw = entry.raw.as_deref().filter(|raw| *raw != entry.text);
         let conn = self.conn();
         conn.execute(
-            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, app_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 created_at,
                 entry.text,
@@ -731,6 +745,7 @@ impl Library {
                 i64::try_from(entry.latency_ms).unwrap_or(i64::MAX),
                 entry.pasted,
                 entry.app,
+                entry.app_id,
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -1310,6 +1325,7 @@ mod tests {
                 latency_ms: 300,
                 pasted: true,
                 app: Some("Slack".into()),
+                app_id: None,
                 corrected: None,
             })
             .unwrap();
@@ -1497,6 +1513,7 @@ mod tests {
             latency_ms: 300,
             pasted: true,
             app: Some("Slack".into()),
+            app_id: None,
             corrected: None,
         };
         let first = lib.add_dictation(&entry("Same.", "Same.")).unwrap();
@@ -1531,6 +1548,7 @@ mod tests {
                     latency_ms: 200,
                     pasted: true,
                     app: None,
+                    app_id: None,
                     corrected: None,
                 })
                 .unwrap()
@@ -1553,6 +1571,28 @@ mod tests {
             "the last page is short"
         );
         assert!(page(Some(ids[0]), 2).is_empty());
+    }
+
+    #[test]
+    fn a_dictation_keeps_the_app_id_for_its_icon() {
+        let (lib, _dir) = library();
+        let saved = lib
+            .add_dictation(&DictationEntry {
+                id: 0,
+                created_at: String::new(),
+                text: "Ship it.".into(),
+                raw: None,
+                polish_model: None,
+                audio_ms: 1000,
+                latency_ms: 200,
+                pasted: true,
+                app: Some("Slack".into()),
+                app_id: Some("com.tinyspeck.slackmacgap".into()),
+                corrected: None,
+            })
+            .unwrap();
+        let read = lib.dictation(saved.id).unwrap();
+        assert_eq!(read.app_id.as_deref(), Some("com.tinyspeck.slackmacgap"));
     }
 
     #[test]

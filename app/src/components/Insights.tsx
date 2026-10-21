@@ -1,6 +1,7 @@
 // Usage numbers, shown on Home below the meetings.
 import { useState } from "react";
 import { api, type Insights } from "../api";
+import { AppIcon } from "./AppIcon";
 
 const number = new Intl.NumberFormat();
 
@@ -281,7 +282,7 @@ function TopApps({ apps }: { apps: Insights["apps"] }) {
     <ul className="top-apps">
       {apps.map((app) => (
         <li key={app.app_id}>
-          <span className="app-badge">{app.name.slice(0, 1).toUpperCase()}</span>
+          <AppIcon id={app.app_id} name={app.name} />
           <span className="app-name">{app.name}</span>
           <div className="app-bar">
             <div style={{ width: `${(app.words / max) * 100}%` }} />
