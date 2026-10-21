@@ -16,6 +16,8 @@ import { useElapsed } from "./RecordButton";
 import { Icon } from "./Icon";
 import { WriteUpCard } from "./WriteUp";
 import { BackLink, Banner } from "./ui";
+import { ActionChecklist } from "./ActionItemsView";
+import { useActionItems } from "../actionItems";
 import { MeetingStatsView } from "./MeetingStats";
 
 interface Props {
@@ -34,6 +36,38 @@ interface Props {
   onDeleted: () => void;
   /** Back to the Meetings page. */
   onBack: () => void;
+}
+
+/**
+ * A meeting's notes, with their Action items section as a checklist, ticked
+ * here and on the Action items page alike. Notes whose items couldn't be
+ * read (or that have none) show as written.
+ */
+function Notes({ markdown, meetingId }: { markdown: string; meetingId: string }) {
+  const items = useActionItems()?.filter((i) => i.meeting_id === meetingId) ?? [];
+  const parts = actionItemsSection(markdown);
+  if (!parts || items.length === 0) return <Markdown remarkPlugins={[remarkGfm]}>{markdown}</Markdown>;
+  return (
+    <>
+      <Markdown remarkPlugins={[remarkGfm]}>{parts.before}</Markdown>
+      <h2>{parts.heading}</h2>
+      <ActionChecklist items={items} />
+      <Markdown remarkPlugins={[remarkGfm]}>{parts.after}</Markdown>
+    </>
+  );
+}
+
+/** The notes before and after their "## Action items" section, and its heading. */
+function actionItemsSection(markdown: string): { before: string; heading: string; after: string } | null {
+  const lines = markdown.split("\n");
+  const start = lines.findIndex((l) => /^##\s+action items\b/i.test(l));
+  if (start < 0) return null;
+  const end = lines.findIndex((l, i) => i > start && l.startsWith("## "));
+  return {
+    before: lines.slice(0, start).join("\n"),
+    heading: lines[start].replace(/^##\s+/, "").trim(),
+    after: end < 0 ? "" : lines.slice(end).join("\n"),
+  };
 }
 
 export function MeetingView({
@@ -271,7 +305,7 @@ export function MeetingView({
       {tab === "summary" &&
         (summary ? (
           <section className={`summary${justWritten ? " revealing" : ""}`}>
-            <Markdown remarkPlugins={[remarkGfm]}>{summary.markdown}</Markdown>
+            <Notes markdown={summary.markdown} meetingId={id} />
             <footer className="summary-footer">
               <span>Written by {summary.model.split("/").pop()}</span>
               <span className="dot-sep">{summary.prompt_version}</span>

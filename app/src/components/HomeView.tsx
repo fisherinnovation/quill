@@ -15,6 +15,8 @@ import {
 } from "../api";
 import { FEATHER, Icon } from "./Icon";
 import { writeUpFraction, writeUpStatus } from "./WriteUp";
+import { ActionChecklist } from "./ActionItemsView";
+import { useActionItems } from "../actionItems";
 import { InsightDetails, UsageFacts } from "./Insights";
 import { callSpeakers, peopleText } from "./MeetingView";
 import { NoMeetings, Status } from "./MeetingsView";
@@ -221,6 +223,8 @@ function LatestNotes({ meeting, onOpen }: { meeting: Meeting; onOpen: () => void
   const markdown = detail?.summaries[0]?.markdown ?? "";
   const tldr = section(markdown, /^tl;?dr/i);
   const actions = section(markdown, /^action items/i);
+  // As a checklist when they could be read from the notes, ticked everywhere.
+  const items = useActionItems()?.filter((i) => i.meeting_id === meeting.id) ?? [];
   const people = detail ? callSpeakers(detail.segments) : [];
   const now = new Date();
 
@@ -243,10 +247,14 @@ function LatestNotes({ meeting, onOpen }: { meeting: Meeting; onOpen: () => void
           <Markdown remarkPlugins={[remarkGfm]}>{tldr}</Markdown>
         </div>
       )}
-      {actions && (
+      {(items.length > 0 || actions) && (
         <div className="latest-body latest-actions">
           <h3>Action items</h3>
-          <Markdown remarkPlugins={[remarkGfm]}>{actions}</Markdown>
+          {items.length > 0 ? (
+            <ActionChecklist items={items} />
+          ) : (
+            <Markdown remarkPlugins={[remarkGfm]}>{actions ?? ""}</Markdown>
+          )}
         </div>
       )}
       <button className="latest-open" onClick={onOpen}>

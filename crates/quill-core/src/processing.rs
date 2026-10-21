@@ -334,7 +334,8 @@ pub fn outcome(segments: &[quill_stt::Segment], notes: Option<&str>, took_ms: u6
     Outcome {
         words,
         people: people.len(),
-        action_items: items("action items"),
+        // Parsed, so a "None" placeholder isn't counted as an item.
+        action_items: notes.map_or(0, |md| crate::action_items::parse(md).len()),
         decisions: items("decisions"),
         notes: notes.is_some(),
         took_ms,

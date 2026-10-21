@@ -79,6 +79,7 @@ Choose models in **Settings → Models**. See [Summary and clean-up models](#llm
 
 - **Home**: your day at a glance, the notes from your latest meeting, recent meetings and your usage numbers.
 - **Meetings**: every meeting, by day, with search across all transcripts.
+- **Action items**: what your meetings agreed needs doing, gathered from their notes to tick off. The number beside it is how many of yours are open.
 - **Dictations**: whether dictation is ready, your dictation numbers, and what you've dictated.
 - **Help**: this page.
 - **Settings**: tabs for General, Meetings, Dictation, Models and Storage.
@@ -204,7 +205,7 @@ The search box looks through every transcript. Results show the matching line an
         id: "summary-tab",
         title: "Notes: the Summary tab",
         keywords: "summary notes tldr action items decisions export markdown copy re-summarize",
-        body: `Open a meeting to see its notes: a TL;DR, decisions, action items with owners, the discussion by topic and open questions. Long meetings are summarized in parts and combined.
+        body: `Open a meeting to see its notes: a TL;DR, decisions, action items with owners, the discussion by topic and open questions. Long meetings are summarized in parts and combined. Action items can be ticked off right in the notes; see [Action items](#action-items).
 
 - **Re-summarize** writes the notes again, for example after naming speakers or choosing another model.
 - **Copy** puts the notes on your clipboard as Markdown, ready for a doc or a message.
@@ -212,6 +213,21 @@ The search box looks through every transcript. Results show the matching line an
 - Click the title to rename the meeting.
 
 If notes weren't written (no model set up, or **Summarize automatically** is off), the Summary tab has **Summarize** to write them.`,
+      },
+      {
+        id: "action-items",
+        title: "Action items",
+        keywords: "action items tasks to-do todo follow up due overdue done tick checklist waiting on",
+        body: `**Action items** in the sidebar gathers the action items from every meeting's notes in one list, so they don't stay buried in the notes.
+
+- **Yours** come first, most pressing at the top: overdue, then due soonest, then those with no date.
+- **Waiting on others** lists what other people agreed to do, by person, for following up.
+- Click the circle to tick one off. It's ticked in the meeting's notes and on Home too, and moves to **Done**, where you can tick it back.
+- Click the meeting under an item to open it.
+
+Due dates are worked out from what was said and the day of the meeting: "by Thursday" in a Tuesday meeting means that Thursday, and "end of next week" the Friday after. Phrases that aren't a date, like "after the launch", show as written. The numbers at the top count your open items, those overdue, those due in the next three days, and what was done this week.
+
+Items are read from the notes when they're written. If you re-summarize, items still there (even reworded) keep their ticks; ones the new notes drop go.`,
       },
       {
         id: "speakers",

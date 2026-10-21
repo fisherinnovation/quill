@@ -3,7 +3,7 @@ import { type DictationPhase, isMac } from "../api";
 import { Icon, type IconName } from "./Icon";
 
 /** The pages the sidebar leads to. */
-export type Section = "home" | "meetings" | "dictation" | "help" | "settings";
+export type Section = "home" | "meetings" | "actions" | "dictation" | "help" | "settings";
 
 /** What a section is busy with, shown as a badge (a dot when collapsed). */
 interface Status {
@@ -23,6 +23,8 @@ interface Props {
   /** Meetings being transcribed or summarized. */
   working: number;
   dictation: DictationPhase;
+  /** Your open action items, counted beside Action items. */
+  openActions: number;
   /** Icons only, each named by a tooltip. */
   collapsed: boolean;
   onToggle: () => void;
@@ -31,9 +33,19 @@ interface Props {
 }
 
 /** Navigation only: the meetings and dictations are listed on their own pages. */
-export function Sidebar({ current, onNavigate, recording, working, dictation, collapsed, onToggle, header }: Props) {
-  const item = (section: Section, icon: IconName, label: string, status?: Status) => {
-    const name = status ? `${label} · ${status.text}` : label;
+export function Sidebar({
+  current,
+  onNavigate,
+  recording,
+  working,
+  dictation,
+  openActions,
+  collapsed,
+  onToggle,
+  header,
+}: Props) {
+  const item = (section: Section, icon: IconName, label: string, status?: Status, count?: number) => {
+    const name = status ? `${label} · ${status.text}` : count ? `${label} · ${count} open` : label;
     return (
       <button
         className={`nav-item${current === section ? " selected" : ""}`}
@@ -57,6 +69,7 @@ export function Sidebar({ current, onNavigate, recording, working, dictation, co
               {status.text}
             </span>
           ))}
+        {!status && !collapsed && count ? <span className="nav-count">{count}</span> : null}
       </button>
     );
   };
@@ -79,6 +92,7 @@ export function Sidebar({ current, onNavigate, recording, working, dictation, co
               ? { text: "Writing up", tone: "accent" }
               : undefined,
         )}
+        {item("actions", "checklist", "Action items", undefined, openActions)}
         {item(
           "dictation",
           "mic",

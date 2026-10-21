@@ -5769,3 +5769,203 @@ html.indicator-window #root {
     grid-template-rows: none !important;
   }
 }
+
+/* ==========================================================================
+   Action items: from every meeting's notes, to tick off
+   ========================================================================== */
+.nav-count {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-numbers .stat-tile.overdue .icon,
+.action-numbers .stat-tile.overdue strong {
+  color: var(--red);
+}
+
+.action-numbers {
+  margin-top: 22px;
+}
+
+.action-items .kind-filter {
+  margin: 18px 0 22px;
+}
+
+.action-items .group + .group {
+  margin-top: 26px;
+}
+
+.action-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.action-list .action-row {
+  padding: 11px 14px;
+}
+
+.action-list .action-row + .action-row {
+  border-top: 1px solid var(--border);
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.action-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.action-task {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  transition: color 0.2s;
+}
+
+.action-row.done .action-task {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-3);
+}
+
+/* Separators between what's known about an item: due · done · meeting. */
+.action-row .item-meta {
+  flex-wrap: wrap;
+}
+
+.action-row .item-meta > * + *::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--text-3);
+}
+
+.action-check {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  padding: 0;
+  border: 1.5px solid var(--text-3);
+  border-radius: 50%;
+  background: none;
+  box-shadow: none;
+  color: transparent;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+
+.action-check:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.action-check.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.action-check:active {
+  transform: scale(0.9);
+}
+
+.due-chip {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.due-chip.overdue {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.due-chip.today,
+.due-chip.soon {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.action-row.done .due-chip {
+  background: var(--bg-hover);
+  color: var(--text-3);
+}
+
+.action-meeting {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.action-meeting:hover {
+  color: var(--accent-text);
+}
+
+.action-person + .action-person {
+  margin-top: 14px;
+}
+
+.action-person-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.action-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 36px 28px;
+  border: 1px dashed var(--border-panel);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.action-empty .icon {
+  color: var(--accent-text);
+}
+
+.action-empty p {
+  max-width: 34em;
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* In a meeting's notes and on Home: the same items, as a plain checklist. */
+.action-checklist {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}

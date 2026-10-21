@@ -14,6 +14,7 @@ use quill_stt::Segment;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
+use crate::action_items;
 use crate::corrections::{Kind, Learned};
 
 use crate::summary::Summary;
@@ -135,11 +136,30 @@ UPDATE dictations SET app_id = (
     ORDER BY s.id DESC LIMIT 1
 ) WHERE app IS NOT NULL;
 ",
+    "
+-- Action items read from each meeting's latest notes (`action_items`), to
+-- tick off. Synced whenever notes are saved; ticks survive re-summarizing.
+CREATE TABLE action_items (
+    id         INTEGER PRIMARY KEY,
+    meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL,          -- order in the notes
+    owner      TEXT,                      -- \"You\", \"Priya\"…, or none
+    task       TEXT NOT NULL,
+    due_text   TEXT,                      -- as written: \"by Thursday\"
+    due_date   TEXT,                      -- YYYY-MM-DD, from due_text and the meeting's day
+    done_at    TEXT                       -- RFC 3339, when ticked off
+);
+CREATE INDEX action_items_by_meeting ON action_items (meeting_id);
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
 /// are checked once for a transcript file (see `Library::init`).
 const TRANSCRIBED_MIGRATION: i64 = 6;
+
+/// The migration that added `action_items`; they're read once from the notes
+/// already in the library (see `Library::init`).
+const ACTION_ITEMS_MIGRATION: i64 = 8;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -222,6 +242,117 @@ pub struct DictationEntry {
     /// The user's fixed version, if they corrected it.
     #[serde(default)]
     pub corrected: Option<String>,
+}
+
+/// An action item from a meeting's notes (see `action_items`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ActionItem {
+    pub id: i64,
+    pub meeting_id: String,
+    pub meeting_title: String,
+    pub meeting_started_at: String,
+    /// "You", "Priya"…, or `None` if the notes named no one.
+    pub owner: Option<String>,
+    /// The owner is the person recording ("You").
+    pub mine: bool,
+    pub task: String,
+    /// As written, e.g. "by Thursday".
+    pub due_text: Option<String>,
+    /// `YYYY-MM-DD`, worked out from `due_text` and the meeting's day.
+    pub due_date: Option<String>,
+    /// When it was ticked off (RFC 3339); `None` while open.
+    pub done_at: Option<String>,
+}
+
+/// The columns [`action_item_row`] reads, in its order (`a` is
+/// `action_items`, `m` its meeting).
+const ACTION_ITEM_COLUMNS: &str = "a.id, a.meeting_id, m.title, m.started_at, a.owner, a.task, \
+     a.due_text, a.due_date, a.done_at";
+
+fn action_item_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ActionItem> {
+    let owner: Option<String> = r.get(4)?;
+    Ok(ActionItem {
+        id: r.get(0)?,
+        meeting_id: r.get(1)?,
+        meeting_title: r.get(2)?,
+        meeting_started_at: r.get(3)?,
+        mine: action_items::is_mine(owner.as_deref()),
+        owner,
+        task: r.get(5)?,
+        due_text: r.get(6)?,
+        due_date: r.get(7)?,
+        done_at: r.get(8)?,
+    })
+}
+
+/// The local calendar day a meeting started on, for due dates like
+/// "Thursday".
+fn meeting_day(started_at: &str) -> Option<jiff::civil::Date> {
+    let at: jiff::Timestamp = started_at.parse().ok()?;
+    Some(at.to_zoned(jiff::tz::TimeZone::system()).date())
+}
+
+/// Replaces a meeting's action items with those in `markdown`, its latest
+/// notes. An item still there (if reworded a little) keeps its id and tick.
+fn sync_action_items(
+    conn: &Connection,
+    meeting_id: &str,
+    markdown: &str,
+) -> Result<(), LibraryError> {
+    let started_at: String = conn.query_row(
+        "SELECT started_at FROM meetings WHERE id = ?1",
+        [meeting_id],
+        |r| r.get(0),
+    )?;
+    let day = meeting_day(&started_at);
+    let mut existing: Vec<(i64, Vec<String>, Option<String>)> = {
+        let mut stmt =
+            conn.prepare("SELECT id, task, done_at FROM action_items WHERE meeting_id = ?1")?;
+        let rows = stmt.query_map([meeting_id], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                action_items::words(&r.get::<_, String>(1)?),
+                r.get::<_, Option<String>>(2)?,
+            ))
+        })?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (position, item) in action_items::parse(markdown).into_iter().enumerate() {
+        let due_date = item
+            .due
+            .as_deref()
+            .zip(day)
+            .and_then(|(due, day)| action_items::due_date(due, day))
+            .map(|d| d.to_string());
+        let words = action_items::words(&item.task);
+        // The most alike earlier item, if alike enough to be the same task.
+        let same = existing
+            .iter()
+            .enumerate()
+            .map(|(i, (_, old, _))| (i, action_items::similarity(old, &words)))
+            .filter(|(_, score)| *score >= 0.6)
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(i, _)| existing.swap_remove(i));
+        let position = i64::try_from(position).unwrap_or(i64::MAX);
+        match same {
+            Some((id, _, _)) => conn.execute(
+                "UPDATE action_items SET position = ?2, owner = ?3, task = ?4, due_text = ?5,
+                     due_date = ?6 WHERE id = ?1",
+                params![id, position, item.owner, item.task, item.due, due_date],
+            )?,
+            None => conn.execute(
+                "INSERT INTO action_items (meeting_id, position, owner, task, due_text, due_date)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    meeting_id, position, item.owner, item.task, item.due, due_date
+                ],
+            )?,
+        };
+    }
+    for (id, _, _) in existing {
+        conn.execute("DELETE FROM action_items WHERE id = ?1", [id])?;
+    }
+    Ok(())
 }
 
 /// A rule suggested by the user's corrections (see `corrections`).
@@ -352,6 +483,9 @@ impl Library {
         };
         if applied < TRANSCRIBED_MIGRATION {
             library.mark_transcribed_from_files()?;
+        }
+        if applied < ACTION_ITEMS_MIGRATION {
+            library.read_action_items_from_notes()?;
         }
         Ok(library)
     }
@@ -598,6 +732,71 @@ impl Library {
                 "UPDATE meetings SET title = ?2 WHERE id = ?1 AND title_locked = 0",
                 params![id, title],
             )?;
+        }
+        sync_action_items(&tx, id, &summary.markdown)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Every meeting's action items: newest meeting first, then as ordered
+    /// in its notes.
+    pub fn action_items(&self) -> Result<Vec<ActionItem>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ACTION_ITEM_COLUMNS} FROM action_items a JOIN meetings m ON m.id = a.meeting_id
+             ORDER BY m.started_at DESC, a.position"
+        ))?;
+        let rows = stmt.query_map([], action_item_row)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// One meeting's action items, as ordered in its notes.
+    pub fn meeting_action_items(&self, meeting_id: &str) -> Result<Vec<ActionItem>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ACTION_ITEM_COLUMNS} FROM action_items a JOIN meetings m ON m.id = a.meeting_id
+             WHERE a.meeting_id = ?1 ORDER BY a.position"
+        ))?;
+        let rows = stmt.query_map([meeting_id], action_item_row)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Ticks an action item off (or back on) and returns it.
+    pub fn set_action_item_done(&self, id: i64, done: bool) -> Result<ActionItem, LibraryError> {
+        let conn = self.conn();
+        let done_at = done.then(|| jiff::Timestamp::now().to_string());
+        let changed = conn.execute(
+            "UPDATE action_items SET done_at = ?2 WHERE id = ?1",
+            params![id, done_at],
+        )?;
+        if changed == 0 {
+            return Err(LibraryError::NotFound(id.to_string()));
+        }
+        Ok(conn.query_row(
+            &format!(
+                "SELECT {ACTION_ITEM_COLUMNS} FROM action_items a
+                 JOIN meetings m ON m.id = a.meeting_id WHERE a.id = ?1"
+            ),
+            [id],
+            action_item_row,
+        )?)
+    }
+
+    /// Reads action items from the notes already in the library, once, when
+    /// `action_items` is added.
+    fn read_action_items_from_notes(&self) -> Result<(), LibraryError> {
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let latest: Vec<(String, String)> = {
+            let mut stmt = tx.prepare(
+                "SELECT s.meeting_id, s.markdown FROM summaries s
+                 WHERE s.id = (SELECT MAX(id) FROM summaries t WHERE t.meeting_id = s.meeting_id)",
+            )?;
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (meeting_id, markdown) in latest {
+            sync_action_items(&tx, &meeting_id, &markdown)?;
         }
         tx.commit()?;
         Ok(())
@@ -1283,6 +1482,89 @@ mod tests {
         assert_eq!(o.my_share, Some(0.5));
         let o = all.iter().find(|o| o.id == silent.id).unwrap();
         assert!(o.speaker.is_empty() && o.gist.is_none());
+    }
+
+    #[test]
+    fn action_items_follow_the_notes_and_keep_their_ticks() {
+        let (lib, _dir) = library();
+        let m = lib.create_meeting().unwrap();
+        let notes = |items: &str| {
+            summary(&format!(
+                "# Sync\n\n## TL;DR\n- x\n\n## Action items\n{items}\n## Open questions\n- y\n"
+            ))
+        };
+        lib.save_summary(
+            &m.id,
+            &notes(
+                "- **You** — send the rollout plan to support — by Friday\n\
+                 - **Priya** — fix the duplicate signup events\n\
+                 - **Dan** — draft two pricing-page variants\n",
+            ),
+        )
+        .unwrap();
+        let items = lib.action_items().unwrap();
+        assert_eq!(items.len(), 3);
+        assert!(items[0].mine && !items[1].mine);
+        assert_eq!(items[0].due_text.as_deref(), Some("by Friday"));
+        assert!(
+            items[0].due_date.is_some(),
+            "worked out from the meeting's day"
+        );
+        assert_eq!(items[0].meeting_id, m.id);
+
+        let rollout = lib.set_action_item_done(items[0].id, true).unwrap();
+        assert!(rollout.done_at.is_some());
+
+        // Re-summarized: reworded, Dan's item gone, a new one added.
+        lib.save_summary(
+            &m.id,
+            &notes(
+                "- **You** — send the rollout plan to the support team — by Friday\n\
+                 - **Priya** — fix the duplicate signup events\n\
+                 - **You** — book the offsite venue\n",
+            ),
+        )
+        .unwrap();
+        let items = lib.meeting_action_items(&m.id).unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].id, rollout.id, "the same item, reworded");
+        assert_eq!(items[0].task, "send the rollout plan to the support team");
+        assert!(items[0].done_at.is_some(), "still ticked");
+        assert!(items.iter().all(|i| !i.task.contains("pricing")));
+        assert!(items[2].done_at.is_none());
+
+        let undone = lib.set_action_item_done(rollout.id, false).unwrap();
+        assert!(undone.done_at.is_none());
+        assert!(lib.set_action_item_done(9999, true).is_err());
+
+        // "None" isn't an item.
+        lib.save_summary(&m.id, &notes("- None.\n")).unwrap();
+        assert!(lib.meeting_action_items(&m.id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn action_items_are_read_from_existing_notes_once_and_go_with_their_meeting() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = open(dir.path());
+        let m = lib.create_meeting().unwrap();
+        lib.save_summary(
+            &m.id,
+            &summary("# Sync\n\n## Action items\n- **You** — a task\n"),
+        )
+        .unwrap();
+        // As if the library predated action items.
+        lib.conn()
+            .execute_batch("DROP TABLE action_items; PRAGMA user_version = 7;")
+            .unwrap();
+        drop(lib);
+
+        let lib = open(dir.path());
+        let items = lib.action_items().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].task, "a task");
+
+        lib.delete(&m.id).unwrap();
+        assert!(lib.action_items().unwrap().is_empty());
     }
 
     #[test]
