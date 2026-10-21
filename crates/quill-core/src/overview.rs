@@ -106,9 +106,8 @@ pub fn overview(id: &str, turns: &[Turn], summary: Option<&str>) -> Overview {
         people,
         my_share: (total > 0).then(|| mine as f64 / total as f64),
         gist: tldr.and_then(first_point),
-        action_items: summary
-            .and_then(|md| section(md, "action items"))
-            .map_or(0, |s| s.lines().filter(|l| is_item(l)).count()),
+        // Parsed, so a "None" placeholder isn't counted as an item.
+        action_items: summary.map_or(0, |md| crate::action_items::parse(md).len()),
     }
 }
 
@@ -228,6 +227,9 @@ mod tests {
             Some("The team agreed to ship on Friday.")
         );
         assert_eq!(o.action_items, 2);
+        // "None" isn't an action item.
+        let none = "## TL;DR\n- Quick sync.\n\n## Action items\n- None.\n";
+        assert_eq!(overview("m", &[], Some(none)).action_items, 0);
         assert_eq!(overview("m", &[], None).gist, None);
     }
 
