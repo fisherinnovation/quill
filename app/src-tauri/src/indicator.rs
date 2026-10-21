@@ -49,15 +49,17 @@ pub fn update(app: &AppHandle, phase: Phase) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
+    // Not `show()`: on Windows that activates the window, and the paste
+    // would go to the indicator instead of the app being dictated into.
     let result = if phase == Phase::Idle {
-        window.hide()
+        crate::floating::hide_unfocused(&window)
     } else {
         // Place it when it appears, not on every change, so it doesn't jump
         // between listening and typing.
         if !window.is_visible().unwrap_or(false) {
             place(app, &window);
         }
-        window.show()
+        crate::floating::show_unfocused(&window)
     };
     if let Err(e) = result {
         tracing::debug!("indicator: {e}");

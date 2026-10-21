@@ -6,8 +6,14 @@
 //! Panels made with the "non-activating" style don't, but Tauri windows
 //! can't be made into one (their class carries state that swapping it
 //! would corrupt). So on macOS the window's web view moves into a panel
-//! made here, and the Tauri window itself is never shown. On Windows the
-//! window is shown as is: unfocusable windows there don't activate the app.
+//! made here, and the Tauri window itself is never shown.
+//!
+//! On Windows, Tauri's `show()` activates the window even when it's
+//! unfocusable: unfocusable only stops clicks from activating it. That took
+//! the keyboard focus from the app being dictated into, so the paste landed
+//! in Quill's indicator instead, often enough to notice. So on Windows
+//! these windows, and the indicator, are shown and hidden without
+//! activating them ([`show_unfocused`]).
 
 use tauri::WebviewWindow;
 
@@ -37,8 +43,49 @@ pub fn hide(window: &WebviewWindow) {
     #[cfg(target_os = "macos")]
     mac::hide(window);
     #[cfg(not(target_os = "macos"))]
-    {
-        let _ = window.hide();
+    let _ = hide_unfocused(window);
+}
+
+/// Shows `window` where it is without giving it the keyboard focus, for a
+/// window that isn't [`adopt`]ed (the dictation indicator). Hide it with
+/// [`hide_unfocused`], not `hide()`: on Windows, Tauri doesn't know it's
+/// showing, so its `hide()` would do nothing.
+pub fn show_unfocused(window: &WebviewWindow) -> tauri::Result<()> {
+    #[cfg(windows)]
+    return win::show_window(window, true);
+    #[cfg(not(windows))]
+    window.show()
+}
+
+/// Hides a window shown with [`show_unfocused`].
+pub fn hide_unfocused(window: &WebviewWindow) -> tauri::Result<()> {
+    #[cfg(windows)]
+    return win::show_window(window, false);
+    #[cfg(not(windows))]
+    window.hide()
+}
+
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod win {
+    use tauri::WebviewWindow;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOWNOACTIVATE, ShowWindowAsync};
+
+    /// Shows (without activating) or hides `window`. Async: the window
+    /// belongs to the main thread, and a synchronous call from another one
+    /// would wait for it. Tao queues its own `show()` the same way.
+    pub fn show_window(window: &WebviewWindow, show: bool) -> tauri::Result<()> {
+        // Tauri's HWND comes from a newer `windows` crate; it's the same handle.
+        let hwnd = HWND(window.hwnd()?.0);
+        let command = if show { SW_SHOWNOACTIVATE } else { SW_HIDE };
+        // SAFETY: `hwnd` is the handle of a window that exists (Tauri just
+        // returned it for `window`, which we borrow). ShowWindowAsync only
+        // posts a message to the window's thread; it reads no memory of ours.
+        if let Err(e) = unsafe { ShowWindowAsync(hwnd, command) }.ok() {
+            tracing::debug!("couldn't show or hide a floating window: {e}");
+        }
+        Ok(())
     }
 }
 
@@ -223,7 +270,7 @@ mod other {
             let _ = window.set_size(PhysicalSize::new(w.max(1) as u32, h.max(1) as u32));
             let _ = window.set_position(PhysicalPosition::new(x, y));
         }
-        if let Err(e) = window.show() {
+        if let Err(e) = super::show_unfocused(window) {
             tracing::warn!("couldn't show a floating window: {e}");
         }
     }

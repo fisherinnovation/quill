@@ -15,7 +15,7 @@ objc2-user-notifications.workspace = true
 block2.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows.workspace = true
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [build-dependencies]
 tauri-build.workspace = true
