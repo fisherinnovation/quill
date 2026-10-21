@@ -201,28 +201,51 @@ decision someone might otherwise undo.
 ## Dictation
 
 - **Latency:** Whisper `short_clip` mode (greedy decoding, VAD trimming
-  only the outer silence) takes about 0.2 s median on turbo. Details in
-  `eval/dictation/README.md`.
-- **Short clips keep the full encoder window.** Sizing the encoder to the
-  clip (`set_audio_ctx`, the length plus ~1.3 s) was 4.5× faster for a 4 s
-  clip on Metal, but on Windows half of all 2–4 s dictations were typed
-  twice ("Can you send it over? Can you send it over?"): 13 of the 26 in
+  only the outer silence, and on Metal an encoder sized to the clip) takes
+  about 0.15 s median for a dictation under 4 s on turbo (M3 Pro), 0.2 s
+  on an RTX 4070 SUPER. Details in `eval/dictation/README.md`.
+- **Short clips on Metal: encoder sized to the clip, repeats dropped.**
+  The full 30 s window (below) costs ~0.6 s on an M3 Pro whatever the
+  clip's length: 0.13 s → 0.61 s median for dictations under 4 s, which
+  broke the ~0.3 s promise. So on Metal the encoder is sized to the clip
+  plus 3 s (`FIT_MARGIN_FRAMES`, 150 frames), and `without_repeats` drops
+  the segments Whisper didn't hear: one that ends the segment before it
+  word for word, one of 3+ words already said (compared on letters and
+  digits), and one after the first with more than 8 words a second. The
+  repeat is always a separate segment, an exact or near copy, starting
+  where the one before ends; in 334 clips the segments Whisper heard came
+  at most 4.3 words a second, the copies 86 and up. Measured (2026-10-20,
+  `quill-cli dictate --no-polish`): 230 short TTS clips doubled 38 → 0
+  (WER 26.6% → 4.2%; full window 3.0%), the user's 104 saved dictations
+  11 doubled and 2 with an earlier sentence repeated → 0, Whisper median
+  0.15 s under 4 s (full window: 0.61 s). The old 1.3 s margin left more
+  misheard short words (TTS WER 8.0% even with the de-dup); 2 s let a
+  doubling through, 5 s a repeated sentence, and floors of 500–1000 frames
+  cost 0.22–0.40 s. `no_timestamps` made Whisper loop. Vulkan and the CPU
+  keep the full window, as measured below. The one long doubled dictation
+  (23.7 s) was this bug too, in a single pass: the encoder was sized to
+  anything under ~28.7 s. Stitching live-caption passes never repeated
+  text (36 dictations over 15 s, `--stream`, all three builds).
+- **Short clips keep the full encoder window** on Vulkan and the CPU.
+  Sizing the encoder to the clip (`set_audio_ctx`, the length plus ~1.3 s)
+  was 4.5× faster for a 4 s clip on Metal, but on Windows half of all
+  2–4 s dictations were typed twice ("Can you send it over? Can you send it over?"): 13 of the 26 in
   one user's history, and 10 of 40 TTS clips. Whisper repeats the sentence
   within one decode, so `single_segment` doesn't help, and it happens on the
   CPU and on Vulkan with or without flash attention, so it isn't a GPU bug.
   Its timestamps also ran past the end (0–15 s for a 4 s clip). A floor of
   400–750 frames still doubled 1–3 clips. The full window made 0 of 40 and
   cut WER from 28% to 2.6% (live captions: 10.8% to 2.6%), for ~50 ms more
-  on an RTX 4070 SUPER (Vulkan, flash attention). Not yet re-measured on
-  Metal.
+  on an RTX 4070 SUPER (Vulkan, flash attention). On Metal it costs ~0.5 s,
+  hence the entry above.
 - **Live captions** (`quill_core::live`, on by default): while listening,
   a pass every 0.6 s re-transcribes the audio not yet locked in (no
   temperature retries: audio ending mid-word makes Whisper unsure, and
   retries took seconds). A segment locks in when two passes agree on it, it
   isn't the last one, there's a real pause after it to cut at (150 ms below
-  20% of its speech level, within 0.8 s of Whisper's end time, which ran
+  20% of its speech level, within 0.8 s of Whisper's end time, which runs
   early with the shortened encoder), and its words fit the audio (at most
-  4.5 a second: shortened-encoder timestamps could put a long stretch's end
+  4.5 a second: shortened-encoder timestamps can put a long stretch's end
   seconds early, and cutting there transcribed it twice). On release only the rest is
   transcribed, primed with the locked text, minus any words repeating its
   end. If the result has a Whisper loop (8 words repeated), one pass over
@@ -243,10 +266,10 @@ decision someone might otherwise undo.
   (the model answered or embellished), much shorter (it summarized) or
   starts with a preamble, and the raw transcript is typed instead.
 - **Language:** dictation defaults to the system language. Auto-detection
-  on the shortened encoder window produced nonsense and needed a separate
-  full-window pass (~0.5 s); with the full window Whisper's own detection
-  works in the same pass, ~50 ms slower than a fixed language (Windows,
-  RTX 4070 SUPER, 40 TTS clips, same WER).
+  on the shortened encoder window produces nonsense, so on Metal "auto"
+  runs a separate full-window detection pass first (~0.5 s); with the full
+  window (Vulkan, CPU) Whisper's own detection works in the same pass, ~50
+  ms slower than a fixed language (RTX 4070 SUPER, 40 TTS clips, same WER).
 - **Shortcut:** hold to talk (released after at least 350 ms) or tap to
   toggle. Esc is bound globally only while listening. Registering a
   shortcut blocks on the main thread, so it's only done from the dictation

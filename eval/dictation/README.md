@@ -93,8 +93,9 @@ headset.
 **Whisper** (`turbo`, resident, Metal; `short_clip` mode: greedy decoding, the
 encoder sized to the clip, VAD trimming outer silence only): median 0.27 s,
 max 0.46 s for 3–12 s clips. Same text as the meeting settings, which took
-0.6–0.7 s (beam search, full 30 s encoder window). The encoder is no longer
-sized to the clip; see the 2026-10-20 results below.
+0.6–0.7 s (beam search, full 30 s encoder window). The margin is now 3 s on
+Metal, and Vulkan and the CPU use the full window; see the 2026-10-20 results
+below.
 
 - Auto-detecting the language on the shortened encoder window produced
   nonsense ("Tex Tex"); detecting it first on the full window fixes that but
@@ -162,3 +163,73 @@ With the full window, `--stream` (live captions) matches a single pass on all
 from a median of 159 ms (max 914) to 215 ms (max 284), and passes while
 speaking from 150 ms (max 546) to 202 ms (max 407). `-l auto` gives the same
 WER at ~50 ms more per clip.
+
+## Results (2026-10-20, MacBook Pro M3 Pro, Metal)
+
+**The full window cost Metal 0.5 s.** Re-measured on the Mac, the fix above
+stopped the doubling there too, but the encoder's 30 s window takes ~0.6 s
+on an M3 Pro however short the clip, so a dictation under 4 s took 0.61 s
+in Whisper instead of 0.13 s. On Metal the encoder is now sized to the clip
+plus 3 s again, and the segments it then repeats are dropped (see "Short
+clips on Metal" in `docs/DESIGN_NOTES.md`); Vulkan and the CPU keep the full
+window.
+
+`quill-cli dictate --no-polish` (turbo, system language), at 79529d8 (before
+the fix), at 98d64f3 (full window) and with this change. Clips: the 10 eval
+clips; 230 short TTS clips (45 sentences under 4 s, 10 macOS voices, padded
+as `make_clips.sh` does; not in the repo); and 104 of one user's saved
+dictations, which have no reviewed references, so they're compared with the
+full window's text instead.
+
+| | Before | Full window | **Now** |
+|---|---:|---:|---:|
+| Doubled, 230 short TTS clips | 38 | 0 | **0** |
+| Doubled, 104 saved dictations | 11 (+2 repeating an earlier sentence) | 0 | **0** |
+| WER, 230 short TTS clips | 26.6% | 3.0% | **4.2%** |
+| WER, 10 eval clips | 6.5% | 9.1% | **7.8%** |
+| Saved dictations, words differing from the full window | 5.8% | – | **0.5%** |
+| Whisper median, short TTS clips | 130 ms | 615 ms | **158 ms** |
+| Whisper median, saved under 4 s (28) | 129 ms | 608 ms | **151 ms** |
+| Whisper median, saved 4–15 s (40) | 300 ms | 697 ms | **326 ms** |
+| Whisper median, saved over 15 s (36) | 1.03 s | 1.05 s | **1.06 s** |
+
+Release to typed text is Whisper plus ~82 ms (the app's own log: `latency_ms`
+minus `stt_ms`, median of 161 dictations without clean-up), so about 0.23 s
+for a dictation under 4 s now, against 0.69 s with the full window.
+
+- **Margin.** Sizing the encoder to the clip plus 1.3 s, as before, also
+  doubled nothing once repeats are dropped, but misheard more short words
+  ("Sheep it", "The bilge is green again"): TTS WER 8.0%. Plus 2 s let a
+  doubling through; plus 5 s let a repeated sentence through in the saved
+  dictations; floors of 500, 750 and 1,000 frames took 0.22, 0.30 and 0.40 s.
+  Plus 3 s had neither, for ~25 ms more than 1.3 s.
+- **What doesn't work.** `no_timestamps` made Whisper loop (36 of 80 short
+  clips repeated, 3.4 s median).
+- **The repeats** are always a separate segment starting where the one
+  before ends: an exact copy of it (one to three copies), a copy of its last
+  sentence, or an earlier sentence spelled slightly differently. In 334
+  clips, the segments Whisper actually heard (after the first) came at most
+  4.3 words a second; the copies, 86 and up.
+
+**Live captions** (`--stream`): on the 80 short TTS clips nothing locks in, so
+live matches a single pass (before: 13 doubled, now 0), with a median wait
+after release of 148 ms (full window: 608 ms) and passes while speaking of
+120 ms (full window: 602 ms, slower than the 600 ms step). On the 104 saved
+dictations: 0 doubled (before: 8), wait after release 308 ms median (full
+window: 686 ms; over 15 s, 604 ms against 831 ms), passes while speaking 365
+ms median (full window: 709 ms). On the 36 over 15 s, live text differs
+from the full window's single pass in 0.7% of words (before: 2.3%; the full
+window live: 1.0%). Stitching passes together never repeated text in any of
+the three builds. The two live-only extras came from inside a final pass:
+before, one 42 s
+dictation's last pass (19 s, encoder sized to it) repeated a phrase; with
+the 3 s margin, a 51 s one's last pass added a sentence of 7 words in 0.5 s
+at its end. Dropping segments faster than 8 words a second removed it; both
+now match a single pass (but for one word, as in every build).
+
+**The long doubled dictation** (23.7 s, typed 2026-10-17 01:15 UTC) wasn't
+live captions: they shipped the next evening, and its log line has no
+`live_passes`. It was a single pass, and the encoder was sized to anything
+under ~28.7 s, so it was the same bug: segment 1 (38 words, 0–22.4 s) and
+then the same 38 words at 22.4–22.8 s. The 79529d8 build reproduces it; the
+full window and this change both type it once.

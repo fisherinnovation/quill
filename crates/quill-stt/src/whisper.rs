@@ -65,6 +65,9 @@ pub struct WhisperTranscriber {
     /// Silero VAD, loaded once. Behind a mutex because running it needs
     /// `&mut`; it takes milliseconds, so concurrent callers barely wait.
     vad: Option<Mutex<WhisperVadContext>>,
+    /// Size the encoder to short clips (see `transcribe`): only on Metal,
+    /// where the full window costs ~0.5 s more per dictation.
+    fit_encoder: bool,
 }
 
 impl WhisperTranscriber {
@@ -119,7 +122,12 @@ impl WhisperTranscriber {
             None => None,
         };
 
-        Ok(Self { ctx, threads, vad })
+        Ok(Self {
+            ctx,
+            threads,
+            vad,
+            fit_encoder: use_gpu && backend == Some("Metal"),
+        })
     }
 
     /// Where speech ends in 16 kHz mono `pcm`: the end of the last stretch
@@ -223,11 +231,34 @@ impl Transcriber for WhisperTranscriber {
             None => (Cow::Borrowed(pcm_16k_mono), None),
         };
 
-        // The encoder keeps its full 30 s window even for short clips. Sizing
-        // it to the clip (`set_audio_ctx`) was faster, but on 2–4 s clips
-        // Whisper then often typed the sentence twice, on CPU and GPU alike,
-        // and its timestamps ran past the end of the audio (see "Short clips"
-        // in docs/DESIGN_NOTES.md).
+        // The encoder processes a 30 s window (1500 frames of 20 ms) unless
+        // told otherwise. On Metal that's ~0.6 s for any clip, so for short
+        // ones it's sized to the clip plus 3 s of margin: a 3 s dictation
+        // takes ~0.15 s. Sized that small, Whisper often hears the clip twice,
+        // ending a segment and starting another with the same words ("Can you
+        // send it over? Can you send it over?"), which `without_repeats`
+        // drops below; with only ~1.3 s of margin it also misheard more short
+        // words. Elsewhere the full window costs only ~50 ms (Vulkan), so it's
+        // kept. (Not for long audio either: quality drops when it's cut
+        // short.) See "Short clips" in docs/DESIGN_NOTES.md.
+        let frames = audio.len().div_ceil(320) + FIT_MARGIN_FRAMES;
+        let fit = opts.short_clip && self.fit_encoder && frames < 1500;
+        if fit {
+            if opts.language.is_none() {
+                // Language detection on the shortened window picks nonsense
+                // ("Tex Tex" for English), so detect it first with the full
+                // one, in a separate state: reusing this one left its encoder
+                // sized for 30 s and the decode came out garbled.
+                let mut detect = self.ctx.create_state()?;
+                detect.pcm_to_mel(&audio, self.threads)?;
+                let (id, _) = detect.lang_detect(0, self.threads)?;
+                tracing::debug!(language = ?whisper_rs::get_lang_str(id), "detected language");
+                if let Some(language) = whisper_rs::get_lang_str(id) {
+                    params.set_language(Some(language));
+                }
+            }
+            params.set_audio_ctx(i32::try_from(frames).unwrap_or(1500));
+        }
         state.full(params, &audio)?;
 
         let mut segments = Vec::new();
@@ -250,10 +281,168 @@ impl Transcriber for WhisperTranscriber {
                 speaker: None,
             });
         }
+        if fit {
+            let before = segments.len();
+            segments = without_repeats(segments);
+            if segments.len() < before {
+                // Counts only: dictated text stays out of the logs.
+                tracing::debug!(
+                    dropped = before - segments.len(),
+                    "dropped repeated segments"
+                );
+            }
+        }
         Ok(segments)
     }
 }
 
+/// `segments` without the ones Whisper didn't hear. With the encoder sized
+/// to a short clip, it often ends a segment and then transcribes the same
+/// audio again as the next: all of it ("Can you send it over? Can you send
+/// it over?"), its last sentence ("That makes sense. Thanks. Thanks."), or
+/// an earlier sentence; and once, at the end of a long pass, it added a
+/// sentence of its own in half a second. Dropped: a segment that ends the
+/// one before it word for word, one of 3 or more words found in what came
+/// before (compared on letters and digits only, so "follow-up" and "follow
+/// up" match), and one after the first with more words than its time
+/// allows.
+fn without_repeats(segments: Vec<Segment>) -> Vec<Segment> {
+    let words = |text: &str| -> Vec<String> {
+        text.split_whitespace()
+            .map(|w| {
+                w.chars()
+                    .filter(|c| c.is_alphanumeric())
+                    .flat_map(char::to_lowercase)
+                    .collect::<String>()
+            })
+            .filter(|w| !w.is_empty())
+            .collect()
+    };
+    let mut kept: Vec<Segment> = Vec::with_capacity(segments.len());
+    // What's kept so far, as one run of letters and digits.
+    let mut before = String::new();
+    let mut previous: Vec<String> = Vec::new();
+    for segment in segments {
+        let these = words(&segment.text);
+        let letters = these.concat();
+        let repeat = !these.is_empty()
+            && (previous.ends_with(&these) || (these.len() >= 3 && before.contains(&letters)));
+        let secs = segment.end_ms.saturating_sub(segment.start_ms) as f32 / 1000.0;
+        let too_fast = !kept.is_empty() && these.len() as f32 > 1.0 + MAX_WORDS_PER_SEC * secs;
+        if !repeat && !too_fast {
+            before.push_str(&letters);
+            previous = these;
+            kept.push(segment);
+        }
+    }
+    kept
+}
+
+/// Far faster than anyone speaks. In 334 clips, segments Whisper heard came
+/// at most 4.3 words a second (not counting the first, whose end time is
+/// often seconds out); the ones it invented, 13 and up.
+const MAX_WORDS_PER_SEC: f32 = 8.0;
+
+/// The margin after a short clip when the encoder is sized to it: 3 s. With
+/// 1.3 s (64 frames), 230 short TTS clips had a WER of 8.0%, against 4.2%
+/// with this and 3.0% with the full window.
+const FIT_MARGIN_FRAMES: usize = 150;
+
 fn centis_to_ms(centis: i64) -> u64 {
     u64::try_from(centis).unwrap_or(0) * 10
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn segment(start_ms: u64, end_ms: u64, text: &str) -> Segment {
+        Segment {
+            start_ms,
+            end_ms,
+            text: text.into(),
+            speaker: None,
+        }
+    }
+
+    #[test]
+    fn a_clip_heard_twice_is_typed_once() {
+        // As Whisper produced it with the encoder sized to a 2.7 s clip.
+        let kept = without_repeats(vec![
+            segment(0, 1_600, "I'll be there in five minutes."),
+            segment(1_600, 14_600, "I'll be there in five minutes."),
+        ]);
+        assert_eq!(
+            kept,
+            vec![segment(0, 1_600, "I'll be there in five minutes.")]
+        );
+        // Several times over, with case and punctuation differing.
+        let kept = without_repeats(vec![
+            segment(0, 1_300, "The build is green again."),
+            segment(1_300, 1_300, "The build is green again."),
+            segment(1_300, 1_300, "the build is green again"),
+            segment(1_300, 14_300, "The build is green again!"),
+        ]);
+        assert_eq!(kept.len(), 1);
+        // A repeat of the last of several segments.
+        let kept = without_repeats(vec![
+            segment(0, 6_900, "First we ship it."),
+            segment(6_900, 19_300, "Then we fix the events."),
+            segment(19_300, 23_300, "Then we fix the events."),
+        ]);
+        assert_eq!(kept.len(), 2);
+    }
+
+    #[test]
+    fn a_repeated_last_sentence_or_earlier_sentence_is_dropped() {
+        // The end of the segment before, however short.
+        let kept = without_repeats(vec![
+            segment(0, 1_700, "That makes sense. Thanks."),
+            segment(1_700, 14_000, "Thanks."),
+        ]);
+        assert_eq!(kept.len(), 1);
+        // An earlier sentence, spelled a little differently.
+        let kept = without_repeats(vec![
+            segment(0, 5_700, "Can we move the launch to next week?"),
+            segment(5_700, 11_900, "The copy still needs a review."),
+            segment(11_900, 18_800, "Can we move the launch to next week?"),
+        ]);
+        assert_eq!(kept.len(), 2);
+        let kept = without_repeats(vec![
+            segment(0, 2_000, "We set up the follow-up call."),
+            segment(2_000, 9_000, "We set up the follow up call."),
+        ]);
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn words_faster_than_speech_are_dropped() {
+        // Seven words in half a second at the end of a 17 s pass.
+        let kept = without_repeats(vec![
+            segment(
+                0,
+                16_040,
+                "Then we fix the events, and after that the pricing tests.",
+            ),
+            segment(16_040, 16_560, "And then the door was open again."),
+        ]);
+        assert_eq!(kept.len(), 1);
+        // The first segment's end time is often far off, so it's never judged.
+        let first = vec![segment(0, 500, "Okay, I just gave it a run and it works.")];
+        assert_eq!(without_repeats(first.clone()), first);
+    }
+
+    #[test]
+    fn new_words_are_kept() {
+        let segments = vec![
+            segment(0, 1_000, "Yes."),
+            segment(1_000, 2_000, "I think so."),
+            // Short, and not the end of the one before.
+            segment(2_000, 3_000, "Yes."),
+            segment(3_000, 4_000, "Yes, I'll be there."),
+            // Its words are all earlier, but not in this order.
+            segment(4_000, 5_000, "There I'll be."),
+        ];
+        assert_eq!(without_repeats(segments.clone()), segments);
+    }
 }
