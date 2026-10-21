@@ -81,7 +81,14 @@ export function InsightDetails({ insights, onReset }: { insights: Insights; onRe
               <Mini label="Dictations" value={number.format(d.count)} />
               <Mini
                 label="Typical wait"
-                value={d.median_latency_ms != null ? `${(d.median_latency_ms / 1000).toFixed(1)} s` : "–"}
+                value={
+                  // After you stop speaking, once measured; before that, after the key's release.
+                  d.wait
+                    ? seconds(d.wait.median_ms)
+                    : d.median_latency_ms != null
+                      ? seconds(d.median_latency_ms)
+                      : "–"
+                }
               />
               <Mini label="Tidied up" value={`${Math.round(d.polished_share * 100)}%`} />
             </div>
@@ -235,6 +242,144 @@ function ActivityChart({ days, kind }: { days: Insights["days"]; kind: "dictatio
         <span>{dayLabel(days[0]?.date)}</span>
         <span>{dayLabel(days[Math.floor(days.length / 2)]?.date)}</span>
         <span>Today</span>
+      </div>
+    </div>
+  );
+}
+
+/** "0.7 s", "1.2 s". */
+export function seconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+/**
+ * Time to insert: from when you stop speaking to the text appearing, the
+ * wait you notice. The last week's median against the week before, how it
+ * splits between holding the key and Quill, and 30 days of it, day by day.
+ */
+export function TimeToInsert({ insights }: { insights: Insights }) {
+  const w = insights.dictation.wait;
+  if (!w) {
+    return (
+      <section className="card wait-panel">
+        <h2 className="wait-title">Time to insert</h2>
+        <p className="wait-note">
+          How long you wait from when you stop speaking to the text appearing. Measured from your next dictation.
+        </p>
+      </section>
+    );
+  }
+  const week = w.last_7_days_ms ?? w.median_ms;
+  const change =
+    w.last_7_days_ms !== null && w.previous_7_days_ms !== null ? w.last_7_days_ms - w.previous_7_days_ms : null;
+  return (
+    <section className="card wait-panel">
+      <div className="wait-head">
+        <div>
+          <h2 className="wait-title">Time to insert</h2>
+          <p className="wait-note">From when you stop speaking to the text appearing: the wait you notice.</p>
+        </div>
+        <div className="wait-figure">
+          <strong>{seconds(week)}</strong>
+          <span>{w.last_7_days_ms !== null ? "median, last 7 days" : "median, last 30 days"}</span>
+          {change !== null && Math.abs(change) >= 50 && (
+            <span className={`wait-trend ${change < 0 ? "better" : "worse"}`}>
+              {seconds(Math.abs(change))} {change < 0 ? "quicker" : "slower"} than the week before
+            </span>
+          )}
+        </div>
+      </div>
+      <p className="wait-split">
+        Typically <strong>{seconds(w.held_ms)}</strong> still holding the key after you stop, then{" "}
+        <strong>{seconds(w.quill_ms)}</strong> for Quill to transcribe and type. The slowest 1 in 10 take{" "}
+        <strong>{seconds(w.p90_ms)}</strong> or more.
+      </p>
+      <WaitChart days={insights.days} />
+    </section>
+  );
+}
+
+/** Steps for a seconds axis: three or four round steps up to `max` ms. */
+function waitTicks(max: number): number[] {
+  const step = [250, 500, 1_000, 2_000, 5_000, 10_000].find((s) => s * 3 >= max) ?? 10_000;
+  const count = Math.max(1, Math.ceil(max / step));
+  return Array.from({ length: count + 1 }, (_, i) => i * step);
+}
+
+/** Each day's median time to insert as a column, with its 90th percentile as a tick above. */
+function WaitChart({ days }: { days: Insights["days"] }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const max = Math.max(...days.map((d) => d.wait_p90_ms ?? d.wait_ms ?? 0), 500);
+  const ticks = waitTicks(max);
+  const top = ticks[ticks.length - 1];
+  const n = days.length;
+  const shown = hover !== null ? days[hover] : null;
+  const pct = (ms: number) => `${Math.min(1, ms / top) * 100}%`;
+  return (
+    <div className="activity wait-chart">
+      <div className="chart-plot">
+        <div className="chart-y" aria-hidden>
+          {ticks.map((t) => (
+            <span key={t} style={{ bottom: pct(t) }}>
+              {t === 0 ? "0" : `${+(t / 1000).toFixed(2)} s`}
+            </span>
+          ))}
+        </div>
+        <div className="chart-area">
+          {ticks.slice(1).map((t) => (
+            <span key={t} className="chart-grid" style={{ bottom: pct(t) }} aria-hidden />
+          ))}
+          <div
+            className="bars-chart"
+            role="img"
+            aria-label="Median time to insert per day for the last 30 days, with the slowest 1 in 10 marked above"
+            onMouseLeave={() => setHover(null)}
+          >
+            {days.map((day, i) => (
+              <div
+                key={day.date}
+                className={`bar-col${hover === i ? " hovered" : ""}`}
+                onMouseEnter={() => setHover(i)}
+              >
+                {day.wait_ms !== null && <div className="bar wait" style={{ height: pct(day.wait_ms) }} />}
+                {day.wait_p90_ms !== null && day.wait_p90_ms > (day.wait_ms ?? 0) && (
+                  <span className="wait-p90" style={{ bottom: pct(day.wait_p90_ms) }} />
+                )}
+              </div>
+            ))}
+          </div>
+          {shown && hover !== null && (
+            <div
+              className={`chart-tip${hover < 4 ? " start" : hover > n - 5 ? " end" : ""}`}
+              style={{
+                left: `${((hover + 0.5) / n) * 100}%`,
+                bottom: `calc(${pct(shown.wait_p90_ms ?? shown.wait_ms ?? 0)} + 8px)`,
+              }}
+            >
+              <span className="chart-tip-day">{hover === n - 1 ? "Today" : weekdayLabel(shown.date)}</span>
+              <strong>{shown.wait_ms !== null ? `${seconds(shown.wait_ms)} median` : "Not measured"}</strong>
+              {shown.wait_ms !== null && (
+                <span className="chart-tip-sub">
+                  {shown.wait_p90_ms !== null && `Slowest 1 in 10: ${seconds(shown.wait_p90_ms)} · `}
+                  {shown.dictations} {shown.dictations === 1 ? "dictation" : "dictations"}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="axis chart-x">
+        <span>{dayLabel(days[0]?.date)}</span>
+        <span>{dayLabel(days[Math.floor(days.length / 2)]?.date)}</span>
+        <span>Today</span>
+      </div>
+      <div className="wait-legend" aria-hidden>
+        <span>
+          <i className="wait-key median" /> Median
+        </span>
+        <span>
+          <i className="wait-key p90" /> Slowest 1 in 10
+        </span>
       </div>
     </div>
   );

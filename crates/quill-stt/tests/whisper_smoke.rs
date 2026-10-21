@@ -99,3 +99,35 @@ fn vad_prevents_hallucinations_in_silence() {
         assert!(s.start_ms >= 24_500 && s.end_ms <= 36_500, "{s:?}");
     }
 }
+
+#[test]
+#[ignore = "needs Whisper and VAD models; set QUILL_TEST_MODEL and QUILL_TEST_VAD_MODEL"]
+fn finds_where_speech_ends() {
+    let model = PathBuf::from(std::env::var("QUILL_TEST_MODEL").expect("set QUILL_TEST_MODEL"));
+    let vad =
+        PathBuf::from(std::env::var("QUILL_TEST_VAD_MODEL").expect("set QUILL_TEST_VAD_MODEL"));
+    let wav = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/jfk.wav");
+    let speech = quill_audio::load_for_stt(&wav).unwrap();
+    let clip_s = speech.len() as f64 / 16_000.0;
+
+    let config = WhisperConfig {
+        vad_model: Some(vad),
+        ..WhisperConfig::default()
+    };
+    let transcriber = WhisperTranscriber::load(&model, &config).unwrap();
+
+    // The passage, then 1.5 s of silence after the speaker stops: as if the
+    // key were held a moment longer.
+    let mut pcm = speech.clone();
+    pcm.extend(std::iter::repeat_n(0.0, 24_000));
+    let end = transcriber.speech_end(&pcm).unwrap().as_secs_f64();
+    assert!(
+        end > clip_s - 1.5 && end <= clip_s + 0.3,
+        "speech ends at {end:.2} s of {clip_s:.2} s"
+    );
+
+    // Silence alone has no end of speech; without a VAD model, nothing is known.
+    assert!(transcriber.speech_end(&vec![0.0; 32_000]).is_none());
+    let no_vad = WhisperTranscriber::load(&model, &WhisperConfig::default()).unwrap();
+    assert!(no_vad.speech_end(&pcm).is_none());
+}

@@ -630,6 +630,7 @@ mod tests {
             pasted: true,
             app: None,
             app_id: None,
+            wait_ms: None,
             corrected: None,
         };
         let stats = dictation(&entry, Some(150.0));

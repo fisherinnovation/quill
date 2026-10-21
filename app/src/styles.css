@@ -5761,6 +5761,8 @@ html.indicator-window #root {
 
 .dictation-entry .stat-grid {
   margin-top: 16px;
+  /* Five tiles: three and two, roomy enough that values stay on one line. */
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
 @media (max-width: 900px) {
@@ -5973,4 +5975,126 @@ html.indicator-window #root {
   padding: 0;
   display: grid;
   gap: 9px;
+}
+
+/* ==========================================================================
+   Time to insert: from the end of speech to the text typed (Dictations)
+   ========================================================================== */
+.wait-panel {
+  margin-top: 14px;
+  padding: 18px 20px 16px;
+}
+
+.wait-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.wait-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.wait-note {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.wait-figure {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  text-align: right;
+}
+
+.wait-figure strong {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.wait-figure span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* Words carry the meaning; the colour only seconds it. */
+.wait-figure .wait-trend.better {
+  color: var(--green);
+}
+
+.wait-figure .wait-trend.worse {
+  color: var(--amber);
+}
+
+.wait-split {
+  margin: 12px 0 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.wait-split strong {
+  color: var(--text);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.wait-chart .bar-col {
+  position: relative;
+  justify-content: center;
+}
+
+/* Columns no wider than 12px, with air between them. */
+.bar.wait {
+  max-width: 12px;
+  border-radius: 4px 4px 0 0;
+}
+
+/* The slowest 1 in 10 that day: a short tick above the median's column. */
+.wait-p90 {
+  position: absolute;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  margin-bottom: -1px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--sky-text) 70%, transparent);
+}
+
+.wait-legend {
+  display: flex;
+  gap: 16px;
+  margin: 10px 0 0 34px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.wait-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wait-key {
+  display: inline-block;
+  width: 9px;
+}
+
+.wait-key.median {
+  height: 9px;
+  border-radius: 2px;
+  background: var(--sky);
+}
+
+.wait-key.p90 {
+  height: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--sky-text) 70%, transparent);
 }

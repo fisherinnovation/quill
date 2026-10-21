@@ -611,6 +611,8 @@ async fn process(
     let state = app.state::<AppState>();
     let settings = lock(&state.settings).clone();
     let sample_pcm = settings.dictation.save_samples.then(|| pcm.clone());
+    // For finding where the speech ended, once the text is typed.
+    let speech_pcm = pcm.clone();
 
     // With live captions, most of it is already transcribed: only the end
     // is left. Otherwise, or if they failed, one pass over it all.
@@ -704,11 +706,27 @@ async fn process(
         .map_err(|e| e.to_string())??
     };
     let latency_ms = u64::try_from(latency.as_millis()).unwrap_or(u64::MAX);
+    // Time to insert: from the end of speech to the text typed, the wait the
+    // user notices (still holding the key after speaking, then `latency`).
+    // Worked out after the paste, so it adds nothing to the wait it measures.
+    let wait_ms = {
+        let app = app.clone();
+        let settings = settings.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let transcriber = pipeline::transcriber(&app, None, &settings).ok()?;
+            let held = audio.saturating_sub(transcriber.speech_end(&speech_pcm)?);
+            u64::try_from((held + latency).as_millis()).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    };
     // Timings only: dictated text stays out of the logs.
     let (live_passes, live_locked_ms) = live_progress.unwrap_or_default();
     tracing::info!(
         stt_ms,
         latency_ms,
+        wait_ms,
         polished = polish_model.is_some(),
         live_passes,
         live_locked_ms,
@@ -750,6 +768,7 @@ async fn process(
         pasted,
         app: target.as_ref().map(|a| a.name.clone()),
         app_id: target.as_ref().map(|a| a.id.clone()),
+        wait_ms,
         corrected: None,
     };
     // Numbers only (no text), for the Insights page, whatever the history
@@ -763,6 +782,7 @@ async fn process(
         pasted,
         app_id: target.as_ref().map(|a| a.id.clone()),
         app: target.as_ref().map(|a| a.name.clone()),
+        wait_ms,
     };
     if let Err(e) = state.library.record_dictation_stats(&stat) {
         tracing::warn!("couldn't record dictation stats: {e}");

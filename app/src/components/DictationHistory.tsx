@@ -259,6 +259,15 @@ function EntryStats({ stats, entry }: { stats: DictationStats; entry: DictationE
         accent={stats.saved_ms > 0}
       />
       <Stat
+        label="Wait"
+        value={entry.wait_ms !== null ? seconds(entry.wait_ms) : "–"}
+        note={
+          entry.wait_ms !== null
+            ? `After you stopped speaking: ${seconds(Math.max(0, entry.wait_ms - entry.latency_ms))} holding the key, ${seconds(Math.min(entry.latency_ms, entry.wait_ms))} Quill`
+            : "Measured for newer dictations"
+        }
+      />
+      <Stat
         label="Clean-up"
         value={
           stats.raw_words !== null ? `${stats.raw_words} → ${stats.words}` : entry.polish_model ? "No changes" : "Off"

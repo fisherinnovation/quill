@@ -299,7 +299,12 @@ function mockIcon(color: string, glyph: string) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-const withAppId = <T extends { app: string | null }>(d: T) => ({ ...d, app_id: d.app ? (MOCK_APPS[d.app]?.id ?? null) : null });
+const withAppId = <T extends { app: string | null; id: number; latency_ms: number }>(d: T) => ({
+  ...d,
+  app_id: d.app ? (MOCK_APPS[d.app]?.id ?? null) : null,
+  // Time to insert: the newer ones were measured.
+  wait_ms: d.id >= 103 ? d.latency_ms + 380 + (d.id % 3) * 120 : null,
+});
 
 let dictations: {
   id: number;
@@ -832,13 +837,25 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
         words,
         dictations: Math.round(words / 28),
         meeting_ms: weekend ? 0 : Math.round(busy * 3) * 30 * 60_000,
+        // Time to insert: measured for the last 18 days, getting a little quicker.
+        wait_ms: words > 0 && i >= 12 ? Math.round(1_050 - i * 9 + 120 * Math.sin(i * 2.1)) : null,
+        wait_p90_ms: words > 0 && i >= 12 ? Math.round(1_900 - i * 14 + 260 * Math.cos(i * 1.7)) : null,
       };
     });
     const hours = Array.from({ length: 24 }, (_, h) =>
       h < 8 || h > 19 ? (h === 21 ? 3 : 0) : Math.round(14 * Math.exp(-((h - 10.5) ** 2) / 6) + 9 * Math.exp(-((h - 15) ** 2) / 4)),
     );
     return {
-      dictation: { count: 412, words: 12_480, words_last_7_days: 2_904, speaking_wpm: 151, minutes_saved: 229, median_latency_ms: 430, polished_share: 0.27 },
+      dictation: {
+        count: 412,
+        words: 12_480,
+        words_last_7_days: 2_904,
+        speaking_wpm: 151,
+        minutes_saved: 229,
+        median_latency_ms: 430,
+        polished_share: 0.27,
+        wait: { count: 214, median_ms: 860, p90_ms: 1_640, held_ms: 430, quill_ms: 410, last_7_days_ms: 790, previous_7_days_ms: 930 },
+      },
       meetings: { count: 38, total_ms: 27.5 * H, count_last_7_days: 7, ms_last_7_days: 5.2 * H, average_ms: 43 * 60_000, my_talk_share: 0.36, summaries: 41, summary_cost_usd: 0.031 },
       streak_days: 6,
       days,

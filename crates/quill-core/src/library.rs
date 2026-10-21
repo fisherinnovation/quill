@@ -151,6 +151,12 @@ CREATE TABLE action_items (
 );
 CREATE INDEX action_items_by_meeting ON action_items (meeting_id);
 ",
+    "
+-- Time to insert: from the end of speech (Silero VAD) to the text typed,
+-- the wait the user notices. NULL when it couldn't be told (no VAD model).
+ALTER TABLE dictation_stats ADD COLUMN wait_ms INTEGER;
+ALTER TABLE dictations ADD COLUMN wait_ms INTEGER;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -239,6 +245,11 @@ pub struct DictationEntry {
     /// That app's identifier (bundle id or executable), for its icon.
     #[serde(default)]
     pub app_id: Option<String>,
+    /// From the end of speech to the text typed: the wait the user notices
+    /// (holding the key after speaking, then `latency_ms`). `None` if the
+    /// end of speech couldn't be told.
+    #[serde(default)]
+    pub wait_ms: Option<u64>,
     /// The user's fixed version, if they corrected it.
     #[serde(default)]
     pub corrected: Option<String>,
@@ -407,6 +418,8 @@ pub struct DictationStat {
     /// The app dictated into: identifier and display name.
     pub app_id: Option<String>,
     pub app: Option<String>,
+    /// From the end of speech to the text typed (see [`DictationEntry::wait_ms`]).
+    pub wait_ms: Option<u64>,
 }
 
 /// How much was dictated into one app.
@@ -422,8 +435,7 @@ pub struct AppUsage {
 pub const DICTATION_HISTORY_LIMIT: i64 = 500;
 
 /// The `dictations` columns [`dictation_row`] reads, in its order.
-const DICTATION_COLUMNS: &str =
-    "id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected, app_id";
+const DICTATION_COLUMNS: &str = "id, created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, corrected, app_id, wait_ms";
 
 fn dictation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DictationEntry> {
     Ok(DictationEntry {
@@ -438,6 +450,9 @@ fn dictation_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DictationEntry> {
         app: r.get(8)?,
         corrected: r.get(9)?,
         app_id: r.get(10)?,
+        wait_ms: r
+            .get::<_, Option<i64>>(11)?
+            .and_then(|v| u64::try_from(v).ok()),
     })
 }
 
@@ -933,8 +948,8 @@ impl Library {
         let raw = entry.raw.as_deref().filter(|raw| *raw != entry.text);
         let conn = self.conn();
         conn.execute(
-            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, app_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO dictations (created_at, text, raw, polish_model, audio_ms, latency_ms, pasted, app, app_id, wait_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 created_at,
                 entry.text,
@@ -945,6 +960,7 @@ impl Library {
                 entry.pasted,
                 entry.app,
                 entry.app_id,
+                entry.wait_ms.map(|v| i64::try_from(v).unwrap_or(i64::MAX)),
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -1101,8 +1117,8 @@ impl Library {
     pub fn record_dictation_stats(&self, stat: &DictationStat) -> Result<(), LibraryError> {
         self.conn().execute(
             "INSERT INTO dictation_stats
-                 (created_at, words, audio_ms, latency_ms, polished, pasted, app_id, app)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (created_at, words, audio_ms, latency_ms, polished, pasted, app_id, app, wait_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 stat.created_at,
                 i64::try_from(stat.words).unwrap_or(i64::MAX),
@@ -1112,6 +1128,7 @@ impl Library {
                 stat.pasted,
                 stat.app_id,
                 stat.app,
+                stat.wait_ms.map(|v| i64::try_from(v).unwrap_or(i64::MAX)),
             ],
         )?;
         Ok(())
@@ -1146,7 +1163,7 @@ impl Library {
     pub fn dictation_stats(&self) -> Result<Vec<DictationStat>, LibraryError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT created_at, words, audio_ms, latency_ms, polished, pasted, app_id, app
+            "SELECT created_at, words, audio_ms, latency_ms, polished, pasted, app_id, app, wait_ms
              FROM dictation_stats ORDER BY id",
         )?;
         let to_u64 = |v: i64| u64::try_from(v).unwrap_or(0);
@@ -1160,6 +1177,7 @@ impl Library {
                 pasted: r.get(5)?,
                 app_id: r.get(6)?,
                 app: r.get(7)?,
+                wait_ms: r.get::<_, Option<i64>>(8)?.map(to_u64),
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1554,7 +1572,12 @@ mod tests {
         .unwrap();
         // As if the library predated action items.
         lib.conn()
-            .execute_batch("DROP TABLE action_items; PRAGMA user_version = 7;")
+            .execute_batch(
+                "DROP TABLE action_items;
+                 ALTER TABLE dictation_stats DROP COLUMN wait_ms;
+                 ALTER TABLE dictations DROP COLUMN wait_ms;
+                 PRAGMA user_version = 7;",
+            )
             .unwrap();
         drop(lib);
 
@@ -1608,6 +1631,7 @@ mod tests {
                 pasted: true,
                 app: Some("Slack".into()),
                 app_id: None,
+                wait_ms: None,
                 corrected: None,
             })
             .unwrap();
@@ -1796,6 +1820,7 @@ mod tests {
             pasted: true,
             app: Some("Slack".into()),
             app_id: None,
+            wait_ms: None,
             corrected: None,
         };
         let first = lib.add_dictation(&entry("Same.", "Same.")).unwrap();
@@ -1831,6 +1856,7 @@ mod tests {
                     pasted: true,
                     app: None,
                     app_id: None,
+                    wait_ms: None,
                     corrected: None,
                 })
                 .unwrap()
@@ -1870,11 +1896,13 @@ mod tests {
                 pasted: true,
                 app: Some("Slack".into()),
                 app_id: Some("com.tinyspeck.slackmacgap".into()),
+                wait_ms: Some(640),
                 corrected: None,
             })
             .unwrap();
         let read = lib.dictation(saved.id).unwrap();
         assert_eq!(read.app_id.as_deref(), Some("com.tinyspeck.slackmacgap"));
+        assert_eq!(read.wait_ms, Some(640));
     }
 
     #[test]
