@@ -3,18 +3,37 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Quill: meeting notes and dictation, on your computer</title>
+    <title>Quill: private AI meeting notes and dictation for Mac &amp; Windows</title>
+    <!-- What search results show under the title: about 155 characters before they cut it off. build.mjs
+         reuses it for the structured data below. -->
     <meta
       name="description"
-      content="Record any call and get notes while you talk, then a transcript and a full write-up when it ends. Or hold a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded. For macOS and Windows."
+      content="Free, private AI meeting notes and dictation for macOS and Windows. No bot joins the call: speech is transcribed on your computer and audio never leaves it."
     />
+    <!-- Link previews (Slack, X, LinkedIn, Discord…). They need absolute URLs, so they're only built with
+         QUILL_SITE_URL set. The card is rendered by card/render.mjs. -->
+    <meta property="og:site_name" content="Quill" />
     <meta property="og:title" content="Quill: meeting notes without the meeting bot" />
     <meta
       property="og:description"
       content="Local-first meeting notes and dictation for macOS and Windows. Audio never leaves your computer."
     />
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <!--if url-->
+    <link rel="canonical" href="{{SITE_URL}}" />
     <meta property="og:url" content="{{SITE_URL}}" />
+    <meta property="og:image" content="{{SITE_URL}}media/card.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="{{CARD_ALT}}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image:alt" content="{{CARD_ALT}}" />
+    <script type="application/ld+json">
+{{JSON_LD}}
+    </script>
+    <!--end url-->
     <meta name="author" content="Fisher Innovation" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
