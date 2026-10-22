@@ -20,6 +20,7 @@ The pieces:
 | `site/video/render.mjs` | Plays the script in headless Chrome and encodes the video. Run, don't edit (unless it's genuinely missing something). |
 | `site/video/stages/*.js` | Backdrops for scenes whose subject is one of Quill's floating windows (live notes, the dictation pill): a stand-in call or app around it, and helpers the scene calls. |
 | `site/media/hero-{light,dark}.{mp4,jpg}` | The output: video and poster per theme. |
+| `site/media/card.jpg` | The link preview card, which shows the light poster (`site/card/render.mjs`). |
 | `site/video/out/contact-*.jpg` | One frame per scene, for review. Not committed. |
 | `app/src/dev/mock.ts` | The sample data and URL flags the scenes run on. |
 
@@ -217,9 +218,14 @@ Update `label` in `script.json` so it describes what the new video shows,
 scene by scene, for people who can't see it; `build.mjs` puts it in the
 video's `aria-label`.
 
+The link preview card shows the light poster, so re-render it too and look
+at it: `node site/card/render.mjs` writes `site/media/card.jpg`. If the
+poster's moment changed, check that `CARD_ALT` in `build.mjs` still
+describes it.
+
 ## 8. Commit
 
-Commit `script.json`, the four files in `site/media/`, and any mock or site
-changes together, with a body listing the scenes. The videos are binary and
+Commit `script.json`, the four hero files and `card.jpg` in `site/media/`,
+and any mock or site changes together, with a body listing the scenes. The videos are binary and
 every regeneration adds a few megabytes to the repository's history, so
 regenerate when what the app does has changed, not to nudge a caption.

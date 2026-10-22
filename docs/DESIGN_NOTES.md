@@ -704,3 +704,21 @@ decision someone might otherwise undo.
 - CI builds the site on every run, but only deploys when the repository
   variable `SITE_DEPLOY` is `true`, so CI stays green before Pages is
   enabled.
+- **Being found.** "Quill" is a crowded name, so the `<title>` and
+  description use the words people search for (private, AI meeting notes,
+  dictation, Mac, Windows), with the description under the ~155 characters
+  results show. The page carries a link preview card (`og:image`,
+  `twitter:card`), a canonical URL and schema.org `SoftwareApplication`
+  data built from the release (version, systems, free, download links).
+  Google only shows the rich, starred result for apps with ratings or
+  reviews, which Quill doesn't have, but the data still tells search
+  engines what the page is. All of these need absolute URLs, so they're
+  only built with `QUILL_SITE_URL` set, as are `sitemap.xml` and
+  `robots.txt`. Crawlers only read `robots.txt` at a domain's root, so it
+  does nothing until the site has a domain of its own. Until then, submit
+  the sitemap in Search Console.
+- The preview card (`site/media/card.jpg`, 1200×630) is
+  `site/card/index.html` captured by headless Chrome
+  (`node site/card/render.mjs`). It shows the light header video's poster,
+  so it's re-rendered with the video. It's a JPEG because, with a
+  screenshot in it, a PNG is twice the size.
