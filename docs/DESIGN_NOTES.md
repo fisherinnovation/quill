@@ -714,9 +714,16 @@ decision someone might otherwise undo.
   reviews, which Quill doesn't have, but the data still tells search
   engines what the page is. All of these need absolute URLs, so they're
   only built with `QUILL_SITE_URL` set, as are `sitemap.xml` and
-  `robots.txt`. Crawlers only read `robots.txt` at a domain's root, so it
-  does nothing until the site has a domain of its own. Until then, submit
-  the sitemap in Search Console.
+  `robots.txt`.
+- **The site's address** is `quill.fisherinnovation.com`: a CNAME to
+  `fisherinnovation.github.io` at Namecheap, with the custom domain set in
+  the repository's Pages settings (a `CNAME` file does nothing for a site
+  deployed by Actions) and `fisherinnovation.com` verified on the GitHub
+  account, so no one else can claim its subdomains. A domain of its own
+  keeps what it earns in search if hosting moves, and puts `robots.txt` at
+  a root, the only place crawlers read it. The old
+  `fisherinnovation.github.io/quill/` redirects there. `QUILL_SITE_URL` in
+  CI must match it.
 - The preview card (`site/media/card.jpg`, 1200×630) is
   `site/card/index.html` captured by headless Chrome
   (`node site/card/render.mjs`). It shows the light header video's poster,

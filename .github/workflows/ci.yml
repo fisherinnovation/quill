@@ -108,7 +108,7 @@ jobs:
 
       - name: Build
         env:
-          QUILL_SITE_URL: https://fisherinnovation.github.io/quill/
+          QUILL_SITE_URL: https://quill.fisherinnovation.com/
         run: node site/build.mjs
 
       - uses: actions/upload-pages-artifact@v5

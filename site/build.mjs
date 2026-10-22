@@ -116,9 +116,8 @@ if (siteUrl) {
       `  <url><loc>${siteUrl}</loc></url>\n` +
       `</urlset>\n`,
   );
-  // Crawlers only read robots.txt at a domain's root, so under
-  // github.io/quill/ this one waits for a domain of the site's own; submit
-  // the sitemap in Search Console meanwhile.
+  // Crawlers only read robots.txt at a domain's root, which the site is
+  // at (quill.fisherinnovation.com, set in the repository's Pages settings).
   writeFileSync(join(out, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}sitemap.xml\n`);
 }
 
