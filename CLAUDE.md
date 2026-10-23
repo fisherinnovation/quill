@@ -78,7 +78,7 @@ results.
 | `app/src` | React UI. `api.ts` holds every command and event type. `dev/mock.ts` is the browser mock |
 | `prompts/` | Versioned prompt templates, compiled in with `include_str!` |
 | `eval/` | Benchmarks and evals: `bench/`, `dictation/`, `diarization/`, summary transcripts |
-| `site/` | The public website: static HTML/CSS/JS, built by `build.mjs`, published to GitHub Pages by CI. `video/` scripts and renders the header video into `media/`; `card/` renders the link preview image |
+| `site/` | The public website: static HTML/CSS/JS, built by `build.mjs`, published to GitHub Pages by CI. `video/` scripts and renders the header video into `media/`; `card/` renders the link preview image; `overview/` makes the narrated overview video |
 
 Logic lives in the library crates. The app and the CLI stay thin.
 
@@ -110,6 +110,10 @@ node site/build.mjs && python3 -m http.server 4173 -d site/_site
 node site/video/render.mjs
 # ...then the link preview card, which shows a frame of it
 node site/card/render.mjs
+
+# The narrated overview video (the site-overview skill plans and reviews it;
+# spends OpenRouter credit: --plan shows how much first)
+node site/overview/make.mjs --plan && node site/overview/make.mjs
 ```
 
 To install a release build for the user, replace `~/Applications/Quill.app`:

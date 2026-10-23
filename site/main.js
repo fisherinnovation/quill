@@ -62,6 +62,26 @@
     pick();
   }
 
+  // The overview video, in a dialog: loaded on first open, paused on close.
+  const overview = document.getElementById("overview");
+  if (overview?.showModal) {
+    const player = overview.querySelector("video");
+    for (const link of document.querySelectorAll("[data-overview]")) {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (!player.getAttribute("src")) player.src = link.getAttribute("href");
+        overview.showModal();
+        player.play().catch(() => {});
+      });
+    }
+    overview.querySelector(".overview-close").addEventListener("click", () => overview.close());
+    // A click on the backdrop (the dialog itself, outside the video) closes it.
+    overview.addEventListener("click", (e) => {
+      if (e.target === overview) overview.close();
+    });
+    overview.addEventListener("close", () => player.pause());
+  }
+
   // Privacy: the model choice is a toggle you can play with.
   const choices = [...document.querySelectorAll(".choice-opt")];
   for (const c of choices) {

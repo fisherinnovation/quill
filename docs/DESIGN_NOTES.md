@@ -730,3 +730,32 @@ decision someone might otherwise undo.
   (`node site/card/render.mjs`). It shows the light header video's poster,
   so it's re-rendered with the video. It's a JPEG because, with a
   screenshot in it, a PNG is twice the size.
+- **The overview video** (`site/media/overview.mp4`, 47 s) is the narrated
+  rundown behind the hero's "Watch the overview" button, made by
+  `node site/overview/make.mjs` from `site/overview/script.json` (the
+  `site-overview` skill). The header video shows the app; this one is
+  meant to feel human, so it adds a voice, people and music:
+  - **Voice:** ElevenLabs (`elevenlabs/eleven-v4`, voice "jessica") through
+    OpenRouter, one request per line, so a line can be redone alone and its
+    length sets its scene's.
+  - **People:** Veo 3.1 at 1080p without sound, 8 s clips at $0.20 a
+    second. Laptop screens are kept turned away in the prompts, because
+    generated screens show nonsense. `cuts` jump-cut a clip when its best
+    moment comes late. Two prompts for the same person give two different
+    people.
+  - **Music:** Lyria 3 Pro ($0.08 a track), about 10 dB under the voice
+    and dipped under each line.
+  - **App shots:** recorded by `site/video/render.mjs` (`--clips`) from the
+    header video's scenes, each held as long as its line (`minSeconds`).
+  - **The edit** is Remotion (`site/overview/remotion`, its own
+    dependencies, so nothing new reaches the app or the site). Remotion's
+    licence is free for individuals and companies of up to three people.
+    The render is levelled to -16 LUFS with peaks under -1.5 dB, two-pass
+    `loudnorm` with linear gain, so the voice and music keep their
+    balance. Straight out of the edit it was -23.6 LUFS.
+  - **Cost:** everything generated is cached by what made it, and
+    `make.mjs` refuses to spend more than `--budget` ($10). The first
+    version cost $4.94, nearly all of it footage.
+  - **On the site:** the MP4 is served as rendered (about 35 MB at CRF 18).
+    The page doesn't load it until the dialog opens, and without
+    JavaScript the button links to the file.

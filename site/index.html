@@ -76,7 +76,15 @@
           </p>
           <div class="hero-actions reveal">
             <a class="btn btn-dark" href="#download">Get Quill</a>
+            <!--if overview-->
+            <!-- Opens the overview video in a dialog (main.js); without JavaScript, the file itself. -->
+            <a class="btn btn-ghost" href="media/overview.mp4" data-overview>
+              <svg viewBox="0 0 24 24"><path d="M8 5.8v12.4a.8.8 0 0 0 1.2.7l9.9-6.2a.8.8 0 0 0 0-1.4L9.2 5.1a.8.8 0 0 0-1.2.7z" /></svg>
+              Watch the overview
+            </a>
+            <!--else overview-->
             <a class="btn btn-ghost" href="#features">See what it does</a>
+            <!--end overview-->
           </div>
         </div>
 
@@ -558,5 +566,16 @@
         {{VERSION}} · MIT or Apache-2.0
       </p>
     </footer>
+
+    <!--if overview-->
+    <!-- The overview video (site/overview, see .claude/skills/site-overview). main.js sets its source on
+         first open, so the page doesn't download it unless asked. -->
+    <dialog class="overview" id="overview" aria-label="Quill overview video">
+      <button class="overview-close" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      </button>
+      <video class="overview-video" controls autofocus playsinline preload="none" poster="media/overview.jpg" aria-label="{{OVERVIEW_LABEL}}"></video>
+    </dialog>
+    <!--end overview-->
   </body>
 </html>

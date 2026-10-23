@@ -39,7 +39,13 @@ const siteUrl = env.QUILL_SITE_URL ?? "";
 if (siteUrl && !siteUrl.endsWith("/")) throw new Error("QUILL_SITE_URL must end in /");
 const isPublic = env.QUILL_SITE_PUBLIC === "true";
 // A private repository's release downloads only work for its members.
-const flags = { url: siteUrl !== "", public: isPublic, release: isPublic && release !== null };
+const flags = {
+  url: siteUrl !== "",
+  public: isPublic,
+  release: isPublic && release !== null,
+  // The narrated overview (site/overview/make.mjs), once there is one.
+  overview: existsSync(join(here, "media/overview.mp4")),
+};
 
 let html = readFileSync(join(here, "index.html"), "utf8");
 const description = html.match(/<meta\s+name="description"\s+content="([^"]*)"/)?.[1];
@@ -85,6 +91,11 @@ const values = {
   BUILD: (env.GITHUB_SHA ?? String(Date.now())).slice(0, 8),
   // What the header video shows, for screen readers (site/video/script.json).
   VIDEO_LABEL: JSON.parse(readFileSync(join(here, "video/script.json"), "utf8")).label,
+  // And the overview's (site/overview/script.json), as an attribute.
+  OVERVIEW_LABEL: JSON.parse(readFileSync(join(here, "overview/script.json"), "utf8")).label.replace(
+    /[&"<]/g,
+    (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;" })[c],
+  ),
 };
 
 // Innermost blocks first, so nested ones resolve.

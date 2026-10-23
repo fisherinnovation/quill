@@ -4,6 +4,10 @@
 //   node site/video/render.mjs --theme light   one theme
 //   node site/video/render.mjs --scene stats   one scene (for iterating; no final video)
 //   node site/video/render.mjs --keep          keep the raw frames
+//   node site/video/render.mjs --script <file> --clips <dir>
+//                                              each scene of another script as
+//                                              its own clip, <dir>/<id>.mp4, and
+//                                              nothing else (the overview video)
 //
 // It runs the app's browser preview (Vite, with the sample data in
 // app/src/dev/mock.ts), plays each scene in headless Chrome with a visible
@@ -20,7 +24,7 @@
 // sheets with one frame per scene to site/video/out/ for review.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,7 +41,8 @@ const PUSH = 0.035;
 
 const args = process.argv.slice(2);
 const arg = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const script = JSON.parse(readFileSync(join(here, "script.json"), "utf8"));
+const script = JSON.parse(readFileSync(arg("--script") ?? join(here, "script.json"), "utf8"));
+const clipsDir = arg("--clips");
 const themes = arg("--theme") ? [arg("--theme")] : ["light", "dark"];
 const only = arg("--scene");
 const keep = args.includes("--keep");
@@ -52,9 +57,12 @@ mkdirSync(out, { recursive: true });
 
 const chromePath =
   process.env.CHROME ??
-  ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(
-    existsSync,
-  );
+  [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+  ].find(existsSync);
 if (!chromePath) throw new Error("Google Chrome not found; set CHROME to its path");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -71,7 +79,10 @@ function duration(file) {
 // ---- The browser preview ---------------------------------------------------
 
 async function startPreview() {
-  const vite = spawn(join(root, "app/node_modules/.bin/vite"), ["--port", String(PORT), "--strictPort"], {
+  // Vite's script run by this Node, not its .bin shim (a .cmd on Windows,
+  // which Node won't spawn without a shell).
+  const bin = join(root, "app/node_modules/vite/bin/vite.js");
+  const vite = spawn(process.execPath, [bin, "--port", String(PORT), "--strictPort"], {
     cwd: join(root, "app"),
     stdio: "ignore",
   });
@@ -452,8 +463,10 @@ async function renderScene(cdp, scene, theme, dir) {
   if (scene.cursorStart) await step(page, { cursor: scene.cursorStart });
 
   const { list, seconds } = await record(cdp, page, join(dir, "frames"), async () => {
+    const start = performance.now();
     for (const s of scene.steps ?? []) await step(page, s);
-    await sleep(scene.hold ?? 1500);
+    // Held for `hold` ms, and longer if the scene must last `minSeconds`.
+    await sleep(Math.max(scene.hold ?? 1500, (scene.minSeconds ?? 0) * 1000 - (performance.now() - start)));
   });
   if (page.errors.length) console.warn(`  ${scene.id} (${theme}): page errors:\n    ${page.errors.join("\n    ")}`);
   await page.close();
@@ -531,7 +544,12 @@ try {
       const clip = await renderScene(cdp, scene, theme, dir);
       console.log(`  ${scene.id}: ${clip.seconds.toFixed(1)} s`);
       clips.push({ ...clip, id: scene.id });
+      if (clipsDir) {
+        mkdirSync(clipsDir, { recursive: true });
+        copyFileSync(clip.clip, join(clipsDir, `${scene.id}.mp4`));
+      }
     }
+    if (clipsDir) continue;
 
     // One frame per scene, late enough for the caption and the action.
     const sheet = join(out, `contact-${theme}${only ? `-${only}` : ""}.jpg`);
