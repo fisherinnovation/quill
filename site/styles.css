@@ -1369,7 +1369,7 @@ mark {
 }
 
 /* ---------- Wide screens: the hero video as a pane beside the copy ----------
-   The video is exactly as tall as the copy, turned in 3D to face it, so its
+   The video is 70% as tall as the copy, turned in 3D to face it, so its
    inner (left) edge is the far, smaller one, and that edge fades in. */
 
 @media (min-width: 961px) {
@@ -1389,14 +1389,15 @@ mark {
     position: absolute;
     top: 50%;
     right: 0;
-    /* As tall as the copy, unless that would make it too wide for its column
-       (where the copy wraps less): turned 50°, it shows about 0.54 of its
-       width, and its first, transparent sliver may pass under the copy. */
-    height: min(100cqh, 120cqw);
+    /* 70% as tall as the copy, unless that would make it too wide for its
+       column (where the copy wraps less): turned 50°, it shows about 0.54 of
+       its width, and its first, transparent sliver may pass under the copy.
+       Any bigger and it outweighs the headline. */
+    height: min(70cqh, 84cqw);
     width: auto;
     max-width: none;
     box-shadow: none;
-    /* Steep enough that a pane as tall as the copy fits beside it. */
+    /* Steep enough that even a pane as tall as the copy fits beside it. */
     transform: translateY(-50%) rotateY(-50deg);
     transform-origin: 100% 50%;
     -webkit-mask-image: linear-gradient(to right, transparent, #000 30%);
