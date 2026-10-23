@@ -21,6 +21,7 @@ The pieces:
 | `site/video/stages/*.js` | Backdrops for scenes whose subject is one of Quill's floating windows (live notes, the dictation pill): a stand-in call or app around it, and helpers the scene calls. |
 | `site/media/hero-{light,dark}.{mp4,jpg}` | The output: video and poster per theme. |
 | `site/media/card.jpg` | The link preview card, which shows the light poster (`site/card/render.mjs`). |
+| `site/overview/` | The narrated overview video reuses these scenes for its app shots (`--clips`), so a changed scene changes it too at its next make (the `site-overview` skill). |
 | `site/video/out/contact-*.jpg` | One frame per scene, for review. Not committed. |
 | `app/src/dev/mock.ts` | The sample data and URL flags the scenes run on. |
 

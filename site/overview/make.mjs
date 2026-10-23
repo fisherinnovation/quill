@@ -14,8 +14,9 @@
 //    dipping under the voice.
 //
 // Everything generated is cached in site/overview/cache/ by what made it, so
-// editing one line only pays for that line. Writes site/overview/out/
-// quill-overview.mp4 and contact.jpg (a frame per scene, for review).
+// editing one line only pays for that line. Writes site/media/overview.mp4
+// and its poster, overview.jpg, for the website, and site/overview/out/
+// contact.jpg, a frame per scene, for review.
 // Needs Google Chrome, ffmpeg and `npm ci` in ./remotion.
 
 import { createHash } from "node:crypto";
@@ -221,7 +222,8 @@ const props = {
 const propsFile = join(cache, "props.json");
 writeFileSync(propsFile, JSON.stringify(props, null, 2));
 console.log(`render: ${(total / FPS).toFixed(1)} s`);
-const video = join(out, "quill-overview.mp4");
+const media = join(root, "site/media");
+const video = join(media, "overview.mp4");
 const raw = join(cache, "render.mp4");
 const remotion = join(here, "remotion");
 run(
@@ -253,6 +255,9 @@ ffmpeg(
   ...["-af", `loudnorm=${LOUDNORM}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`],
   ...["-ar", "48000", video],
 );
+
+// The poster: the first shot, before its caption.
+ffmpeg("-ss", "0.3", "-i", video, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", join(media, "overview.jpg"));
 
 // A frame from the middle of each scene, three to a row.
 const stills = scenes.map((s, i) => {

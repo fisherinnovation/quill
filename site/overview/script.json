@@ -1,5 +1,5 @@
 {
-  "label": "Quill overview: a narrated rundown of what Quill does. A woman on a video call scribbles notes; Quill's live notes fill in during a call; the meeting's notes and its transcript open after it; a man holds a key and speaks to his laptop, and his words are typed into a chat; Quill's privacy promise; the woman, relaxed, listens on her call; Quill's name, platforms and website.",
+  "label": "Quill overview: a narrated rundown of what Quill does. A woman on a video call scribbles notes; Quill's live notes fill in during a call; the meeting's notes and its transcript open after it; a man holds a key and speaks to his laptop, and his words are typed into a chat; Quill's privacy promise; a woman leans back with a coffee, laughing on her call; Quill's name, platforms and website.",
   "output": [1920, 1080],
   "fps": 30,
   "voice": { "model": "elevenlabs/eleven-v4", "voice": "jessica" },
