@@ -35,3 +35,7 @@ Thumbs.db
 /app/src-tauri/windows-libs/
 /site/_site/
 /site/video/out/
+# The overview video: generated clips, voice and music, and the render
+/site/overview/cache/
+/site/overview/out/
+/site/overview/remotion/node_modules/
