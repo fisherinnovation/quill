@@ -79,6 +79,15 @@ jobs:
       - name: Build
         run: cargo build --workspace --locked
 
+      # Windows: test binaries that link sherpa-onnx (quill-stt's
+      # parakeet_smoke) need its DLLs beside them in target/debug/deps.
+      # Cargo puts only link paths inside target/ on PATH, and Windows'
+      # own older onnxruntime.dll in System32 comes before PATH anyway.
+      - name: sherpa-onnx DLLs beside the test binaries
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cp "$(cygpath -u "$SHERPA_ONNX_LIB_DIR")"/*.dll target/debug/deps/
+
       - name: Test
         run: cargo test --workspace --locked
 
