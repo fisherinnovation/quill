@@ -750,7 +750,10 @@ decision someone might otherwise undo.
   - **The edit** is Remotion (`site/overview/remotion`, its own
     dependencies, so nothing new reaches the app or the site). Remotion's
     licence is free for individuals and companies of up to three people.
-    The render is levelled to -16 LUFS with peaks under -1.5 dB, two-pass
+    Its packages pin `zod` 4.5.4, which has a memory-exhaustion advisory
+    (fixed in 4.6.6), and every Remotion release up to 4.0.538 still pins
+    it, so `package.json` overrides `zod` to 4.6.6. Drop the override once
+    Remotion pins a fixed version itself. The render is levelled to -16 LUFS with peaks under -1.5 dB, two-pass
     `loudnorm` with linear gain, so the voice and music keep their
     balance. Straight out of the edit it was -23.6 LUFS.
   - **Cost:** everything generated is cached by what made it, and
