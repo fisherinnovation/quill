@@ -356,7 +356,7 @@ Change any app's style in **Settings → Dictation → Style per app**; apps app
         keywords: "vocabulary names jargon spelling replacements custom words dictionary",
         body: `In **Settings → Dictation → Words**:
 
-- **Vocabulary**: names and terms to spell exactly, one per line ("Priya", "Kubernetes"). These steer both speech recognition and clean-up.
+- **Vocabulary**: names and terms to spell exactly, one per line ("Priya", "Kubernetes"). These steer both speech recognition (with Parakeet, as words it listens out for) and clean-up.
 - **Replacements**: what you say → what to type, one per line ("open router → OpenRouter").`,
       },
       {
@@ -404,7 +404,7 @@ Delete a sample that's muddled or recorded by accident. Delete them all in the s
         id: "language",
         title: "Languages",
         keywords: "language multilingual detect auto spanish french german",
-        body: `Dictation uses your computer's language unless you choose another in **Settings → Dictation → Language**. **Detect each time** handles switching between languages, at about half a second extra per dictation. Whisper understands about 100 languages; clean-up and Quill's own tests are English-first.`,
+        body: `Dictation uses your computer's language unless you choose another in **Settings → Dictation → Language**. **Detect each time** handles switching between languages, at about half a second extra per dictation. Whisper understands about 100 languages; clean-up and Quill's own tests are English-first. If dictation uses Parakeet (**Settings → Models**), this setting doesn't apply: Parakeet v2 understands only English, and v3 recognises which of its 25 European languages you speak.`,
       },
     ],
   },
@@ -440,7 +440,8 @@ Time saved compares your speaking speed with typing at a typical rate. The numbe
         keywords: "whisper model size download delete re-download accuracy speed vad speaker gpu graphics card vulkan",
         body: `**Settings → Models** lists each job that needs a model (speech recognition, silence detection, telling speakers apart, meeting notes and dictation clean-up), which model does it, and whether it's downloaded.
 
-- **Whisper** turns speech into text. Larger sizes are more accurate and slower; the default, \`turbo\`, is a good balance. Pick another and it downloads straight away.${
+- **Whisper** turns speech into text. Larger sizes are more accurate and slower; the default, \`turbo\`, is a good balance. Pick another and it downloads straight away.
+- **NVIDIA Parakeet** is a second engine, offered under **Speech recognition** and, for dictation alone, under **Speech recognition for dictation**. It runs on the CPU: on a computer without a usable graphics card, dictation is typed in a fraction of a second where Whisper takes several; with one, Whisper is as quick. **v2** understands English only; **v3** knows 25 European languages and picks the one it hears, so the language setting doesn't apply to it. Your vocabulary still works: Parakeet listens out for those words as it transcribes.${
           isMac
             ? ""
             : `

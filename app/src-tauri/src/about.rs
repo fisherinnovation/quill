@@ -54,6 +54,8 @@ pub struct AboutInfo {
     /// e.g. "Apple Silicon".
     pub arch: String,
     pub speech_model: String,
+    /// Dictation's speech model, when it isn't `speech_model`.
+    pub dictation_model: Option<String>,
     /// `None` when clean-up is off.
     pub cleanup_model: Option<String>,
     pub summary_model: String,
@@ -77,6 +79,8 @@ pub async fn about_info(app: AppHandle) -> CommandResult<AboutInfo> {
                 "x86_64" if cfg!(target_os = "macos") => "Intel".into(),
                 other => other.into(),
             },
+            dictation_model: (settings.dictation_model() != settings.stt_model)
+                .then(|| settings.dictation_model().to_string()),
             speech_model: settings.stt_model,
             cleanup_model: settings
                 .dictation

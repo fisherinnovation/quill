@@ -13,7 +13,7 @@ use quill_core::speakers;
 use quill_core::summary;
 use quill_llm::Privacy;
 use quill_stt::models::{self, ModelInfo};
-use quill_stt::{GpuChoice, TranscribeOptions, WhisperConfig, WhisperTranscriber};
+use quill_stt::{GpuChoice, TranscribeOptions, Transcriber, WhisperConfig};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -200,16 +200,17 @@ impl Job {
     }
 }
 
-/// The loaded Whisper model, kept between meetings: loading takes seconds.
+/// A loaded speech model, kept between meetings and dictations: loading
+/// takes seconds.
 pub struct LoadedTranscriber {
     model: String,
     vad: bool,
     gpu: GpuChoice,
-    transcriber: Arc<WhisperTranscriber>,
+    transcriber: Arc<dyn Transcriber>,
 }
 
 impl LoadedTranscriber {
-    /// The Whisper model's short name, e.g. `turbo`.
+    /// The speech model's short name, e.g. `turbo` or `parakeet-v2`.
     pub fn model_name(&self) -> &str {
         &self.model
     }
@@ -592,20 +593,26 @@ fn two_track_from_library(app: &AppHandle, id: &str) -> Option<Vec<quill_stt::Se
         .then_some(segments)
 }
 
-/// Loads the Whisper model in the background at startup, if it's already
-/// downloaded, so the first dictation doesn't wait for it.
+/// Loads dictation's speech model in the background at startup, if it's
+/// already downloaded, so the first dictation doesn't wait for it.
+/// (Meetings load theirs when they need it, if it's another.)
 pub fn preload(app: &AppHandle) {
     let settings = lock(&app.state::<AppState>().settings).clone();
     let Some(dir) = quill_core::paths::models_dir() else {
         return;
     };
-    let downloaded = models::find(&settings.stt_model).is_some_and(|m| m.is_downloaded(&dir))
+    let downloaded = models::speech_files(settings.dictation_model())
+        .is_some_and(|files| files.iter().all(|m| m.is_downloaded(&dir)))
         && (!settings.vad || models::VAD_MODEL.is_downloaded(&dir));
     if downloaded {
         let started = std::time::Instant::now();
-        match transcriber(app, None, &settings) {
-            Ok(_) => tracing::info!(ms = started.elapsed().as_millis(), "Whisper model loaded"),
-            Err(e) => tracing::warn!("couldn't preload the Whisper model: {e}"),
+        match dictation_transcriber(app, &settings) {
+            Ok(_) => tracing::info!(
+                ms = started.elapsed().as_millis(),
+                model = settings.dictation_model(),
+                "speech model loaded"
+            ),
+            Err(e) => tracing::warn!("couldn't preload the speech model: {e}"),
         }
     }
 }
@@ -633,42 +640,69 @@ pub fn llm_provider(
     })
 }
 
-/// Returns the Whisper model from settings, loading (and first downloading)
-/// it if it isn't the one already in memory. Download progress goes to
-/// `job`'s progress events, if given. Meetings and dictation share the one
-/// loaded model; it's safe to use from several threads at once.
+/// Returns the meetings' speech model from settings, loading (and first
+/// downloading) it if it isn't in memory. Download progress goes to
+/// `job`'s progress events, if given. Dictation shares it unless it has a
+/// model of its own; it's safe to use from several threads at once.
 pub fn transcriber(
     app: &AppHandle,
     job: Option<&Arc<Job>>,
     settings: &Settings,
-) -> Result<Arc<WhisperTranscriber>, String> {
+) -> Result<Arc<dyn Transcriber>, String> {
+    load_speech_model(app, job, settings, &settings.stt_model)
+}
+
+/// Returns dictation's speech model, as [`transcriber`] does the meetings'.
+pub fn dictation_transcriber(
+    app: &AppHandle,
+    settings: &Settings,
+) -> Result<Arc<dyn Transcriber>, String> {
+    load_speech_model(app, None, settings, settings.dictation_model())
+}
+
+/// Speech model `name`, from memory or loaded (and first downloaded).
+/// Keeps at most the two the settings use (meetings' and dictation's)
+/// loaded, so switching between a meeting and a dictation never reloads.
+fn load_speech_model(
+    app: &AppHandle,
+    job: Option<&Arc<Job>>,
+    settings: &Settings,
+    name: &str,
+) -> Result<Arc<dyn Transcriber>, String> {
     let state = app.state::<AppState>();
     let mut cached = lock(&state.transcriber);
-    if let Some(t) = cached.as_ref()
-        && t.model == settings.stt_model
-        && t.vad == settings.vad
-        && t.gpu == settings.gpu
-    {
+    let current = |t: &LoadedTranscriber| t.vad == settings.vad && t.gpu == settings.gpu;
+    if let Some(t) = cached.iter().find(|t| t.model == name && current(t)) {
         return Ok(Arc::clone(&t.transcriber));
     }
 
-    let model = models::find(&settings.stt_model)
-        .ok_or_else(|| format!("unknown Whisper model `{}`", settings.stt_model))?;
-    let model_path = ensure_downloaded(app, job, model)?;
+    let files =
+        models::speech_files(name).ok_or_else(|| format!("unknown speech model `{name}`"))?;
+    for file in files {
+        ensure_downloaded(app, job, file)?;
+    }
     let vad_model = if settings.vad {
         Some(ensure_downloaded(app, job, &models::VAD_MODEL)?)
     } else {
         None
     };
+    let dir = quill_core::paths::models_dir().ok_or("no home directory")?;
     let config = WhisperConfig {
         vad_model,
         gpu: settings.gpu.clone(),
         ..WhisperConfig::default()
     };
-    let transcriber =
-        Arc::new(WhisperTranscriber::load(&model_path, &config).map_err(|e| e.to_string())?);
-    *cached = Some(LoadedTranscriber {
-        model: settings.stt_model.clone(),
+    let transcriber: Arc<dyn Transcriber> =
+        Arc::from(quill_stt::load(name, &dir, &config).map_err(|e| e.to_string())?);
+    // Drop models the settings no longer use (or loaded with other
+    // settings), and this one's stale copy.
+    cached.retain(|t| {
+        t.model != name
+            && current(t)
+            && (t.model == settings.stt_model || t.model == settings.dictation_model())
+    });
+    cached.push(LoadedTranscriber {
+        model: name.to_string(),
         vad: settings.vad,
         gpu: settings.gpu.clone(),
         transcriber: Arc::clone(&transcriber),
@@ -686,7 +720,12 @@ fn ensure_downloaded(
     let message = if speakers::required_models().contains(&model) {
         "Downloading the voice models".to_string()
     } else {
-        format!("Downloading the {} speech model", model.name)
+        // A Parakeet model is four files, named after the model.
+        let name = models::PARAKEET_MODELS
+            .iter()
+            .find(|p| p.files().contains(&model))
+            .map_or(model.name, |p| p.name);
+        format!("Downloading the {name} speech model")
     };
     let mut last = -1.0;
     let mut downloaded = false;

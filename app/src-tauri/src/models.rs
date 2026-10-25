@@ -53,7 +53,7 @@ pub struct DownloadProgress {
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
-    /// Whisper.
+    /// Whisper, or one of a Parakeet model's files.
     Speech,
     /// Silence detection.
     Vad,
@@ -75,6 +75,9 @@ pub struct ModelEntry {
     pub downloading: bool,
     /// One of the models *Tell speakers apart* uses.
     pub for_speakers: bool,
+    /// The speech model this file belongs to, for a model of several files
+    /// (Parakeet's four), e.g. `parakeet-v2`.
+    pub part_of: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,11 +94,16 @@ fn models_dir() -> Result<PathBuf, String> {
     quill_core::paths::models_dir().ok_or_else(|| "no home directory".to_string())
 }
 
-/// The models the current settings need: the Whisper model, the VAD model
-/// if silence skipping is on, and the speaker models if telling speakers
-/// apart is on.
+/// The models the current settings need: the speech models (meetings'
+/// and dictation's), the VAD model if silence skipping is on, and the
+/// speaker models if telling speakers apart is on.
 pub fn required(settings: &Settings) -> Vec<&'static ModelInfo> {
-    let mut list: Vec<&'static ModelInfo> = models::find(&settings.stt_model).into_iter().collect();
+    let mut list = speech_files(&settings.stt_model);
+    for file in speech_files(settings.dictation_model()) {
+        if !list.contains(&file) {
+            list.push(file);
+        }
+    }
     if settings.vad {
         list.push(&models::VAD_MODEL);
     }
@@ -105,13 +113,18 @@ pub fn required(settings: &Settings) -> Vec<&'static ModelInfo> {
     list
 }
 
-/// The models dictation needs (Whisper, and VAD if on) that aren't
-/// downloaded yet.
+/// A speech model's files (none for an unknown name).
+fn speech_files(name: &str) -> Vec<&'static ModelInfo> {
+    models::speech_files(name).unwrap_or_default()
+}
+
+/// The models dictation needs (its speech model, and VAD if on) that
+/// aren't downloaded yet.
 pub fn missing_for_dictation(settings: &Settings) -> Vec<&'static ModelInfo> {
     let Ok(dir) = models_dir() else {
         return Vec::new();
     };
-    let mut list: Vec<&'static ModelInfo> = models::find(&settings.stt_model).into_iter().collect();
+    let mut list = speech_files(settings.dictation_model());
     if settings.vad {
         list.push(&models::VAD_MODEL);
     }
@@ -222,11 +235,16 @@ fn emit(
     }
 }
 
-/// Every model the app might use: all Whisper sizes, VAD, and the speaker
-/// models. Other voice models (for `quill-cli diarize` comparisons) are
-/// listed only if downloaded, so their space can be reclaimed.
+/// Every model the app might use: all Whisper sizes, Parakeet's files,
+/// VAD, and the speaker models. Other voice models (for `quill-cli
+/// diarize` comparisons) are listed only if downloaded, so their space can
+/// be reclaimed.
 fn catalog(dir: &std::path::Path) -> Vec<(&'static ModelInfo, Kind)> {
-    let mut list: Vec<_> = models::MODELS.iter().map(|m| (m, Kind::Speech)).collect();
+    let mut list: Vec<_> = models::MODELS
+        .iter()
+        .chain(models::parakeet_files())
+        .map(|m| (m, Kind::Speech))
+        .collect();
     list.push((&models::VAD_MODEL, Kind::Vad));
     list.push((&models::SEGMENTATION_MODEL, Kind::Speakers));
     for m in models::VOICE_MODELS {
@@ -264,6 +282,10 @@ fn info(app: &AppHandle) -> Result<ModelsInfo, String> {
             in_use: needed.contains(&m.name),
             downloading: active.contains(m.name),
             for_speakers: speakers::required_models().contains(&m),
+            part_of: models::PARAKEET_MODELS
+                .iter()
+                .find(|p| p.files().contains(&m))
+                .map(|p| p.name),
         })
         .collect();
     Ok(ModelsInfo {
@@ -364,7 +386,10 @@ pub fn redownload_model(app: AppHandle, name: String) -> CommandResult<ModelsInf
 #[tauri::command]
 pub fn delete_all_models(app: AppHandle) -> CommandResult<ModelsInfo> {
     let dir = models_dir().map_err(CommandError::Other)?;
-    let all = models::MODELS.iter().chain(models::support_models());
+    let all = models::MODELS
+        .iter()
+        .chain(models::support_models())
+        .chain(models::parakeet_files());
     let mut skipped = Vec::new();
     for model in all {
         if !model.path_in(&dir).is_file() && !model.part_path_in(&dir).is_file() {
@@ -389,8 +414,9 @@ fn find(name: &str) -> CommandResult<&'static ModelInfo> {
 }
 
 /// Deletes a model's file and any leftover partial download, and unloads
-/// the Whisper model in memory if this is it (or its VAD model), so the
-/// next use loads a fresh copy. Refuses while the model is downloading.
+/// the speech models in memory that use it (all of them for the VAD
+/// model), so the next use loads a fresh copy. Refuses while the model is
+/// downloading.
 fn remove(app: &AppHandle, model: &'static ModelInfo) -> CommandResult<()> {
     let state = app.state::<AppState>();
     if lock(&state.downloads.active).contains(model.name) {
@@ -411,13 +437,9 @@ fn remove(app: &AppHandle, model: &'static ModelInfo) -> CommandResult<()> {
     }
     // A meeting already transcribing keeps its own reference to the loaded
     // model and finishes normally.
-    let mut loaded = lock(&state.transcriber);
-    if loaded
-        .as_ref()
-        .is_some_and(|t| t.model_name() == model.name || model.name == models::VAD_MODEL.name)
-    {
-        *loaded = None;
-    }
+    lock(&state.transcriber).retain(|t| {
+        model.name != models::VAD_MODEL.name && !speech_files(t.model_name()).contains(&model)
+    });
     Ok(())
 }
 

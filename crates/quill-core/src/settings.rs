@@ -19,7 +19,9 @@ pub const DEFAULT_POLISH_MODEL: &str = "google/gemini-3.5-flash-lite";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    /// Whisper model name (see `quill-cli models list`).
+    /// Speech model name (see `quill-cli models list`): a Whisper size or
+    /// a Parakeet model. Meetings use it, and dictation unless
+    /// `dictation.stt_model` says otherwise.
     pub stt_model: String,
     /// Spoken language, e.g. "en"; `None` auto-detects.
     pub language: Option<String>,
@@ -91,6 +93,10 @@ pub struct DictationSettings {
     /// Spoken language: a code like "en", "auto" to detect it each time
     /// (adds ~0.5 s), or `None` for the system language.
     pub language: Option<String>,
+    /// Speech model for dictation, when it isn't the meetings' one
+    /// (`Settings::stt_model`): e.g. a Parakeet model for dictation and
+    /// Whisper for meetings. `None` uses the meetings' model.
+    pub stt_model: Option<String>,
     /// Clean up the text with an LLM before typing it.
     pub polish: bool,
     /// OpenRouter model id or `ollama:<model>` for the polish step.
@@ -145,6 +151,7 @@ impl Default for DictationSettings {
             enabled: true,
             hotkey: "Alt+Space".into(),
             language: None,
+            stt_model: None,
             polish: true,
             polish_model: DEFAULT_POLISH_MODEL.into(),
             about: String::new(),
@@ -201,6 +208,15 @@ pub enum SettingsError {
 }
 
 impl Settings {
+    /// The speech model dictation uses.
+    pub fn dictation_model(&self) -> &str {
+        self.dictation
+            .stt_model
+            .as_deref()
+            .filter(|m| !m.trim().is_empty())
+            .unwrap_or(&self.stt_model)
+    }
+
     /// The recordings folder in effect.
     pub fn recordings_dir(&self, data_dir: &Path) -> PathBuf {
         self.recordings_dir
@@ -243,6 +259,7 @@ mod tests {
             theme: Theme::Dark,
             gpu: GpuChoice::Named("NVIDIA GeForce RTX 4070".into()),
             dictation: DictationSettings {
+                stt_model: Some("parakeet-v2".into()),
                 sound: Sounds::Marimba,
                 vocabulary: vec!["Quill".into(), "OpenRouter".into()],
                 replacements: vec![Replacement {
@@ -273,5 +290,16 @@ mod tests {
         let s = Settings::load(dir.path()).unwrap();
         assert_eq!(s.stt_model, "small");
         assert!(s.vad);
+    }
+
+    #[test]
+    fn dictation_uses_the_meetings_model_unless_told_otherwise() {
+        let mut s = Settings::default();
+        assert_eq!(s.dictation_model(), "turbo");
+        s.dictation.stt_model = Some("parakeet-v2".into());
+        assert_eq!(s.dictation_model(), "parakeet-v2");
+        assert_eq!(s.stt_model, "turbo");
+        s.dictation.stt_model = Some(String::new());
+        assert_eq!(s.dictation_model(), "turbo");
     }
 }

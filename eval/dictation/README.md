@@ -233,3 +233,22 @@ live captions: they shipped the next evening, and its log line has no
 under ~28.7 s, so it was the same bug: segment 1 (38 words, 0–22.4 s) and
 then the same 38 words at 22.4–22.8 s. The 79529d8 build reproduces it; the
 full window and this change both type it once.
+
+## Parakeet (2026-10-25, Windows 11, i9-14900KF, RTX 4070 SUPER)
+
+Windows has no `say`, so `make_clips.ps1` builds the same clips with its
+text-to-speech voices (David and Zira), as `clips/<id>-<voice>.wav`:
+
+```sh
+powershell -ExecutionPolicy Bypass -File eval/dictation/make_clips.ps1
+quill-cli models download parakeet-v2
+quill-cli dictate --no-polish -l en --stt-model parakeet-v2 eval/dictation/clips/*.wav
+quill-cli dictate --no-polish -l en --stt-model turbo --cpu eval/dictation/clips/*.wav   # Whisper without the GPU
+```
+
+`dictate` now ends with a speed table by clip length. The results, and why
+Whisper stays the default, are in "Parakeet" in `docs/DESIGN_NOTES.md`: on
+this PC Parakeet v2 took 0.18 s for a dictation under 4 s (Whisper turbo
+on Vulkan 0.21 s, on the CPU 7.1 s) and 0.39 s for 4–15 s (Whisper 0.29 s),
+with WER 10.4% on these 20 clips against Whisper's 9.4% (7.1% and 7.8%
+with `--vocabulary fetchUser,loadUser,standup`).

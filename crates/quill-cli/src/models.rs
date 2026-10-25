@@ -1,4 +1,5 @@
-//! `quill-cli models ...`: manage downloaded Whisper models.
+//! `quill-cli models ...`: manage downloaded speech models (Whisper and
+//! Parakeet) and the models that support them.
 
 use std::path::{Path, PathBuf};
 
@@ -13,7 +14,7 @@ pub enum Command {
     List,
     /// Download a model and verify its checksum
     Download {
-        /// Model name, e.g. `turbo` or `vad` (see `models list`)
+        /// Model name, e.g. `turbo`, `parakeet-v2` or `vad` (see `models list`)
         name: String,
     },
     /// Print the models directory
@@ -37,8 +38,29 @@ pub fn run(cmd: Command, models_dir: &Path) -> anyhow::Result<()> {
                     m.description
                 );
             }
+            // Four files each, listed as one.
+            for m in models::PARAKEET_MODELS {
+                let mark = if m.is_downloaded(models_dir) {
+                    "✓"
+                } else {
+                    " "
+                };
+                println!(
+                    "{mark} {:<19} {:>8}  {}",
+                    m.name,
+                    format_size(m.size_bytes()),
+                    m.description
+                );
+            }
         }
         Command::Download { name } => {
+            if let Some(parakeet) = models::find_parakeet(&name) {
+                for file in parakeet.files() {
+                    download_with_progress(file, models_dir)?;
+                }
+                println!("{}", models_dir.display());
+                return Ok(());
+            }
             let model = lookup(&name)?;
             let path = download_with_progress(model, models_dir)?;
             println!("{}", path.display());
@@ -57,6 +79,7 @@ pub fn lookup(name: &str) -> anyhow::Result<&'static ModelInfo> {
                 .iter()
                 .chain(models::support_models())
                 .map(|m| m.name)
+                .chain(models::PARAKEET_MODELS.iter().map(|m| m.name))
                 .collect();
             bail!(
                 "unknown model `{name}`; choose one of: {}",
@@ -76,6 +99,30 @@ pub fn resolve(name: &str, models_dir: &Path) -> anyhow::Result<PathBuf> {
         );
     }
     Ok(model.path_in(models_dir))
+}
+
+/// Checks that speech model `name` (Whisper or Parakeet) is downloaded,
+/// with a helpful error if it isn't.
+pub fn require_speech(name: &str, models_dir: &Path) -> anyhow::Result<()> {
+    let Some(files) = models::speech_files(name) else {
+        let names: Vec<_> = MODELS
+            .iter()
+            .map(|m| m.name)
+            .chain(models::PARAKEET_MODELS.iter().map(|m| m.name))
+            .collect();
+        bail!(
+            "unknown speech model `{name}`; choose one of: {}",
+            names.join(", ")
+        )
+    };
+    if !files.iter().all(|f| f.is_downloaded(models_dir)) {
+        let size = files.iter().map(|f| f.size_bytes).sum();
+        bail!(
+            "model `{name}` is not downloaded ({}); run: quill-cli models download {name}",
+            format_size(size)
+        );
+    }
+    Ok(())
 }
 
 /// The VAD model path if VAD is enabled, downloading the (1 MB) model the

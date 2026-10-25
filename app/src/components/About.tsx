@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { type AboutInfo, type AboutLink, api, errorText } from "../api";
 import { Icon, Logo } from "./Icon";
+import { speechModelName } from "./Models";
 import { AboutUpdate } from "./Updates";
 
 /** "2026-10-12" → "Oct 12, 2026" in the user's locale. */
@@ -18,6 +19,7 @@ function diagnostics(info: AboutInfo): string {
     `Build: ${info.commit || "unknown"}${info.commit_date ? ` (${info.commit_date})` : ""}`,
     `System: ${info.os}, ${info.arch}`,
     `Speech model: ${info.speech_model}`,
+    ...(info.dictation_model ? [`Dictation model: ${info.dictation_model}`] : []),
     `Clean-up model: ${info.cleanup_model ?? "off"}`,
     `Summary model: ${info.summary_model}`,
     `Tell speakers apart: ${info.identify_speakers ? "on" : "off"}`,
@@ -84,7 +86,12 @@ export function About() {
             {info.os}, {info.arch}
           </dd>
           <dt>Speech</dt>
-          <dd>Whisper {info.speech_model}, on this computer</dd>
+          <dd>
+            {speechModelName(info.speech_model)}
+            {info.dictation_model &&
+              `, ${speechModelName(info.dictation_model)} for dictation`}
+            , on this computer
+          </dd>
           <dt>Speakers</dt>
           <dd>{info.identify_speakers ? "Told apart by voice, on this computer" : "Off"}</dd>
           <dt>Clean-up</dt>

@@ -35,7 +35,10 @@ where reality differs.
   or an Ollama server (`localhost:11434` by default, or `OLLAMA_HOST`);
 - Hugging Face, to download speech models, and the search model when you
   ask for it. Each download is checked against a pinned SHA-256 hash before
-  use.
+  use. Choosing Parakeet in **Settings → Models** downloads its four files
+  (about 660 MB) from sherpa-onnx's exports
+  (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-*-int8`), checked the same
+  way; like Whisper, it runs on your computer and sends nothing anywhere.
 - OpenRouter's public model list (no key, nothing about you), and the local
   Ollama server's list of installed models, to fill the model pickers in
   Settings.
