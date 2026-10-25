@@ -77,3 +77,79 @@ takes under two minutes.
 - **Segmentation step:** a 0.25 step (2.5 s) was as accurate as pyannote's
   default of 0.1, at under half the time. A 0.5 step lost about 2 points.
 - **Opus at 24 kbit/s** made no visible difference to the TTS results.
+
+## Known voices (recognising people across meetings)
+
+`quill-cli voices eval` measures how well Quill recognises people it has
+heard before (`quill_diarize::voices`, `quill_core::voices`). Each file needs
+its RTTM beside it, with speaker names that identify people across files, as
+AMI's participant ids do.
+
+```sh
+# The 16 AMI test meetings (4 series of the same 4 people) and 12 dev
+# meetings (3 more series), 28 people in all
+./fetch_ami.sh "ES2004a ES2004b ES2004c ES2004d IS1009a IS1009b IS1009c IS1009d TS3003a TS3003b TS3003c TS3003d EN2002a EN2002b EN2002c EN2002d"
+AMI_SET=dev ./fetch_ami.sh "ES2011a ES2011b ES2011c ES2011d IS1008a IS1008b IS1008c IS1008d TS3004a TS3004b TS3004c TS3004d"
+quill-cli voices eval data/ami_*.wav --cache data/cache
+# Learn from the originals, recognise in copies through Opus 24 kbit/s
+# (ffmpeg, as make_mix.py --codec does; name them ami_X_opus.wav + .rttm)
+quill-cli voices eval data/ami_*.wav --test data/opus/*.wav --cache data/cache
+```
+
+Each recording is diarized as the app does (no speaker count), and each
+speaker is taken to be the reference person who talks most in their turns.
+Voices are learned as if the user had named everyone with enough speech
+(speakers who are the same person merged, as typing the same name does), then
+matched in another recording. Four scenarios:
+
+- **one meeting, same people**: learned from another session of the same group;
+- **one meeting, strangers**: learned from a meeting with none of these people;
+- **everyone else**: learned from every other meeting (28 people known);
+- **strangers only**: learned from every meeting without these people.
+
+A wrong name is either a known person named as someone else, or a stranger
+given a known name. `quill-cli voices match <a> <b>` shows the similarity of
+every pair of speakers in two recordings (folders or audio files; nothing is
+written).
+
+### Results (October 2026, TitaNet-small)
+
+Similarity of a speaker's voice to the voice learned for them from other
+meetings: median 0.94 (5th percentile 0.44: speakers diarization had merged
+with someone else). To the closest other person: median 0.46, 95th
+percentile 0.72.
+
+At least 30 s of speech, on the clean recordings (28 meetings):
+
+| Threshold | Same people: named right / wrong | Strangers named (one meeting) | Everyone else: right / wrong | Strangers named (strangers only) | Wrong names of all given (on one-person speakers) |
+|---|---|---|---|---|---|
+| 0.50 | 93.1% / 1.8% | 4.0% of 2424 | 95.0% / 3.0% | 23.8% of 101 | 27.8% (34) |
+| 0.60 | 92.8% / 1.8% | 0.2% | 95.0% / 2.0% | 1.0% | 5.4% (0) |
+| 0.65 | 92.8% / 1.8% | 0.0% | 95.0% / 2.0% | 0.0% | 4.1% (0) |
+| **0.70** | **92.1% / 1.8%** | **0.0%** | **95.0% / 2.0%** | **0.0%** | **3.8% (0)** |
+| 0.75 | 91.7% / 1.8% | 0.0% | 95.0% / 2.0% | 0.0% | 3.8% (0) |
+| 0.80 | 83.8% / 1.1% | 0.0% | 95.0% / 2.0% | 0.0% | 3.0% (0) |
+
+Learned from the originals, recognised in the 16 test meetings through Opus
+24 kbit/s, at 0.70: 89.0% / 1.8% (same people), 0.0% of 1416 strangers
+named, 91.5% / 3.4% (everyone else), 0.0% (strangers only); 3.9% of names
+wrong, none on one-person speakers.
+
+With a 15 s minimum, recall is lower among the speakers that count (85%)
+and wrong names rise (5.5% at 0.75): small, mixed clusters (overlap,
+crosstalk) matched each other across meetings, and a voice learned from one
+named small clusters everywhere.
+
+### What we learned
+
+- **From 0.6 up, every wrong name went to a speaker diarization had merged
+  from two people** (ES2004d and ES2011a each merged two women). Their voice
+  is half someone else's, so no threshold separates them (similarities
+  0.87–0.94). Such a speaker is mislabelled as "Speaker 2" too; the fix is
+  better diarization or the user setting **People on the call**.
+- **Recall is flat from 0.45 to 0.75** while strangers named fall from 7% to
+  0%, so a high threshold costs almost nothing. Above 0.75 it drops fast.
+- **The codec costs about 3 points of recall** and no extra false names.
+- **Caveat:** AMI's sessions of one group were recorded in the same room
+  with the same headsets, so real calls (different microphones, days and
+  connections) will match less often. That's the safe direction.

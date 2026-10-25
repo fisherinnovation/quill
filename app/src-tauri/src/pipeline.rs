@@ -395,10 +395,7 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
         })
         .await
         .map_err(|e| e.to_string())??;
-        state
-            .library
-            .save_transcript(id, &segments)
-            .map_err(|e| e.to_string())?;
+        save_labelled(app, id, &segments)?;
         return Ok(());
     }
 
@@ -434,7 +431,7 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
                 tracing::warn!(meeting_id = id2, "couldn't save transcript.json: {e}");
             }
             if !settings2.identify_speakers {
-                return Ok::<_, String>(segments);
+                return Ok::<_, String>(speakers::Labelled::unchanged(&segments));
             }
             // Telling speakers apart is a bonus: if it fails, keep "Others".
             match identify_speakers(&app2, &id2, &segments, None, &job2) {
@@ -442,16 +439,13 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
                 Err(e) => {
                     tracing::warn!(meeting_id = id2, "couldn't tell speakers apart: {e}");
                     job2.skip(StepKind::Speakers);
-                    Ok(segments)
+                    Ok(speakers::Labelled::unchanged(&segments))
                 }
             }
         })
         .await
         .map_err(|e| e.to_string())??;
-        state
-            .library
-            .save_transcript(id, &segments)
-            .map_err(|e| e.to_string())?;
+        save_labelled(app, id, &segments)?;
     }
 
     if steps == Steps::TranscribeOnly {
@@ -490,23 +484,39 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
     Ok(())
 }
 
-/// Relabels the "Others" lines of a two-track transcript by voice. The
-/// models run only the first time for a meeting; later calls (a different
-/// speaker count) reuse the cached analysis. Blocking.
+/// Saves a transcript, and the voices of the people on the call for
+/// recognising them later (`quill_core::voices`).
+fn save_labelled(app: &AppHandle, id: &str, labelled: &speakers::Labelled) -> Result<(), String> {
+    let library = &app.state::<AppState>().library;
+    library
+        .save_transcript(id, &labelled.segments)
+        .map_err(|e| e.to_string())?;
+    // Only costs recognising this meeting's people later; not worth failing
+    // the transcript over.
+    if let Err(e) = library.save_meeting_voices(id, speakers::VOICE_MODEL, &labelled.voices) {
+        tracing::warn!(meeting_id = id, "couldn't save the call's voices: {e}");
+    }
+    Ok(())
+}
+
+/// Relabels the "Others" lines of a two-track transcript by voice, naming
+/// people whose voices Quill knows (if that's on). The models run only the
+/// first time for a meeting; later calls (a different speaker count) reuse
+/// the cached analysis. Blocking.
 fn identify_speakers(
     app: &AppHandle,
     id: &str,
     track: &[quill_stt::Segment],
     count: Option<usize>,
     job: &Arc<Job>,
-) -> Result<Vec<quill_stt::Segment>, String> {
+) -> Result<speakers::Labelled, String> {
     if !track
         .iter()
         .any(|s| s.speaker.as_deref() == Some(meeting::OTHERS))
     {
         // Only you spoke: nobody to tell apart.
         job.skip(StepKind::Speakers);
-        return Ok(track.to_vec());
+        return Ok(speakers::Labelled::unchanged(track));
     }
     job.start(StepKind::Speakers);
     let dir = app.state::<AppState>().library.meeting_dir(id);
@@ -525,17 +535,39 @@ fn identify_speakers(
                 Some(analysis) => analysis,
                 None => {
                     job.skip(StepKind::Speakers);
-                    return Ok(track.to_vec());
+                    return Ok(speakers::Labelled::unchanged(track));
                 }
             }
         }
     };
-    let (labelled, found) = speakers::label(track, &analysis, count);
+    let state = app.state::<AppState>();
+    let recognize = lock(&state.settings).recognize_voices;
+    let known = if recognize {
+        state
+            .library
+            .known_voices_to_match(speakers::VOICE_MODEL)
+            .unwrap_or_else(|e| {
+                tracing::warn!("couldn't read known voices: {e}");
+                Vec::new()
+            })
+    } else {
+        Vec::new()
+    };
+    let labelled = speakers::label_and_recognize(
+        track,
+        &analysis,
+        count,
+        &known,
+        &speakers::MatchOptions::default(),
+    );
     job.finish(StepKind::Speakers);
+    // Counts only: names and voices are never logged.
     tracing::info!(
         meeting_id = id,
-        speakers = found,
+        speakers = labelled.speakers,
         requested = count,
+        known_voices = known.len(),
+        recognized = labelled.recognized(),
         ms = started.elapsed().as_millis(),
         "told speakers apart"
     );

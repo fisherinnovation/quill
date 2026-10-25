@@ -8,6 +8,7 @@ import {
   fileManager,
   minutes,
   type MeetingDetail,
+  type MeetingVoice,
   type Progress,
   type RecordingState,
   turns,
@@ -112,6 +113,8 @@ export function MeetingView({
   onBack,
 }: Props) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
+  // Who on the call Quill has voices for (recognized automatically or not).
+  const [voices, setVoices] = useState<MeetingVoice[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"summary" | "transcript" | "stats">(jumpTo !== undefined ? "transcript" : "summary");
   // A moment picked on the Stats tab, to show in the transcript.
@@ -129,6 +132,10 @@ export function MeetingView({
       .getMeeting(id)
       .then(setDetail)
       .catch((e) => setError(errorText(e)));
+    api
+      .meetingVoices(id)
+      .then(setVoices)
+      .catch(() => setVoices([]));
   }, [id, version]);
 
   if (error) {
@@ -154,6 +161,12 @@ export function MeetingView({
     await api.renameSpeaker(id, from, to);
     setDetail((d) => d && { ...d, segments: d.segments.map((s) => (s.speaker === from ? { ...s, speaker: to } : s)) });
     setSpeakersEditedAt(Date.now());
+    setVoices(await api.meetingVoices(id).catch(() => voices));
+  }
+
+  async function confirmSpeaker(label: string) {
+    await api.confirmSpeaker(id, label);
+    setVoices(await api.meetingVoices(id).catch(() => voices));
   }
 
   function splitSpeakers(count: number | null) {
@@ -370,7 +383,14 @@ export function MeetingView({
         ))}
 
       {tab === "transcript" && segments.length > 0 && !recording && (
-        <SpeakerBar segments={segments} busy={busy} onRename={renameSpeaker} onSplit={splitSpeakers} />
+        <SpeakerBar
+          segments={segments}
+          voices={voices}
+          busy={busy}
+          onRename={renameSpeaker}
+          onConfirm={confirmSpeaker}
+          onSplit={splitSpeakers}
+        />
       )}
       {tab === "transcript" && (
         <Transcript
@@ -570,21 +590,27 @@ function talkTime(ms: number): string {
 /**
  * The people on the call above the transcript: click one to rename them
  * (typing another speaker's name merges the two), or say how many people
- * there were to split the voices again.
+ * there were to split the voices again. People Quill named by voice are
+ * marked, with a button to confirm the name.
  */
 function SpeakerBar({
   segments,
+  voices,
   busy,
   onRename,
+  onConfirm,
   onSplit,
 }: {
   segments: MeetingDetail["segments"];
+  voices: MeetingVoice[];
   busy: boolean;
   onRename: (from: string, to: string) => Promise<void>;
+  onConfirm: (label: string) => Promise<void>;
   onSplit: (count: number | null) => void;
 }) {
   const people = callSpeakers(segments);
   const colors = speakerColors(segments);
+  const recognized = new Set(voices.filter((v) => v.recognized).map((v) => v.label));
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -619,6 +645,36 @@ function SpeakerBar({
               }
             }}
           />
+        ) : recognized.has(p.name) ? (
+          <span key={p.name} className="speaker-chip-pair">
+            <button
+              className="speaker-chip recognized"
+              title={`Recognized by voice. Click to rename if it's someone else.`}
+              disabled={busy}
+              onClick={() => setEditing(p.name)}
+            >
+              <span className="dot" style={colorStyle(colors, p.name)}>
+                {initial(p.name)}
+              </span>
+              {p.name}
+              <Icon name="sparkle" size={11} />
+              <span className="talk">{talkTime(p.talkMs)}</span>
+            </button>
+            <button
+              className="speaker-confirm"
+              title={`Yes, this is ${p.name}`}
+              aria-label={`Confirm ${p.name}`}
+              disabled={busy}
+              onClick={() => {
+                onConfirm(p.name).then(
+                  () => setError(null),
+                  (e) => setError(errorText(e)),
+                );
+              }}
+            >
+              <Icon name="check" size={12} />
+            </button>
+          </span>
         ) : (
           <button
             key={p.name}
@@ -634,6 +690,11 @@ function SpeakerBar({
             <span className="talk">{talkTime(p.talkMs)}</span>
           </button>
         ),
+      )}
+      {recognized.size > 0 && editing === null && (
+        <span className="muted speaker-note">
+          <Icon name="sparkle" size={11} /> Recognized by voice
+        </span>
       )}
       {error && <span className="muted">{error}</span>}
       <span className="speaker-count">

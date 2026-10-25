@@ -38,6 +38,7 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 - **Works with any call app.** Zoom, Google Meet, Teams, a browser tab, a phone app mirrored to your computer. Nothing joins the call as a bot.
 - **Two tracks, real speaker labels.** Your microphone is recorded as **You** and the call audio separately, so your words are never mixed up with anyone else's.
 - **Tells the other people apart.** Voices on the call are separated into **Speaker 1**, **Speaker 2**… on your computer ([pyannote](https://github.com/pyannote/pyannote-audio) segmentation and voice fingerprints via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)). Rename them in the transcript (typing an existing name merges two), or say how many people were on the call to split them again instantly. The notes use the names.
+- **Recognizes people you've named.** Name someone once and Quill remembers their voice (on your computer), then names them in later meetings when their voice clearly matches, marked so you can confirm or correct it. Unsure matches stay **Speaker 2**. Known voices are listed, and forgotten, in **Settings → Meetings**.
 - **Echo cancellation.** If you use speakers instead of headphones, a WebRTC echo canceller removes the call's audio from your microphone track before transcription.
 - **Local transcription** with [Whisper](https://github.com/openai/whisper) through [whisper.cpp](https://github.com/ggerganov/whisper.cpp), GPU-accelerated: Metal on Apple Silicon, Vulkan on Windows (Nvidia, AMD and Intel graphics; Quill prefers a dedicated card, and **Settings → Models → Graphics card** picks another). Silence is skipped first, so Whisper doesn't invent text in quiet stretches.
 - **Structured notes** written by a model you choose: TL;DR, decisions, action items with owners, discussion by topic and open questions. Long meetings are summarized in parts and combined.
@@ -71,6 +72,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | **Dictated text** | Sent to the clean-up model only when clean-up runs (fillers, corrections, lists). Clean-up can be turned off or pointed at a local Ollama model. |
 | **API keys** | Stored in the macOS Keychain or Windows Credential Manager, never in config files or logs. |
 | **Logs** | Local files with events, timings and errors. Never transcripts, notes, dictated text or keys. |
+| **Voice fingerprints** | Never leave your computer. Telling speakers apart and recognizing known voices use numeric voice embeddings, stored locally (see [Where your data lives](#where-your-data-lives)). |
 | **Telemetry** | None. Quill makes no network requests other than the model calls above, downloading the speech models, and a daily check on GitHub for a new version (which can be turned off). |
 
 For dictation, Quill reads the *name* of the frontmost app (for per-app style and insights), never its windows or contents, and shows the installed app's icon beside your dictations. To offer to record calls (macOS), it checks twice a second which apps are using a microphone (their identifiers only), never their audio, windows or contents.
@@ -254,6 +256,7 @@ cargo run --release -p quill-cli -- --help
 | `compact [dirs…]` | Convert recordings' WAVs to FLAC (the app does this automatically). |
 | `keys set\|delete openrouter` | Manage the API key in the OS keychain. |
 | `gpus` | List the graphics cards Quill can transcribe on, and the one it picks by itself. |
+| `voices match <a> <b>` / `voices eval <wavs…>` | Known voices: compare the people in two recordings by voice and show who in the second would be recognized, or measure recognition and false matches on audio with reference RTTMs (see [`eval/diarization`](eval/diarization)). Neither writes to the library. |
 | `mic-users [--watch]` | List the apps using a microphone (macOS), e.g. to see how a call shows up: Zoom as `us.zoom.xos`, a Meet tab as `com.google.Chrome.helper`. Reads only which apps, never audio. |
 | `live-notes <recording or audio file>` | Replay a recording through live notes (the panel during meetings) and print the notes at each update (every minute, as in the app), with timings and cost. |
 
@@ -269,14 +272,14 @@ The CLI and the app share one library, so meetings recorded or imported in eithe
 
 Inside it:
 
-- `quill.sqlite`: meetings, transcripts, summaries, action items (and which are done), dictation history and insight counts.
+- `quill.sqlite`: meetings, transcripts, summaries, action items (and which are done), dictation history and insight counts. Also known voices: the name of each person you named on a call, with one voice fingerprint (a 192-number embedding, not audio) per meeting you named them in, and each meeting's average voice fingerprint per person on the call, kept so naming them later can teach Quill their voice.
 - `recordings/<meeting id>/`: audio (`mic`/`system`, `.wav` while recording and `.flac` afterwards), `transcript.json` (the two-track transcript), `speakers.json` (voice fingerprints of the people on the call, used to re-split speakers; deleted with the meeting), `summary.md`, `recording.json`. The recordings folder can be moved in **Settings → Storage**.
 - `models/`: downloaded Whisper, VAD and speaker models.
 - `settings.toml`: settings (safe to edit while Quill isn't running).
 - `logs/`: daily log files, kept for two weeks.
 - `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`), the app it went into (`.json`), and once reviewed, what you said (`.txt`).
 
-Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately (**Reset** at the bottom of Home). Saved dictation samples are deleted from **Settings → Dictation → Testing accuracy**.
+Deleting a meeting in the app removes its database rows and its audio folder. Dictation history can be turned off or cleared, and insight counts can be reset separately (**Reset** at the bottom of Home). Saved dictation samples are deleted from **Settings → Dictation → Testing accuracy**. Known voices are forgotten one by one or all at once in **Settings → Meetings**; deleting a meeting deletes its per-meeting voice fingerprints, but not a known voice learned from it.
 
 ## How it works
 
@@ -348,7 +351,7 @@ CI runs exactly these on macOS and Windows for every push and pull request.
 **Releases:** bump `version` in `app/src-tauri/tauri.conf.json`, `app/package.json` and the workspace `Cargo.toml` in a pull request; once it's merged, tag `main` to match and push the tag (`git tag v0.2.0 && git push origin v0.2.0`). The [release workflow](.github/workflows/release.yml) builds the macOS `.dmg` and the Windows installers and attaches them to a draft GitHub Release to review and publish. Its notes are written from the `feat` and `fix` commits since the last tag ([`scripts/release-notes.sh`](scripts/release-notes.sh); run it to preview them); edit them in the draft before publishing. Running the workflow by hand (Actions → Release → Run workflow) builds the same installers as downloadable artifacts, without a release. Locally, `cd app && npx tauri build --bundles app && sh scripts/package-macos.sh` makes the `.dmg` in `dist-release/`.
 
 - **Tests that need models** are ignored by default. Run them with `QUILL_TEST_MODEL=<path to ggml model> QUILL_TEST_VAD_MODEL=<path to VAD model> cargo test -p quill-stt -- --ignored`.
-- **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`, `?about` (the About window), `?others` (call audio as one "Others" speaker), `?nomodels` (nothing downloaded), `?noollama` (Ollama not running), `?nokey` (no OpenRouter key), `?fn` (fn as the dictation shortcut), `?dark` (the dark theme), `?prompt` or `?prompt=stop` (the call prompt), `?gpus` (Windows' graphics card choice).
+- **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`, `?about` (the About window), `?others` (call audio as one "Others" speaker), `?nomodels` (nothing downloaded), `?noollama` (Ollama not running), `?nokey` (no OpenRouter key), `?fn` (fn as the dictation shortcut), `?dark` (the dark theme), `?prompt` or `?prompt=stop` (the call prompt), `?gpus` (Windows' graphics card choice), `?voices` (a speaker recognized by voice).
 - **Evaluating summary models:** see [`eval/README.md`](eval/README.md). Put your own meeting transcripts in `eval/transcripts/private/`, which is gitignored.
 - **Changing a prompt:** copy it to the next version directory (for example `prompts/summary-v3/`) rather than editing a shipped one, so results stay comparable.
 - **The website** lives in [`site/`](site): static HTML, CSS and a little JavaScript, with no third-party requests. `node site/build.mjs` builds it into `site/_site`, filling in the version, the latest release's downloads and the source links. CI builds it on every run and publishes it to GitHub Pages from `main`. The header video is recorded from the app's browser preview by `node site/video/render.mjs` (see [`.claude/skills/site-video`](.claude/skills/site-video/SKILL.md) for how it's planned). The narrated overview video behind "Watch the overview" is made by `node site/overview/make.mjs`, which generates its voice, footage and music through OpenRouter (see [`.claude/skills/site-overview`](.claude/skills/site-overview/SKILL.md)).

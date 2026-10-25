@@ -76,7 +76,16 @@ are stored **unencrypted** in Quill's data folder (see the README), protected
 by your operating-system account. Use full-disk encryption (FileVault or
 BitLocker) if that matters for you. Corrections you make to dictations are kept in the history (and deleted with it). The rules they suggest are stored as word pairs only. The "About you" text is sent to the clean-up model with dictations being tidied. With **Save dictations for testing** on (it's off by default), each dictation's audio, the text typed and the app it went into are kept in `dictation-samples/` until you delete them; they're never sent anywhere. Telling speakers apart stores voice
 fingerprints (embeddings) of the people on a call in that meeting's folder
-(`speakers.json`); they're deleted with the meeting and never sent anywhere. Logs contain events, timings and errors,
+(`speakers.json`); they're deleted with the meeting and never sent anywhere.
+Recognizing known voices (Settings → Meetings → Recognize voices, on by
+default) keeps voice fingerprints in `quill.sqlite`: for each meeting, one
+average fingerprint per person on the call (deleted with the meeting), and
+for each person you name, their name and one fingerprint per meeting you
+named or confirmed them in. Fingerprints are numeric embeddings from the
+local voice model, not audio, but they can identify a voice, so treat them
+like biometric data: they never leave your computer, are never logged, and
+a known voice is kept until you forget it in Settings → Meetings (deleting
+a meeting doesn't). Your own microphone track is never remembered. Logs contain events, timings and errors,
 never transcripts, notes, dictated text or keys.
 
 **Permissions.**

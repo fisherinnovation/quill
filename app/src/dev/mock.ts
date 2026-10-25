@@ -10,8 +10,9 @@
 // ?prompt=stop) for the call prompt, ?live (or ?live=empty) for the live
 // notes panel, ?writeup (or ?writeup=failed) for a meeting being written
 // up after recording (also what stopping a recording shows), ?update for a
-// new version waiting to be installed, and ?backlog for enough older
-// meetings and dictations to need "Show more".
+// new version waiting to be installed, ?backlog for enough older
+// meetings and dictations to need "Show more", and ?voices for a meeting
+// where Quill recognised someone by voice (Speaker 3 named Priya).
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { UpdateInfo } from "../api";
@@ -100,7 +101,7 @@ let SEGMENTS = [
   [23, 31, "Me", "Could we make the invite skippable and nudge them later, after they've created a project?"],
   [32, 38, other(2), "Yes, that's easy. I'd still ship Friday behind the flag and test that separately."],
   [40, 52, "Me", "Agreed. Ten percent of new sign-ups to start. I'll write up the rollout plan for support."],
-  [55, 70, other(3), "On analytics: signups have been about twelve percent too high since the SDK upgrade. There's a retry that re-sends the event."],
+  [55, 70, flags.has("voices") ? "Priya" : other(3), "On analytics: signups have been about twelve percent too high since the SDK upgrade. There's a retry that re-sends the event."],
   [71, 78, "Me", "Then let's hold the pricing experiments until that's fixed. No point testing on bad data."],
   [79, 83, other(2), "Fine by me. I'll prepare two pricing-page variants for next sprint."],
 ].map(([s, e, speaker, text]) => ({
@@ -109,6 +110,36 @@ let SEGMENTS = [
   speaker,
   text,
 }));
+
+// Known voices (quill_core::voices): who's on the sample call, and who
+// Quill remembers.
+const callVoice = (label: string, recognized = false) => ({
+  label,
+  recognized,
+  similarity: recognized ? 0.78 : null,
+  remembered: false,
+  enough_speech: true,
+});
+let meetingVoices = flags.has("others")
+  ? []
+  : [callVoice("Speaker 1"), callVoice("Speaker 2"), flags.has("voices") ? callVoice("Priya", true) : callVoice("Speaker 3")];
+const knownVoice = (id: number, name: string, meetings: number, daysAgo: number) => ({
+  id,
+  name,
+  voice_model: "voice-titanet-small",
+  meetings,
+  speech_ms: meetings * 240_000,
+  created_at: iso(daysAgo * D),
+  updated_at: iso(D),
+});
+let knownVoices = [knownVoice(1, "Priya", 3, 12), knownVoice(2, "Dan", 1, 4)];
+/** Naming someone remembers their voice, as `Library::rename_speaker` does. */
+function rememberVoice(name: string) {
+  if (/^Speaker \d+$/.test(name) || ["me", "you", "others"].includes(name.toLowerCase())) return;
+  const known = knownVoices.find((v) => v.name.toLowerCase() === name.toLowerCase());
+  if (known) known.meetings += 1;
+  else knownVoices = [...knownVoices, knownVoice(Date.now(), name, 1, 0)];
+}
 
 let meetings = flags.has("empty")
   ? []
@@ -243,6 +274,7 @@ const settings = {
   offer_to_record_calls: true,
   live_notes: true,
   notify_notes_ready: true,
+  recognize_voices: true,
   gpu: { kind: "automatic" },
   dictation: {
     enabled: true,
@@ -769,6 +801,25 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   open_keyboard_settings: () => null,
   rename_speaker: ({ from, to }) => {
     SEGMENTS = SEGMENTS.map((seg) => (seg.speaker === from ? { ...seg, speaker: String(to) } : seg));
+    const merging = meetingVoices.some((v) => v.label === to);
+    meetingVoices = meetingVoices
+      .filter((v) => !(merging && v.label === from))
+      .map((v) => (v.label === from || v.label === to ? { ...callVoice(String(to)), remembered: true } : v));
+    rememberVoice(String(to));
+  },
+  meeting_voices: () => meetingVoices,
+  confirm_speaker: ({ label }) => {
+    meetingVoices = meetingVoices.map((v) => (v.label === label ? { ...v, recognized: false, similarity: null, remembered: true } : v));
+    rememberVoice(String(label));
+  },
+  known_voices: () => knownVoices,
+  delete_known_voice: ({ id }) => {
+    knownVoices = knownVoices.filter((v) => v.id !== id);
+  },
+  forget_known_voices: () => {
+    const n = knownVoices.length;
+    knownVoices = [];
+    return n;
   },
   openrouter_key_status: () => (flags.has("nokey") ? "none" : "unknown"),
   set_openrouter_key: () => null,
