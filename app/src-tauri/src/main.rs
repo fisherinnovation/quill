@@ -27,6 +27,7 @@ mod storage;
 mod theme;
 mod tray;
 mod updates;
+mod voices;
 mod wrapup;
 
 use std::collections::HashSet;
@@ -254,6 +255,11 @@ fn main() {
             updates::update_info,
             updates::check_for_updates,
             updates::install_update,
+            voices::meeting_voices,
+            voices::confirm_speaker,
+            voices::known_voices,
+            voices::delete_known_voice,
+            voices::forget_known_voices,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Quill")

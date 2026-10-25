@@ -53,6 +53,9 @@ pub struct Settings {
     /// A system notification when a meeting's notes are ready (or couldn't
     /// be written), if Quill isn't in front.
     pub notify_notes_ready: bool,
+    /// Remember the voices of people the user names on calls, and name them
+    /// automatically in later meetings (`quill_core::voices`).
+    pub recognize_voices: bool,
     // Tables must come after plain values in TOML, so keep these last.
     /// Which graphics card transcribes, where there's a choice (Windows).
     pub gpu: GpuChoice,
@@ -176,6 +179,7 @@ impl Default for Settings {
             offer_to_record_calls: true,
             live_notes: true,
             notify_notes_ready: true,
+            recognize_voices: true,
             gpu: GpuChoice::Automatic,
             dictation: DictationSettings::default(),
         }

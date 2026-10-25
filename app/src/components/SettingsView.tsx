@@ -19,6 +19,7 @@ import {
 import { AccessCheck } from "./AccessCheck";
 import { DictationSettingsTab } from "./DictationSettings";
 import { Icon } from "./Icon";
+import { KnownVoicesRows } from "./KnownVoices";
 import { Group, LANGUAGES, Row, SaveIndicator, type SaveState, Switch, useAutosave } from "./ui";
 import { UpdateRows } from "./Updates";
 
@@ -193,6 +194,10 @@ export function SettingsView({
             onChange={(identify_speakers) => update({ identify_speakers })}
           />
         </Row>
+        <KnownVoicesRows
+          enabled={settings.recognize_voices}
+          onChange={(recognize_voices) => update({ recognize_voices })}
+        />
       </Group>
 
       <Group title="Calls">

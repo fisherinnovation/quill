@@ -157,6 +157,45 @@ CREATE INDEX action_items_by_meeting ON action_items (meeting_id);
 ALTER TABLE dictation_stats ADD COLUMN wait_ms INTEGER;
 ALTER TABLE dictations ADD COLUMN wait_ms INTEGER;
 ",
+    "
+-- Known voices (`voices`): people the user named on calls, recognised by
+-- voice in later meetings. Embeddings are little-endian f32, L2-normalised;
+-- ones from different voice models are never compared.
+CREATE TABLE known_voices (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL COLLATE NOCASE,
+    voice_model TEXT NOT NULL,
+    created_at  TEXT NOT NULL,             -- RFC 3339
+    updated_at  TEXT NOT NULL,
+    UNIQUE (name, voice_model)
+);
+-- One sample of a known voice per meeting the user named them in: that
+-- meeting's average voice for them. No foreign key on the meeting: a voice
+-- is kept until deleted in Settings, even if the meeting is deleted.
+CREATE TABLE voice_samples (
+    voice_id   INTEGER NOT NULL REFERENCES known_voices(id) ON DELETE CASCADE,
+    meeting_id TEXT NOT NULL,
+    embedding  BLOB NOT NULL,
+    speech_ms  INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (voice_id, meeting_id)
+);
+-- Each meeting's people on the call, by their label in the transcript, with
+-- their voice in that meeting: what a sample is taken from when the user
+-- names or confirms someone. Replaced whenever speakers are split again.
+CREATE TABLE meeting_voices (
+    meeting_id  TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    label       TEXT NOT NULL,
+    voice_model TEXT NOT NULL,
+    embedding   BLOB NOT NULL,
+    speech_ms   INTEGER NOT NULL,
+    -- The known voice whose name was given automatically, until the user
+    -- confirms or renames the speaker.
+    recognized  INTEGER REFERENCES known_voices(id) ON DELETE SET NULL,
+    similarity  REAL,
+    PRIMARY KEY (meeting_id, label)
+);
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -529,7 +568,7 @@ impl Library {
         Ok(())
     }
 
-    fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
         // A panic while holding the lock can't leave SQLite inconsistent
         // (each write is its own statement or transaction), so recover.
         self.conn
@@ -678,6 +717,8 @@ impl Library {
         }
         tx.execute("DELETE FROM segments WHERE meeting_id = ?1", [id])?;
         tx.execute("DELETE FROM segments_fts WHERE meeting_id = ?1", [id])?;
+        // Their labels go with the old transcript (see `save_meeting_voices`).
+        tx.execute("DELETE FROM meeting_voices WHERE meeting_id = ?1", [id])?;
         for (i, s) in (0_i64..).zip(segments) {
             tx.execute(
                 "INSERT INTO segments (meeting_id, idx, start_ms, end_ms, speaker, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -698,9 +739,16 @@ impl Library {
     }
 
     /// Renames a speaker throughout a meeting's transcript. Renaming to a
-    /// name another speaker already has merges the two. Returns how many
-    /// segments changed.
-    pub fn rename_speaker(&self, id: &str, from: &str, to: &str) -> Result<usize, LibraryError> {
+    /// name another speaker already has merges the two. With
+    /// `remember_voice`, the new name is remembered as a known voice (see
+    /// `crate::voices`). Returns how many segments changed.
+    pub fn rename_speaker(
+        &self,
+        id: &str,
+        from: &str,
+        to: &str,
+        remember_voice: bool,
+    ) -> Result<usize, LibraryError> {
         let mut conn = self.conn();
         let tx = conn.transaction()?;
         if !exists(&tx, id)? {
@@ -714,6 +762,7 @@ impl Library {
             "UPDATE segments_fts SET speaker = ?3 WHERE meeting_id = ?1 AND speaker = ?2",
             params![id, from, to],
         )?;
+        crate::voices::renamed(&tx, id, from, to, remember_voice)?;
         tx.commit()?;
         Ok(changed)
     }
@@ -1576,6 +1625,9 @@ mod tests {
                 "DROP TABLE action_items;
                  ALTER TABLE dictation_stats DROP COLUMN wait_ms;
                  ALTER TABLE dictations DROP COLUMN wait_ms;
+                 DROP TABLE meeting_voices;
+                 DROP TABLE voice_samples;
+                 DROP TABLE known_voices;
                  PRAGMA user_version = 7;",
             )
             .unwrap();
@@ -1671,8 +1723,16 @@ mod tests {
             ],
         )
         .unwrap();
-        assert_eq!(lib.rename_speaker(&m.id, "Speaker 1", "Priya").unwrap(), 2);
-        assert_eq!(lib.rename_speaker(&m.id, "Speaker 2", "Priya").unwrap(), 1);
+        assert_eq!(
+            lib.rename_speaker(&m.id, "Speaker 1", "Priya", true)
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            lib.rename_speaker(&m.id, "Speaker 2", "Priya", true)
+                .unwrap(),
+            1
+        );
         let speakers: Vec<_> = lib
             .get(&m.id)
             .unwrap()
@@ -1686,7 +1746,7 @@ mod tests {
             lib.search("start", 5).unwrap()[0].speaker.as_deref(),
             Some("Priya")
         );
-        assert!(lib.rename_speaker("nope", "a", "b").is_err());
+        assert!(lib.rename_speaker("nope", "a", "b", true).is_err());
     }
 
     #[test]

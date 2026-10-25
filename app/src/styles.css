@@ -1645,6 +1645,47 @@ mark {
   border-color: var(--border);
 }
 
+/* Named automatically by voice: dashed until confirmed (the ✓ beside it). */
+.speaker-chip-pair {
+  display: inline-flex;
+}
+
+.speaker-chip.recognized {
+  border-style: dashed;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.speaker-chip.recognized .icon {
+  color: var(--text-3);
+}
+
+.speaker-confirm {
+  height: 28px;
+  width: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-left: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--bg);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.speaker-confirm:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.speaker-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+}
+
 .speaker-rename {
   display: inline-flex;
   flex-direction: column;

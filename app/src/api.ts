@@ -105,6 +105,8 @@ export interface Settings {
   live_notes: boolean;
   /** A system notification when a meeting's notes are ready, if Quill isn't in front. */
   notify_notes_ready: boolean;
+  /** Remember the voices of people named on calls and name them in later meetings. */
+  recognize_voices: boolean;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
   gpu: GpuChoice;
   dictation: DictationSettings;
@@ -707,6 +709,14 @@ export const api = {
   checkForUpdates: () => invoke<UpdateInfo>("check_for_updates"),
   /** Downloads, installs and restarts Quill. Rejects while recording, dictating, etc. */
   installUpdate: () => invoke<void>("install_update"),
+  /** The people on a meeting's call that Quill has voices for (src-tauri/src/voices.rs). */
+  meetingVoices: (id: string) => invoke<MeetingVoice[]>("meeting_voices", { id }),
+  /** Says an automatic name is right; Quill learns this meeting's voice for them. */
+  confirmSpeaker: (id: string, label: string) => invoke<void>("confirm_speaker", { id, label }),
+  knownVoices: () => invoke<KnownVoice[]>("known_voices"),
+  deleteKnownVoice: (id: number) => invoke<void>("delete_known_voice", { id }),
+  /** Forgets them all; resolves to how many there were. */
+  forgetKnownVoices: () => invoke<number>("forget_known_voices"),
 };
 
 export const isMac = navigator.userAgent.includes("Mac");
@@ -846,4 +856,29 @@ export function turns(segments: Segment[]): Segment[] {
     }
   }
   return out;
+}
+
+/** A person on a meeting's call that Quill has a voice for (quill_core::voices). */
+export interface MeetingVoice {
+  label: string;
+  /** Named automatically by voice, not yet confirmed or changed. */
+  recognized: boolean;
+  /** How close the voices were (cosine similarity, up to 1), when recognized. */
+  similarity: number | null;
+  /** Quill remembers this voice under this name from this meeting. */
+  remembered: boolean;
+  /** Enough speech in this meeting to remember the voice from. */
+  enough_speech: boolean;
+}
+
+/** A person Quill recognizes by voice, as Settings lists them. */
+export interface KnownVoice {
+  id: number;
+  name: string;
+  voice_model: string;
+  /** Meetings their voice was learned from. */
+  meetings: number;
+  speech_ms: number;
+  created_at: string;
+  updated_at: string;
 }

@@ -194,7 +194,8 @@ pub fn split_speakers(app: AppHandle, id: String, speakers: Option<usize>) {
 }
 
 /// Renames a speaker in a meeting's transcript; a name another speaker
-/// already has merges them.
+/// already has merges them. If recognising voices is on, Quill remembers
+/// the voice under the new name (`quill_core::voices`).
 #[tauri::command]
 pub fn rename_speaker(
     state: State<'_, AppState>,
@@ -206,7 +207,8 @@ pub fn rename_speaker(
     if to.is_empty() {
         return Err(CommandError::Other("a speaker needs a name".into()));
     }
-    state.library.rename_speaker(&id, &from, to)?;
+    let remember = lock(&state.settings).recognize_voices;
+    state.library.rename_speaker(&id, &from, to, remember)?;
     Ok(())
 }
 

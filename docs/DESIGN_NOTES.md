@@ -759,3 +759,49 @@ decision someone might otherwise undo.
   - **On the site:** the MP4 is served as rendered (about 35 MB at CRF 18).
     The page doesn't load it until the dialog opens, and without
     JavaScript the button links to the file.
+
+## Known voices
+
+- **What:** once the user names a speaker, Quill remembers that voice and
+  names a matching speaker in later meetings (`quill_diarize::voices` for
+  matching, `quill_core::voices` for storage and learning).
+- **A voice** is the duration-weighted average of a speaker's clean-piece
+  embeddings in one meeting (the centroid clustering already works with).
+  A known voice keeps one sample per meeting the user named or confirmed
+  them in, and is matched by the speech-weighted average of its samples.
+  Samples record the voice model; embeddings from different models are
+  never compared.
+- **Only the user teaches it.** Naming, merging (typing an existing name)
+  and confirming an automatic name (✓) add that meeting's sample. An
+  automatic match adds nothing, so a wrong match can't reinforce itself;
+  renaming it removes that meeting's sample from the wrong person (and
+  forgets them if it was their only one). "Me"/"You", "Others" and
+  "Speaker N" are never remembered; the mic track never has a voice.
+- **Matching:** greedy by similarity, each known voice to at most one
+  speaker, only above **0.70** cosine similarity and only with at least
+  **30 s** of speech behind the speaker's voice (the same minimum applies to
+  learning). Tuned with `quill-cli voices eval` on 28 AMI meetings (28
+  people), clean and through Opus 24 kbit/s:
+  - 92% of known people named correctly (89% through Opus), 1.8% named as
+    someone else;
+  - no stranger named in 2,424 trials (1,416 through Opus); 1% at 0.60,
+    24% at 0.50;
+  - every remaining wrong name was on a speaker diarization had merged from
+    two people, which no threshold separates;
+  - with a 15 s minimum, small mixed clusters (overlap, crosstalk) matched
+    each other across meetings.
+
+  Details and the full sweep: eval/diarization/README.md. AMI sessions of
+  one group share a room and headsets, so real calls will match less often,
+  which is the safe direction.
+- **Storage:** `known_voices`, `voice_samples` and `meeting_voices` in
+  SQLite. `meeting_voices` holds each meeting's people on the call by
+  transcript label, kept in step with renames and replaced when speakers are
+  split again; samples are copied from it. A known voice outlives the
+  meetings it was learned from, until deleted in Settings → Meetings.
+  Meetings told apart before this existed have no `meeting_voices`, so
+  naming people there teaches nothing until they're split again.
+- **Privacy:** embeddings are biometric-like. They stay in the local
+  library, are never logged (only counts: `known_voices`, `recognized`), and
+  can be deleted one by one or all at once. **Recognize voices** turns off
+  both matching and learning.

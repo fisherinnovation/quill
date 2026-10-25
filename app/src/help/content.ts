@@ -239,7 +239,7 @@ Items are read from the notes when they're written. If you re-summarize, items s
 - **Type an existing name** to merge two speakers who are really the same person.
 - **People on the call**: if Quill found too few or too many people, choose how many there were and it splits the voices again, instantly.
 
-Quill reliably separates everyone who talks for more than a minute or so. Similar voices, and people who barely speak, are the usual mix-ups. Voices aren't remembered between meetings yet.`,
+Quill reliably separates everyone who talks for more than a minute or so. Similar voices, and people who barely speak, are the usual mix-ups. Once you name someone, Quill can recognize their voice in later meetings: see [Known voices](#known-voices).`,
       },
       {
         id: "stats-tab",
@@ -264,7 +264,19 @@ It's worked out from the transcript on your computer. Word lists are English-fir
         id: "delete-meeting",
         title: "Deleting a meeting",
         keywords: "remove delete meeting audio",
-        body: `Use the delete button on a meeting and confirm. Its transcript, notes, speaker fingerprints and audio are all removed from your computer.`,
+        body: `Use the delete button on a meeting and confirm. Its transcript, notes, speaker fingerprints and audio are all removed from your computer. Voices you named in it stay known until you forget them (see [Known voices](#known-voices)).`,
+      },
+      {
+        id: "known-voices",
+        title: "Known voices: recognizing people again",
+        keywords: "recognize remember voice name automatically same person speaker identification fingerprint forget",
+        body: `When you name someone on the call, Quill remembers their voice, and in later meetings gives their name to a speaker whose voice matches. It only does so when it's confident. Otherwise they stay Speaker 1, 2…, since a wrong name is worse than none.
+
+- **Recognized names** are marked with a sparkle and a dashed outline on the **Transcript** tab. Click **✓** if it's right: Quill learns their voice from this meeting too. If it's someone else, click the name and type the right one; this meeting's voice is taken away from the wrong person.
+- **Only what you say teaches Quill.** Naming, merging or confirming someone adds this meeting's voice to theirs; a recognized name you haven't confirmed doesn't. People who said less than about 30 seconds aren't remembered, and you're never remembered: your microphone is a track of its own. For a meeting written up before Quill could remember voices, choose **People on the call** first; naming people there then teaches Quill too.
+- **Settings → Meetings** lists the known voices. Remove one to forget it, or **Forget all voices**. Transcripts keep the names. Turn off **Recognize voices** to stop both recognizing and remembering.
+
+Voices are stored as fingerprints (lists of numbers, not audio) in your library on this computer, and never sent anywhere. Recognition was tested on recorded meetings where the same people met several times; voices can sound different on a different microphone or a poor connection, so a familiar person may stay unnamed.`,
       },
     ],
   },
@@ -479,6 +491,7 @@ Transcription already runs locally. With both models in Ollama, Quill's only net
 | API key | ${KEYS}. Never in files or logs. |
 | Logs | On your computer: events, timings and errors, never what was said. |
 | Telemetry | None. |
+| Voice fingerprints | Never leave your computer. See [Known voices](#known-voices). |
 
 Through OpenRouter, requests go only to providers that don't keep or train on your data. **Zero data retention only** (**Settings → General → OpenRouter**) is stricter and supported by fewer models. With Ollama, nothing leaves at all.
 

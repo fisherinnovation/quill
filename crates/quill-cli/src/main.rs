@@ -18,6 +18,7 @@ mod models;
 mod record;
 mod summarize;
 mod transcribe;
+mod voices;
 
 use std::path::PathBuf;
 
@@ -75,6 +76,9 @@ enum Command {
     LiveNotes(live_notes::Args),
     /// List the graphics cards Quill can transcribe on, and which it picks
     Gpus,
+    /// Recognise the same people across recordings by voice (known voices)
+    #[command(subcommand)]
+    Voices(voices::Command),
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -105,6 +109,7 @@ fn main() -> anyhow::Result<()> {
         Command::MicUsers(args) => mic_users::run(args),
         Command::LiveNotes(args) => live_notes::run(args, &models_dir),
         Command::Gpus => gpus::run(),
+        Command::Voices(cmd) => voices::run(cmd, &models_dir),
     }
 }
 

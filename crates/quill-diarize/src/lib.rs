@@ -17,6 +17,7 @@
 pub mod cluster;
 pub mod metrics;
 pub mod rttm;
+pub mod voices;
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -30,6 +31,7 @@ use sherpa_onnx::{
 };
 
 use crate::cluster::{ClusterOptions, Piece};
+use crate::voices::Voice;
 
 /// The sample rate both models expect.
 pub const SAMPLE_RATE: u32 = 16_000;
@@ -303,12 +305,39 @@ pub struct Analysis {
 impl Analysis {
     /// Clusters into speakers and returns the turns.
     pub fn speakers(&self, options: &ClusterOptions) -> Vec<Turn> {
+        self.speakers_with_voices(options).0
+    }
+
+    /// Clusters into speakers and returns the turns, and each speaker's
+    /// voice (indexed by [`Turn::speaker`]), for recognising them in other
+    /// recordings.
+    pub fn speakers_with_voices(&self, options: &ClusterOptions) -> (Vec<Turn>, Vec<Voice>) {
         let labels = cluster::cluster(&self.points, options);
         let mut pieces = self.pieces.clone();
         for (&i, &label) in self.embedded.iter().zip(&labels) {
             pieces[i].label = Some(label);
         }
-        renumber(label_pieces(&self.turns, pieces))
+        let (turns, order) = renumber_with_order(label_pieces(&self.turns, pieces));
+        let voices = order
+            .iter()
+            .map(|&label| {
+                let mine = self
+                    .points
+                    .iter()
+                    .zip(&labels)
+                    .filter(|&(_, &l)| l == label)
+                    .map(|(p, _)| Voice {
+                        embedding: p.embedding.clone(),
+                        speech_ms: p.duration_ms,
+                    })
+                    .collect::<Vec<_>>();
+                voices::average(&mine).unwrap_or(Voice {
+                    embedding: Vec::new(),
+                    speech_ms: 0,
+                })
+            })
+            .collect();
+        (turns, voices)
     }
 }
 
@@ -453,7 +482,12 @@ fn seconds_to_ms(seconds: f32) -> u64 {
 
 /// Numbers speakers 0, 1, 2… in order of first appearance, so "Speaker 1"
 /// is whoever talks first.
-fn renumber(mut turns: Vec<Turn>) -> Vec<Turn> {
+fn renumber(turns: Vec<Turn>) -> Vec<Turn> {
+    renumber_with_order(turns).0
+}
+
+/// [`renumber`], also returning each new speaker's old number.
+fn renumber_with_order(mut turns: Vec<Turn>) -> (Vec<Turn>, Vec<usize>) {
     turns.sort_by_key(|t| (t.start_ms, t.end_ms));
     let mut order: Vec<usize> = Vec::new();
     for turn in &mut turns {
@@ -466,7 +500,7 @@ fn renumber(mut turns: Vec<Turn>) -> Vec<Turn> {
         };
         turn.speaker = new;
     }
-    turns
+    (turns, order)
 }
 
 /// Number of distinct speakers in `turns`.
@@ -611,6 +645,50 @@ mod tests {
             ]
         );
         assert_eq!((out[2].start_ms, out[2].end_ms), (10_000, 10_500));
+    }
+
+    #[test]
+    fn each_speaker_gets_the_average_of_their_voice() {
+        // Speaker A at 0–4 s and 10–14 s, speaker B at 5–9 s; B's embedding
+        // points the other way.
+        let turns = vec![
+            turn(0, 4000, 0),
+            turn(5000, 9000, 1),
+            turn(10_000, 14_000, 0),
+        ];
+        let pieces = split_turns(&turns);
+        let a = cluster::normalized(&[1.0, 0.1]);
+        let b = cluster::normalized(&[0.0, 1.0]);
+        let analysis = Analysis {
+            embedded: (0..pieces.len()).collect(),
+            points: vec![
+                Piece {
+                    duration_ms: 4000,
+                    embedding: a.clone(),
+                },
+                Piece {
+                    duration_ms: 4000,
+                    embedding: b.clone(),
+                },
+                Piece {
+                    duration_ms: 4000,
+                    embedding: a.clone(),
+                },
+            ],
+            pieces,
+            turns,
+        };
+        let (turns, voices) = analysis.speakers_with_voices(&ClusterOptions {
+            threshold: 0.5,
+            speakers: None,
+            min_speaker_ms: 1000,
+        });
+        assert_eq!(speaker_count(&turns), 2);
+        assert_eq!(voices.len(), 2);
+        // Speaker 0 talks first: that's A, with 8 s of speech.
+        assert_eq!(voices[0].speech_ms, 8000);
+        assert!(voices[0].similarity(&a) > 0.99);
+        assert!(voices[1].similarity(&b) > 0.99);
     }
 
     #[test]
