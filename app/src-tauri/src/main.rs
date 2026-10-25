@@ -190,7 +190,7 @@ fn main() {
             live_notes::live_notes_open_meeting,
             commands::get_meeting,
             commands::meeting_stats,
-            commands::search_transcripts,
+            commands::search_library,
             commands::rename_meeting,
             commands::delete_meeting,
             commands::get_settings,

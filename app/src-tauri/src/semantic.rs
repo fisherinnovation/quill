@@ -1,19 +1,20 @@
-//! Search by meaning in the app: the embedding model, kept in memory while
-//! it's in use; a background worker that indexes meetings; and searching.
-//! The logic is in `quill_core::semantic`.
+//! Search in the app: the embedding model for search by meaning, kept in
+//! memory while it's in use; a background worker that indexes the library;
+//! and searching across everything. The logic is in `quill_core::semantic`
+//! (transcripts) and `quill_core::search` (everything else).
 //!
-//! The model never downloads on its own: the user asks for it (the
-//! Meetings page's search, or Settings → Models). Until it's there, and
-//! when Settings → Meetings → Search by meaning is off, search is by words
-//! only, as before. Indexing waits while a meeting records or transcribes
-//! and while dictating, so it never competes with them.
+//! The model never downloads on its own: the user asks for it (the search
+//! window, or Settings → Models). Until it's there, and when Settings →
+//! Meetings → Search by meaning is off, search is by words only. Indexing
+//! waits while a meeting records or transcribes and while dictating, so it
+//! never competes with them.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use quill_core::library::SearchHit;
-use quill_core::semantic;
+use quill_core::search::{Results, Scope};
+use quill_core::semantic::{self, Coverage};
 use quill_embed::{E5Embedder, Embedder};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -31,8 +32,10 @@ const POLL: Duration = Duration::from_secs(60);
 /// How often it checks whether what it waits for has finished.
 const BUSY_POLL: Duration = Duration::from_secs(5);
 
-/// Most results a search returns, as before.
-const SEARCH_LIMIT: usize = 50;
+/// Most results of each kind a search across everything returns...
+const ALL_LIMIT: usize = 5;
+/// ...and of the one kind a narrowed search asks for.
+const SCOPED_LIMIT: usize = 50;
 
 /// Kept in Tauri's state.
 #[derive(Default)]
@@ -46,14 +49,15 @@ pub struct Semantic {
     status: Mutex<IndexStatus>,
 }
 
-/// What the Meetings page shows about search by meaning.
+/// What the search window shows about search by meaning.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct IndexStatus {
     /// Settings → Meetings → Search by meaning.
     pub enabled: bool,
     /// The model's files are downloaded.
     pub model_ready: bool,
-    /// Meetings with a transcript, and how many of them are indexed.
+    /// What there is to index (transcripts, notes, action items
+    /// and dictations), and how much of it is.
     pub indexed: u64,
     pub total: u64,
     /// Indexing waits for a recording, transcription or dictation.
@@ -94,7 +98,8 @@ fn run(app: &AppHandle) {
 }
 
 enum Step {
-    /// Indexed a meeting (or was stopped): look again straight away.
+    /// Indexed a meeting or a batch of items (or was stopped): look again
+    /// straight away.
     Again,
     /// Waiting for something else to finish.
     Busy,
@@ -102,15 +107,28 @@ enum Step {
     Idle,
 }
 
-/// One pass: brings the status up to date and indexes one meeting.
+/// Transcripts and everything else, together.
+fn coverage(app: &AppHandle) -> Coverage {
+    let library = &app.state::<AppState>().library;
+    let meetings = library
+        .semantic_coverage(E5Embedder::ID)
+        .unwrap_or_default();
+    let items = library
+        .search_items_coverage(E5Embedder::ID)
+        .unwrap_or_default();
+    Coverage {
+        indexed: meetings.indexed + items.indexed,
+        total: meetings.total + items.total,
+    }
+}
+
+/// One pass: brings the status up to date and indexes one meeting, or once
+/// they're done, a batch of notes, action items and dictations.
 fn step(app: &AppHandle, failed: &mut HashSet<String>) -> Step {
     let state = app.state::<AppState>();
     let on = enabled(app);
     let ready = model_ready();
-    let coverage = state
-        .library
-        .semantic_coverage(E5Embedder::ID)
-        .unwrap_or_default();
+    let coverage = coverage(app);
     let waiting = busy(app);
     update_status(app, |s| {
         s.enabled = on;
@@ -136,9 +154,7 @@ fn step(app: &AppHandle, failed: &mut HashSet<String>) -> Step {
             return Step::Idle;
         }
     };
-    let Some(id) = pending.into_iter().find(|id| !failed.contains(id)) else {
-        return Step::Idle;
-    };
+    let next = pending.into_iter().find(|id| !failed.contains(id));
     let embedder = match load(app) {
         Ok(e) => e,
         Err(e) => {
@@ -146,8 +162,24 @@ fn step(app: &AppHandle, failed: &mut HashSet<String>) -> Step {
             return Step::Idle;
         }
     };
-    let started = Instant::now();
     let keep_going = || enabled(app) && !busy(app);
+    let Some(id) = next else {
+        let step = match state.library.index_search_items(&*embedder, &keep_going) {
+            Ok(Some(0)) => Step::Idle,
+            Ok(_) => {
+                update_status(app, |s| s.error = None);
+                Step::Again
+            }
+            Err(e) => {
+                tracing::warn!("couldn't index notes, action items or dictations for search: {e}");
+                update_status(app, |s| s.error = Some(e.to_string()));
+                Step::Idle
+            }
+        };
+        *lock(&app.state::<Semantic>().last_used) = Some(Instant::now());
+        return step;
+    };
+    let started = Instant::now();
     match state.library.index_meeting(&id, &*embedder, &keep_going) {
         Ok(Some(chunks)) => {
             tracing::info!(
@@ -252,9 +284,11 @@ fn update_status(app: &AppHandle, change: impl FnOnce(&mut IndexStatus)) {
     }
 }
 
-/// Searches transcripts by words, and by meaning too when it's on and the
-/// model is downloaded. Blocking: the first search loads the model.
-pub fn search(app: &AppHandle, query: &str) -> CommandResult<Vec<SearchHit>> {
+/// Searches what `scope` covers by words, and by meaning too when it's on
+/// and the model is downloaded: a few results of each kind across
+/// everything, more when narrowed to one. Blocking: the first search loads
+/// the model.
+pub fn search(app: &AppHandle, query: &str, scope: Scope) -> CommandResult<Results> {
     let embedder = if enabled(app) && model_ready() {
         match load(app) {
             Ok(e) => Some(e),
@@ -266,24 +300,35 @@ pub fn search(app: &AppHandle, query: &str) -> CommandResult<Vec<SearchHit>> {
     } else {
         None
     };
-    app.state::<AppState>()
-        .library
-        .hybrid_search(
-            query,
-            embedder.as_deref().map(|e| e as &dyn Embedder),
-            SEARCH_LIMIT,
-        )
-        .map_err(|e| CommandError::Other(e.to_string()))
-}
-
-/// Where search by meaning stands, for the Meetings page.
-#[tauri::command]
-pub fn semantic_status(app: AppHandle) -> IndexStatus {
-    let coverage = app
+    let limit = if scope == Scope::All {
+        ALL_LIMIT
+    } else {
+        SCOPED_LIMIT
+    };
+    let started = Instant::now();
+    let results = app
         .state::<AppState>()
         .library
-        .semantic_coverage(E5Embedder::ID)
-        .unwrap_or_default();
+        .search_everything(
+            query,
+            scope,
+            embedder.as_deref().map(|e| e as &dyn Embedder),
+            limit,
+        )
+        .map_err(|e| CommandError::Other(e.to_string()))?;
+    tracing::debug!(
+        ?scope,
+        results = results.len(),
+        ms = started.elapsed().as_millis(),
+        "searched"
+    );
+    Ok(results)
+}
+
+/// Where search by meaning stands, for the search window.
+#[tauri::command]
+pub fn semantic_status(app: AppHandle) -> IndexStatus {
+    let coverage = coverage(&app);
     let enabled = enabled(&app);
     let ready = model_ready();
     update_status(&app, |s| {
@@ -295,8 +340,8 @@ pub fn semantic_status(app: AppHandle) -> IndexStatus {
     lock(&app.state::<Semantic>().status).clone()
 }
 
-/// Loads the model in the background when the search box is focused, so
-/// the first search doesn't wait for it.
+/// Loads the model in the background when the search window opens, so the
+/// first search doesn't wait for it.
 #[tauri::command]
 pub fn prepare_search(app: AppHandle) {
     if !enabled(&app) || !model_ready() {

@@ -17,7 +17,7 @@
 // for meetings being indexed for it.
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { UpdateInfo } from "../api";
+import type { SearchResults, SearchScope, UpdateInfo } from "../api";
 import { simulateWriteUp } from "./writeup";
 
 const flags = new URLSearchParams(location.search);
@@ -556,6 +556,115 @@ async function fakeIndexing(from: number) {
 }
 if (flags.has("indexing")) setTimeout(() => void fakeIndexing(2), 1500);
 
+/**
+ * Search across the library (quill_core::search), over the sample data: by
+ * words (each must appear, the last as a prefix), plus a result or two "by
+ * meaning" once the search model is in.
+ */
+function searchLibrary(query: string, scope: SearchScope): SearchResults {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const limit = scope === "all" ? 5 : 50;
+  const group = <T>(hits: T[]) => ({ hits: hits.slice(0, limit), more: hits.length > limit });
+  const empty = { hits: [], more: false };
+  if (words.length === 0) return { meetings: empty, moments: empty, notes: empty, actions: empty, dictations: empty };
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = (text: string) => {
+    const t = text.toLowerCase();
+    return words.every((w, i) => (i === words.length - 1 ? t.includes(w) : new RegExp(`\\b${esc(w)}\\b`).test(t)));
+  };
+  // Matches wrapped in [ ], about twelve words either side of the first.
+  const snippet = (text: string) => {
+    const marked = text.replace(new RegExp(`(${words.map(esc).join("|")})`, "gi"), "[$1]");
+    const at = marked.indexOf("[");
+    if (at < 0) return text.slice(0, 160);
+    const before = marked.slice(0, at).split(" ");
+    return (before.length > 12 ? "…" + before.slice(-12).join(" ") : marked.slice(0, at)) + marked.slice(at, at + 140);
+  };
+  // The sample "by meaning" results are about hiring: other queries find none, as the
+  // real search finds nothing past its cut-offs.
+  const byMeaning =
+    settings.semantic_search && semanticReady() && /hir|recruit|candidat|engineer|role|interview|team/i.test(query);
+  const covers = (s: SearchScope) => scope === "all" || scope === s;
+  const title = (id: string) => meetings.find((m) => m.id === id);
+
+  // The sample notes, by section, as the Product sync's.
+  const sections = SUMMARY.split(/^## /m)
+    .slice(1)
+    .map((s) => {
+      const [heading, ...lines] = s.trim().split("\n");
+      return { heading, text: lines.map((l) => l.replace(/^- /, "").replace(/\*\*|`/g, "")).join(" ").trim() };
+    })
+    .filter((s) => !s.heading.toLowerCase().startsWith("action"));
+  const m1 = title("m1");
+  return {
+    meetings: covers("meetings")
+      ? group(meetings.filter((m) => matches(m.title)).map((m) => ({ meeting_id: m.id, title: m.title, started_at: m.started_at, snippet: snippet(m.title) })))
+      : empty,
+    moments: covers("meetings")
+      ? group([
+          ...(m1 ? SEGMENTS.filter((s) => matches(String(s.text))) : []).map((s) => ({
+            meeting_id: "m1",
+            title: m1?.title ?? "",
+            start_ms: s.start_ms,
+            speaker: String(s.speaker),
+            snippet: snippet(String(s.text)),
+            matched: "words" as const,
+          })),
+          // What search by meaning adds: the same subject in other words.
+          ...(byMeaning && title("m6")
+            ? [{ meeting_id: "m6", title: "Hiring sync", start_ms: 141_000, speaker: "Dan", snippet: "We're bringing on two more engineers before the end of the quarter, and the design role has two finalists.", matched: "meaning" as const }]
+            : []),
+        ])
+      : empty,
+    notes: covers("notes")
+      ? group([
+          ...(m1 ? sections.filter((s) => matches(s.text)) : []).map((s) => ({
+            meeting_id: "m1",
+            title: m1?.title ?? "",
+            started_at: m1?.started_at ?? "",
+            heading: s.heading,
+            snippet: snippet(String(s.text)),
+            matched: "words" as const,
+          })),
+          ...(byMeaning && title("m6")
+            ? [{ meeting_id: "m6", title: "Hiring sync", started_at: title("m6")?.started_at ?? "", heading: "Decisions", snippet: "Open two engineering roles this quarter; the design role goes to the two finalists for a paid trial week.", matched: "meaning" as const }]
+            : []),
+        ])
+      : empty,
+    actions: covers("actions")
+      ? group(
+          actionItems
+            .filter((a) => matches(`${a.owner ?? ""}: ${a.task}`))
+            .map((a) => ({
+              action_id: a.id,
+              meeting_id: a.meeting_id,
+              title: a.meeting_title,
+              owner: a.owner,
+              task: a.task,
+              done: a.done_at !== null,
+              snippet: snippet(`${a.owner ? `${a.owner}: ` : ""}${a.task}`),
+              matched: "words" as const,
+            })),
+        )
+      : empty,
+    dictations: covers("dictations")
+      ? group(
+          dictations
+            .map(withAppId)
+            .filter((d) => matches(d.corrected ?? d.text))
+            .map((d) => ({
+              dictation_id: d.id,
+              created_at: d.created_at,
+              app: d.app,
+              app_id: d.app_id,
+              snippet: snippet((d.corrected ?? d.text).replace(/\n/g, " ")),
+              matched: "words" as const,
+            })),
+        )
+      : empty,
+  };
+}
+
 let suggestions: { id: number; kind: string; from: string; to: string; app: string | null; seen: number; status: string }[] = [
   { id: 1, kind: "replacement", from: "open router", to: "OpenRouter", app: "Slack", seen: 2, status: "pending" },
   { id: 2, kind: "vocabulary", from: "", to: "Kubernetes", app: "VS Code", seen: 1, status: "pending" },
@@ -699,17 +808,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
         : [],
     };
   },
-  search_transcripts: ({ query }) =>
-    String(query).length < 2
-      ? []
-      : [
-          { meeting_id: "m1", title: "Product sync", start_ms: 55_000, speaker: "Others", snippet: `…signups have been about twelve percent too high since the [${query}] upgrade…`, matched: "both" },
-          { meeting_id: "m4", title: "Design review: settings", start_ms: 312_000, speaker: "Me", snippet: `…the [${query}] page needs grouping like System Settings…`, matched: "words" },
-          // What search by meaning adds: the same subject in other words.
-          ...(settings.semantic_search && semanticReady() && String(query).length >= 3
-            ? [{ meeting_id: "m6", title: "Hiring sync", start_ms: 141_000, speaker: "Dan", snippet: "We're bringing on two more engineers before the end of the quarter, and the design role has two finalists.", matched: "meaning" }]
-            : []),
-        ],
+  search_library: ({ query, scope }) => searchLibrary(String(query), String(scope) as SearchScope),
   semantic_status: () => semanticStatus(),
   prepare_search: () => null,
   download_search_model: () => {

@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { type DictationPhase, isMac } from "../api";
 import { Icon, type IconName } from "./Icon";
+import { SEARCH_SHORTCUT } from "./SearchPalette";
 
 /** The pages the sidebar leads to. */
 export type Section = "home" | "meetings" | "actions" | "dictation" | "help" | "settings";
@@ -28,6 +29,8 @@ interface Props {
   /** Icons only, each named by a tooltip. */
   collapsed: boolean;
   onToggle: () => void;
+  /** Opens search across everything. */
+  onSearch: () => void;
   /** Shown above the navigation (the record button). */
   header: ReactNode;
 }
@@ -42,6 +45,7 @@ export function Sidebar({
   openActions,
   collapsed,
   onToggle,
+  onSearch,
   header,
 }: Props) {
   const item = (section: Section, icon: IconName, label: string, status?: Status, count?: number) => {
@@ -81,6 +85,17 @@ export function Sidebar({
       <div className="sidebar-head">{header}</div>
 
       <nav className="sidebar-nav">
+        <button
+          className="nav-item"
+          aria-label={collapsed ? `Search (${SEARCH_SHORTCUT})` : undefined}
+          aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
+          data-tooltip={collapsed ? `Search (${SEARCH_SHORTCUT})` : undefined}
+          onClick={onSearch}
+        >
+          <Icon name="search" size={16} />
+          <span className="nav-label">Search</span>
+          {!collapsed && <span className="nav-shortcut">{SEARCH_SHORTCUT}</span>}
+        </button>
         {item("home", "home", "Home")}
         {item(
           "meetings",

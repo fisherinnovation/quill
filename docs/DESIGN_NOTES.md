@@ -839,7 +839,7 @@ keyword search rather than replacing it (`quill_core::semantic`).
   model is small enough that the CPU suffices; no Metal or Vulkan for it.
 - **Never downloads by itself.** The setting (Settings → Meetings → Search
   by meaning) is on by default, but until the user asks for the model
-  (the line under the Meetings search box, or Settings → Models), search
+  (the line at the foot of the search window, or Settings → Models), search
   is by words alone. It isn't in the onboarding download either:
   `models::required` doesn't list it.
 - **Chunks, not segments.** Single segments are often a few words ("Sounds
@@ -848,9 +848,9 @@ keyword search rather than replacing it (`quill_core::semantic`).
   new chunk): ~100 chunks per hour of meeting, each about half a minute.
   A result found by meaning opens at the line in its chunk that shares
   most words with the query (ignoring filler words like "about", and
-  counting "crash" for "crashes"), or else its first line. Summaries
-  aren't embedded: the transcript already holds what they say, and a
-  summary hit has no moment to jump to.
+  counting "crash" for "crashes"), or else its first line. Notes, action
+  items and dictations are embedded too, as their own kinds of result:
+  see [Search everything](#search-everything).
 - **Storage:** migration 11 (after known voices' 10), `semantic_chunks` (segment range, times,
   model, the vector as a little-endian f32 BLOB) and `semantic_index`
   (which meetings are indexed, by which model). `save_transcript` deletes
@@ -863,7 +863,7 @@ keyword search rather than replacing it (`quill_core::semantic`).
   transcript is saved, the model arrives or the setting changes. It waits
   while recording, transcribing, moving recordings or dictating, and
   stops between batches of 16 chunks when one starts. The model loads on
-  first use (~0.7 s; focusing the search box loads it ahead), and is
+  first use (~0.7 s; opening the search window loads it ahead), and is
   unloaded after 10 minutes unused: resident it's ~0.5 GB, and loading
   peaks at ~0.9 GB because the weights are read into memory, then copied
   into tensors. (Memory-mapping would avoid the copy but needs `unsafe`
@@ -899,8 +899,9 @@ keyword search rather than replacing it (`quill_core::semantic`).
   | Query, padded to 500 hours (49,426 chunks, 76 MB) | 145 ms median |
 
   A personal library of a few hundred hours stays well under the 150 ms
-  the search box waits before searching. Past that, keep the vectors in
-  memory (or as f16/int8) instead of reading them from SQLite each time.
+  the search box waited before searching (the search window waits 120 ms).
+  Past that, keep the vectors in memory (or as f16/int8) instead of
+  reading them from SQLite each time.
 - **Quality** on 24 labelled queries over five synthetic meetings
   (`eval/search/`: four English, one Spanish), counting a result that
   opens the meeting at most 15 s before the right stretch:
@@ -918,6 +919,89 @@ keyword search rather than replacing it (`quill_core::semantic`).
   mostly failed ("trade show budget" didn't reach "el presupuesto para la
   feria"), as did the single word "vacation" for "two weeks off": a lone
   word gives the model little to go on.
+
+## Search everything
+
+One search window (Ctrl+K / ⌘K, the sidebar's Search, or the Meetings
+page's search box, which opens it narrowed to meetings) looks through
+meeting titles, transcripts, each meeting's latest notes, action items and
+dictation history (`quill_core::search`, `SearchPalette.tsx`). It replaced
+the transcript-only search box on the Meetings page.
+
+- **One table for everything but transcripts.** Migration 12 adds
+  `search_items` (kind: title, notes, action or dictation; the row it came
+  from; for notes, the heading; the text; and the embedding with its
+  model) and an external-content FTS5 index over it, `search_fts`, kept in
+  step by the table's own triggers. Transcripts keep their own
+  `segments_fts` and `semantic_chunks`: a moment needs its time, and
+  there are ~100 chunks per meeting-hour against a few dozen notes points.
+- **The database keeps it in step.** Triggers on `meetings` (title),
+  `action_items` (owner and task) and `dictations` (text and correction)
+  insert and update the rows; a change of text clears the embedding, so
+  the worker embeds it again. They fire only when the text actually
+  changes: re-saving notes updates every action item, and an unchanged one
+  keeps its vector. Deletes cascade through foreign keys, and FTS5 is told
+  by `search_items`' delete trigger (cascades fire triggers), so deleting
+  a meeting or a dictation, or clearing the history, leaves nothing
+  behind; tests check the FTS index is empty afterwards. Notes are the one
+  kind written from Rust (`sync_notes`, in `save_summary`'s transaction),
+  because they have to be parsed; a point unchanged word for word keeps
+  its row and vector. Existing libraries are read in once after the
+  migration, like action items were.
+- **Dictations as corrected**, and only while the history is kept: the
+  index follows `dictations`, so turning history off adds nothing new and
+  clearing it removes everything. Titles are searched by words only (a few
+  words embed poorly, and the meeting's notes cover what it was about).
+- **Notes by line, not by section.** Each bullet (or paragraph, for the
+  TL;DR) is its own item, under its heading; the "Action items" section is
+  left out because each item is its own row. Sections were tried first:
+  a section holds unrelated points ("Hire one backend engineer", "Move the
+  pricing page redesign"), and embedded together it came out close to
+  every query, an unwanted Related hit for 8 of the 12 test queries.
+- **Cut-offs against the best match anywhere.** Each kind is ranked and
+  fused like transcripts (words, then meaning at half weight), but "within
+  0.04 of the best" is measured from the best match across everything the
+  search covers: with the spread measured per kind, every kind showed its
+  own best, however loosely related, and a clear answer elsewhere didn't
+  stop it. Narrowed to one kind, the best is that kind's. The query is
+  embedded once, and every vector in scope is scored once.
+- **Cut-offs measured on short texts.** The transcript cut-offs (0.80,
+  within 0.04) were tuned on half-minute chunks; notes points, action
+  items and dictations are a sentence or two. `crates/quill-core/tests/
+  search_smoke.rs` (ignored by default; needs the model) has 12 queries over
+  sample notes, action items and dictations: 10 paraphrases with a known
+  answer ("presentation for the directors" for "send me the slides before
+  the board meeting") and 2 nonsense queries. With the defaults, 8 of the
+  10 paraphrases put the right answer first, both nonsense queries find
+  nothing, and 9 other results come back as Related, about half of them
+  fair ("Hire one backend engineer" for "recruiting a designer"). E5's
+  similarities are bunched even tighter on short texts (right answers
+  0.805–0.836, wrong ones up to 0.82): 0.81 removes the noise but loses 2
+  of the 8. The same defaults stay, since meaning-only results always rank
+  after every match by words and are marked Related. Misses: "exponential
+  backoff" for "the retry loop never caps its delay" (0.767, below
+  unrelated items) and "reserve a location for the team retreat" for
+  "book the venue for the offsite" (0.772).
+- **The window.** A few of each kind (5) across everything, 50 of one
+  kind when narrowed, with "Show all" when there are more. Groups keep a
+  fixed order (meetings, then notes, action items, dictations), since
+  ranks from different lists don't compare. Typing waits 120 ms, and an
+  answer to an older query never replaces a newer one. The model loads
+  when the window opens.
+- **Speed**, Windows (32 threads, 4 for the model), `quill-cli search
+  --eval eval/search/queries.json` with `--scale-hours` and
+  `--scale-dictations` (padded dictations share one vector; scoring cost
+  doesn't depend on the values):
+
+  | Library | Searching everything (median) |
+  |---|---|
+  | 16-minute eval library | 7 ms |
+  | 100 hours of meetings (9,906 chunks) + 20,000 dictations | 49 ms |
+  | 500 hours (49,426 chunks) + 50,000 dictations | 145 ms |
+
+  20,000 dictations is about two years of heavy use. Each query still
+  reads every vector from SQLite; the next step, if libraries grow past
+  this, is keeping them in memory (or as f16/int8).
 
 ## Parakeet
 

@@ -3,11 +3,14 @@ import {
   api,
   errorText,
   events,
+  isMac,
   type DictationState,
   type Meeting,
   type Progress,
   type RecordingState,
+  type SearchScope,
 } from "./api";
+import { SearchPalette } from "./components/SearchPalette";
 import { type Section, Sidebar } from "./components/Sidebar";
 import { MeetingView } from "./components/MeetingView";
 import { MeetingsView } from "./components/MeetingsView";
@@ -70,6 +73,8 @@ export function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const actionItems = useActionItems();
   const [view, setView] = useState<View>({ kind: "home" });
+  /** Search's scope while it's open (Ctrl+K / ⌘K, or the sidebar). */
+  const [searching, setSearching] = useState<SearchScope | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState<RecordingState>({
     recording: false,
@@ -208,6 +213,10 @@ export function App() {
         e.preventDefault();
         toggleSidebar();
       }
+      if ((isMac ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setSearching((open) => (open === null ? "all" : open));
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -227,8 +236,22 @@ export function App() {
         openActions={actionItems?.filter((i) => i.mine && !i.done_at).length ?? 0}
         collapsed={collapsed}
         onToggle={toggleSidebar}
+        onSearch={() => setSearching("all")}
         header={<RecordButton state={recording} onError={setError} compact={collapsed} />}
       />
+      {searching !== null && (
+        <SearchPalette
+          initialScope={searching}
+          onOpen={(target) =>
+            setView(
+              target.kind === "meeting"
+                ? { kind: "meeting", id: target.id, at: target.at }
+                : { kind: "dictation-entry", id: target.id },
+            )
+          }
+          onClose={() => setSearching(null)}
+        />
+      )}
       <main className="main">
         <div className="drag" data-tauri-drag-region />
         {error && (
@@ -249,7 +272,8 @@ export function App() {
         <div className="main-scroll">
           {view.kind === "meeting" && (
             <MeetingView
-              key={view.id}
+              // A search can open another moment in the meeting already open.
+              key={`${view.id}@${view.at ?? ""}`}
               id={view.id}
               jumpTo={view.at}
               version={version}
@@ -277,6 +301,7 @@ export function App() {
               recording={recording}
               fresh={fresh}
               onSelect={(id, at) => setView({ kind: "meeting", id, at })}
+              onSearch={() => setSearching("meetings")}
             />
           )}
           {view.kind === "actions" && <ActionItemsView onOpenMeeting={(id) => setView({ kind: "meeting", id })} />}

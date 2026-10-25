@@ -18,6 +18,7 @@ pub mod overview;
 pub mod paths;
 pub mod processing;
 pub mod samples;
+pub mod search;
 pub mod semantic;
 pub mod settings;
 pub mod speakers;

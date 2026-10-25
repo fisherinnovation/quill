@@ -83,7 +83,71 @@ export interface SearchHit {
   speaker: string | null;
   snippet: string; // matches wrapped in [ ]
   /** Found by its words, its meaning (search by meaning), or both. */
-  matched: "words" | "meaning" | "both";
+  matched: SearchMatch;
+}
+
+/** How a search result was found: its words, its meaning, or both. */
+export type SearchMatch = "words" | "meaning" | "both";
+
+/** What a search covers: everything, or one kind of thing. */
+export type SearchScope = "all" | "meetings" | "notes" | "actions" | "dictations";
+
+/** Up to the limit asked for, best first, and whether there were more. */
+export interface SearchGroup<T> {
+  hits: T[];
+  more: boolean;
+}
+
+/** A meeting found by its title. */
+export interface MeetingTitleHit {
+  meeting_id: string;
+  title: string;
+  started_at: string;
+  snippet: string; // matches wrapped in [ ]
+}
+
+/** A section of a meeting's notes. */
+export interface NoteHit {
+  meeting_id: string;
+  title: string;
+  started_at: string;
+  /** The section or topic, e.g. "Decisions". */
+  heading: string | null;
+  snippet: string;
+  matched: SearchMatch;
+}
+
+export interface ActionItemHit {
+  action_id: number;
+  meeting_id: string;
+  /** Its meeting's title. */
+  title: string;
+  owner: string | null;
+  task: string;
+  done: boolean;
+  snippet: string;
+  matched: SearchMatch;
+}
+
+/** A dictation from the history. */
+export interface DictationHit {
+  dictation_id: number;
+  created_at: string;
+  app: string | null;
+  app_id: string | null;
+  snippet: string;
+  matched: SearchMatch;
+}
+
+/** What a search across the library found, by kind. */
+export interface SearchResults {
+  /** Meetings whose title matches. */
+  meetings: SearchGroup<MeetingTitleHit>;
+  /** Moments in transcripts. */
+  moments: SearchGroup<SearchHit>;
+  notes: SearchGroup<NoteHit>;
+  actions: SearchGroup<ActionItemHit>;
+  dictations: SearchGroup<DictationHit>;
 }
 
 export interface Settings {
@@ -109,7 +173,7 @@ export interface Settings {
   notify_notes_ready: boolean;
   /** Remember the voices of people named on calls and name them in later meetings. */
   recognize_voices: boolean;
-  /** Search transcripts by meaning as well as words, once the model is downloaded. */
+  /** Search by meaning as well as words, once the model is downloaded. */
   semantic_search: boolean;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
   gpu: GpuChoice;
@@ -591,7 +655,7 @@ export interface SemanticStatus {
   enabled: boolean;
   /** The search model is downloaded. */
   model_ready: boolean;
-  /** Meetings with a transcript, and how many are indexed. */
+  /** What there is to index (transcripts, notes, action items, dictations), and how much is. */
   indexed: number;
   total: number;
   /** Indexing waits for a recording, transcription or dictation. */
@@ -625,7 +689,8 @@ export const api = {
   liveNotesOpenMeeting: () => invoke<void>("live_notes_open_meeting"),
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
-  search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),
+  /** Searches meetings, notes, action items and dictations: a few of each, or more of one `scope`. */
+  search: (query: string, scope: SearchScope = "all") => invoke<SearchResults>("search_library", { query, scope }),
   semanticStatus: () => invoke<SemanticStatus>("semantic_status"),
   /** Loads the search model ahead of the first search. */
   prepareSearch: () => invoke<void>("prepare_search"),

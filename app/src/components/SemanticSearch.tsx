@@ -19,7 +19,7 @@ export function useSemanticStatus(): SemanticStatus | null {
 const MODEL_BYTES = 470_641_600 + 17_082_730;
 
 /**
- * A line under the Meetings search box about search by meaning: offers the
+ * A line at the foot of the search window about search by meaning: offers the
  * model while it isn't downloaded (it never downloads by itself), shows
  * download and indexing progress, and is otherwise silent. Nothing when
  * the setting is off.
@@ -53,7 +53,7 @@ export function SemanticSearchNote({ status }: { status: SemanticStatus | null }
           </>
         ) : (
           <span>
-            Find moments by what was meant, not only the exact words, with a model that runs on this computer.{" "}
+            Find things by what was meant, not only the exact words, with a model that runs on this computer.{" "}
             <button
               className="link-button"
               onClick={() => {
@@ -74,7 +74,7 @@ export function SemanticSearchNote({ status }: { status: SemanticStatus | null }
     return (
       <div className="search-note">
         <span>
-          Preparing meetings for search by meaning · {status.indexed} of {status.total}
+          Preparing your library for search by meaning · {Math.floor((status.indexed / status.total) * 100)}%
           {status.paused && " · waits while you record or dictate"}
         </span>
       </div>

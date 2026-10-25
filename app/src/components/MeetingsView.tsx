@@ -10,13 +10,12 @@ import {
   type MeetingOverview,
   type Progress,
   type RecordingState,
-  type SearchHit,
 } from "../api";
 import { ConversationWeave } from "./ConversationWeave";
 import { Icon, type IconName, Logo } from "./Icon";
 import { duration } from "./Insights";
 import { useElapsed } from "./RecordButton";
-import { SemanticSearchNote, useSemanticStatus } from "./SemanticSearch";
+import { SEARCH_SHORTCUT } from "./SearchPalette";
 import { writeUpFraction, writeUpStatus } from "./WriteUp";
 import { groupByDay, timeOfDay, useCountUp } from "./ui";
 
@@ -33,9 +32,9 @@ type Filter = { kind: "all" | "actions" | "new" | "attention" } | { person: stri
 const named = (p: string) => !/^Speaker \d+$/.test(p) && p !== "Others";
 
 /**
- * Every meeting, newest first and grouped by day, with search across the
- * transcripts. Above them, a hero woven from recent conversations, this
- * week's numbers, and filters by kind and by person.
+ * Every meeting, newest first and grouped by day, with a way into search
+ * (narrowed to meetings). Above them, a hero woven from recent
+ * conversations, this week's numbers, and filters by kind and by person.
  */
 export function MeetingsView({
   meetings,
@@ -43,6 +42,7 @@ export function MeetingsView({
   recording,
   fresh,
   onSelect,
+  onSearch,
 }: {
   meetings: Meeting[];
   progress: Record<string, Progress>;
@@ -50,16 +50,14 @@ export function MeetingsView({
   /** Meetings written up since the user last opened them. */
   fresh: Set<string>;
   onSelect: (id: string, atMs?: number) => void;
+  /** Opens search, narrowed to meetings. */
+  onSearch: () => void;
 }) {
   const recordingId = recording.recording ? recording.meeting_id : null;
   const [insights, setInsights] = useState<Insights | null>(null);
   const [filter, setFilter] = useState<Filter>({ kind: "all" });
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<SearchHit[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
   const [overviews, setOverviews] = useState<Map<string, MeetingOverview>>(new Map());
-  const semantic = useSemanticStatus();
 
   // Refetched when the list changes (a new meeting, a finished transcript).
   useEffect(() => {
@@ -102,24 +100,6 @@ export function MeetingsView({
   };
   const listed = meetings.filter((m) => matches(m, filter));
 
-  // Search as you type, debounced so we don't query on every keystroke.
-  useEffect(() => {
-    if (!query.trim()) {
-      setHits(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      api
-        .search(query)
-        .then((h) => {
-          setHits(h);
-          setError(null);
-        })
-        .catch((e) => setError(errorText(e)));
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [query]);
-
   const recent = meetings
     .map((m) => overviews.get(m.id))
     .filter((o): o is MeetingOverview => o !== undefined);
@@ -160,49 +140,15 @@ export function MeetingsView({
       )}
 
       {meetings.length > 0 && (
-        <label className="search page-search">
+        // Looks like a search box; opens search, narrowed to meetings.
+        <button className="search page-search search-opener" onClick={onSearch}>
           <Icon name="search" size={14} />
-          <input
-            type="search"
-            placeholder="Search transcripts"
-            aria-label="Search transcripts"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            // Loads the search model now, so the first search doesn't wait.
-            onFocus={() => void api.prepareSearch().catch(() => {})}
-          />
-        </label>
+          <span>Search meetings</span>
+          <kbd>{SEARCH_SHORTCUT}</kbd>
+        </button>
       )}
-      {meetings.length > 0 && <SemanticSearchNote status={semantic} />}
-      {error && <p className="error-text small">{error}</p>}
 
-      {hits ? (
-        <section className="group">
-          <h2 className="group-title">{hits.length === 0 ? "No matches" : `${hits.length} matches`}</h2>
-          {hits.length > 0 && (
-            <ul className="card item-list">
-              {hits.map((h, i) => (
-                <li key={`${h.meeting_id}-${h.start_ms}-${i}`}>
-                  <button className="item-row" onClick={() => onSelect(h.meeting_id, h.start_ms)}>
-                    <span className="item-title">{h.title}</span>
-                    <span className="item-meta">
-                      {clock(h.start_ms)}
-                      {h.speaker && <span className="dot-sep">{h.speaker}</span>}
-                      {h.matched === "meaning" && (
-                        <span className="match-tag" title="Found by meaning: it says this in other words">
-                          Related
-                        </span>
-                      )}
-                    </span>
-                    <Snippet text={h.snippet} />
-                    <Icon name="external" size={13} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : meetings.length === 0 ? (
+      {meetings.length === 0 ? (
         <NoMeetings />
       ) : (
         <>
@@ -618,13 +564,3 @@ export function Status({
 }
 
 /** Renders FTS snippets, highlighting the `[matched]` words. */
-function Snippet({ text }: { text: string }) {
-  const parts = text.split(/(\[[^\]]*\])/g);
-  return (
-    <span className="snippet">
-      {parts.map((p, i) =>
-        p.startsWith("[") && p.endsWith("]") ? <mark key={i}>{p.slice(1, -1)}</mark> : <span key={i}>{p}</span>,
-      )}
-    </span>
-  );
-}
