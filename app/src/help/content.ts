@@ -192,14 +192,16 @@ If something stops the write-up, the step that failed is marked and the reason g
       {
         id: "meetings-page",
         title: "The Meetings page and search",
-        keywords: "list library find search transcripts",
+        keywords: "list library find search transcripts meaning semantic related similar",
         body: `At the top, **Meetings** shows what's happening (ready to record, recording, or writing up) over a weave of your recent conversations, each a ribbon of who was talking. Below it are this week's numbers: meetings, time on calls (with the last seven days), how much of the talking was you, and action items.
 
 **Meetings** lists every meeting by day. Each shows the first point of its notes, who was there, its length, its action items and how much you spoke, over a faint picture of the conversation's back and forth.
 
 Filters above the list show only meetings with action items, new ones, ones that need attention (not transcribed, nothing said, or failed), or meetings with the people you meet most.
 
-The search box looks through every transcript. Results show the matching line and who said it; click one to open the meeting at that moment.`,
+The search box looks through every transcript. Results show the matching line and who said it; click one to open the meeting at that moment.
+
+**Search by meaning** finds moments that say what you searched for in other words, too: "when did we talk about hiring" finds "we're bringing on two more engineers". Those results are marked **Related** and come after the ones with your exact words. It works in about 100 languages and uses a 488 MB model that runs on this computer, so your transcripts and searches never leave it. The model downloads only when you ask: the line under the search box offers it, as does **Settings → Models**. Quill then prepares your meetings in the background (seconds per hour of meetings), waiting while you record or dictate; new meetings are added as they're transcribed. Turn it off in **Settings → Meetings → Search by meaning**.`,
       },
       {
         id: "summary-tab",
@@ -470,7 +472,7 @@ The defaults are chosen for accuracy and cost for notes, and for speed for clean
 1. Install Ollama (from ollama.com) and pull a model (for example a recent Qwen or Llama).
 2. In **Settings → Models**, choose that model for meeting notes and for clean-up.
 
-Transcription already runs locally. With both models in Ollama, Quill's only network use is downloading speech models and the daily update check, which you can turn off.`,
+Transcription and search already run locally. With both models in Ollama, Quill's only network use is downloading speech and search models and the daily update check, which you can turn off.`,
       },
     ],
   },
@@ -489,6 +491,7 @@ Transcription already runs locally. With both models in Ollama, Quill's only net
 | Meeting transcripts | To your notes model when notes are written, and the last 15 minutes every minute during a recording with live notes on. |
 | Dictated text | To your clean-up model, only when clean-up runs. |
 | API key | ${KEYS}. Never in files or logs. |
+| Searches | Stay on your computer, including search by meaning. |
 | Logs | On your computer: events, timings and errors, never what was said. |
 | Telemetry | None. |
 | Voice fingerprints | Never leave your computer. See [Known voices](#known-voices). |

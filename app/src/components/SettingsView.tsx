@@ -250,6 +250,19 @@ export function SettingsView({
         </Row>
       </Group>
 
+      <Group title="Search">
+        <Row
+          label="Search by meaning"
+          hint="Search also finds moments that say the same thing in other words, in any of about 100 languages. It uses a 488 MB model that runs on this computer, downloaded when you ask (Settings → Models, or the Meetings page). Transcripts never leave it. Off, search matches words only."
+        >
+          <Switch
+            label="Search by meaning"
+            checked={settings.semantic_search}
+            onChange={(semantic_search) => update({ semantic_search })}
+          />
+        </Row>
+      </Group>
+
         </>
       )}
 

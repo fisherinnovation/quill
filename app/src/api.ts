@@ -82,6 +82,8 @@ export interface SearchHit {
   start_ms: number;
   speaker: string | null;
   snippet: string; // matches wrapped in [ ]
+  /** Found by its words, its meaning (search by meaning), or both. */
+  matched: "words" | "meaning" | "both";
 }
 
 export interface Settings {
@@ -107,6 +109,8 @@ export interface Settings {
   notify_notes_ready: boolean;
   /** Remember the voices of people named on calls and name them in later meetings. */
   recognize_voices: boolean;
+  /** Search transcripts by meaning as well as words, once the model is downloaded. */
+  semantic_search: boolean;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
   gpu: GpuChoice;
   dictation: DictationSettings;
@@ -556,7 +560,7 @@ export interface Footprint {
 
 export interface ModelEntry {
   name: string;
-  kind: "speech" | "vad" | "speakers";
+  kind: "speech" | "vad" | "speakers" | "search";
   description: string;
   size_bytes: number;
   downloaded: boolean;
@@ -573,6 +577,20 @@ export interface ModelsInfo {
   bytes_on_disk: number;
   /** Still to download for the saved settings. */
   missing_bytes: number;
+}
+
+/** Where search by meaning stands (`semantic-index` events). */
+export interface SemanticStatus {
+  /** Settings → Meetings → Search by meaning. */
+  enabled: boolean;
+  /** The search model is downloaded. */
+  model_ready: boolean;
+  /** Meetings with a transcript, and how many are indexed. */
+  indexed: number;
+  total: number;
+  /** Indexing waits for a recording, transcription or dictation. */
+  paused: boolean;
+  error: string | null;
 }
 
 /** A `model-download` event. */
@@ -602,6 +620,11 @@ export const api = {
   getMeeting: (id: string) => invoke<MeetingDetail>("get_meeting", { id }),
   meetingStats: (id: string) => invoke<MeetingStats>("meeting_stats", { id }),
   search: (query: string) => invoke<SearchHit[]>("search_transcripts", { query }),
+  semanticStatus: () => invoke<SemanticStatus>("semantic_status"),
+  /** Loads the search model ahead of the first search. */
+  prepareSearch: () => invoke<void>("prepare_search"),
+  /** Downloads the search model (progress as `model-download` events). */
+  downloadSearchModel: () => invoke<void>("download_search_model"),
   renameMeeting: (id: string, title: string) => invoke<void>("rename_meeting", { id, title }),
   deleteMeeting: (id: string) => invoke<void>("delete_meeting", { id }),
   getSettings: () => invoke<Settings>("get_settings"),
@@ -751,6 +774,9 @@ export const events = {
     listen<SamplesUsage>("dictation-samples", (e) => cb(e.payload)),
   onModelDownload: (cb: (p: DownloadProgress) => void): Promise<UnlistenFn> =>
     listen<DownloadProgress>("model-download", (e) => cb(e.payload)),
+  /** Search by meaning's status changed (indexing progress, the model, the setting). */
+  onSemanticIndex: (cb: (s: SemanticStatus) => void): Promise<UnlistenFn> =>
+    listen<SemanticStatus>("semantic-index", (e) => cb(e.payload)),
   /** The meeting list changed outside the meeting view. */
   onLibraryChanged: (cb: () => void): Promise<UnlistenFn> => listen<null>("library-changed", () => cb()),
   /** The backend asks to show a view, e.g. "dictation". */

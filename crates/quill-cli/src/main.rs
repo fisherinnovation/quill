@@ -16,6 +16,7 @@ mod live_notes;
 mod mic_users;
 mod models;
 mod record;
+mod search;
 mod summarize;
 mod transcribe;
 mod voices;
@@ -79,6 +80,8 @@ enum Command {
     /// Recognise the same people across recordings by voice (known voices)
     #[command(subcommand)]
     Voices(voices::Command),
+    /// Search the meeting library by words and meaning, or measure search
+    Search(search::Args),
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -110,6 +113,7 @@ fn main() -> anyhow::Result<()> {
         Command::LiveNotes(args) => live_notes::run(args, &models_dir),
         Command::Gpus => gpus::run(),
         Command::Voices(cmd) => voices::run(cmd, &models_dir),
+        Command::Search(args) => search::run(args, &models_dir),
     }
 }
 

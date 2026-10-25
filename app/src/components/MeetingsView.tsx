@@ -16,6 +16,7 @@ import { ConversationWeave } from "./ConversationWeave";
 import { Icon, type IconName, Logo } from "./Icon";
 import { duration } from "./Insights";
 import { useElapsed } from "./RecordButton";
+import { SemanticSearchNote, useSemanticStatus } from "./SemanticSearch";
 import { writeUpFraction, writeUpStatus } from "./WriteUp";
 import { groupByDay, timeOfDay, useCountUp } from "./ui";
 
@@ -58,6 +59,7 @@ export function MeetingsView({
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
   const [overviews, setOverviews] = useState<Map<string, MeetingOverview>>(new Map());
+  const semantic = useSemanticStatus();
 
   // Refetched when the list changes (a new meeting, a finished transcript).
   useEffect(() => {
@@ -166,9 +168,12 @@ export function MeetingsView({
             aria-label="Search transcripts"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            // Loads the search model now, so the first search doesn't wait.
+            onFocus={() => void api.prepareSearch().catch(() => {})}
           />
         </label>
       )}
+      {meetings.length > 0 && <SemanticSearchNote status={semantic} />}
       {error && <p className="error-text small">{error}</p>}
 
       {hits ? (
@@ -183,6 +188,11 @@ export function MeetingsView({
                     <span className="item-meta">
                       {clock(h.start_ms)}
                       {h.speaker && <span className="dot-sep">{h.speaker}</span>}
+                      {h.matched === "meaning" && (
+                        <span className="match-tag" title="Found by meaning: it says this in other words">
+                          Related
+                        </span>
+                      )}
                     </span>
                     <Snippet text={h.snippet} />
                     <Icon name="external" size={13} />

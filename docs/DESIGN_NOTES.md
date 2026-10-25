@@ -805,3 +805,113 @@ decision someone might otherwise undo.
   library, are never logged (only counts: `known_voices`, `recognized`), and
   can be deleted one by one or all at once. **Recognize voices** turns off
   both matching and learning.
+
+## Search by meaning
+
+Search finds moments by meaning as well as by words: "when did we talk
+about hiring" finds "we're bringing on two engineers". It adds to the FTS5
+keyword search rather than replacing it (`quill_core::semantic`).
+
+- **Model: multilingual-e5-small** (Microsoft, MIT): a 12-layer BERT with
+  384 dimensions, trained for retrieval in about 100 languages. Whisper
+  transcribes ~100 languages, so an English-only model (all-MiniLM, bge-small)
+  was ruled out, though they're 3–4× smaller: e5-small's 250k-token
+  vocabulary is ~80% of its weights. The download is 488 MB (fp32
+  safetensors and tokenizer, from `intfloat/multilingual-e5-small`,
+  SHA-256 checked, catalogued as `search` and `search-tokenizer`).
+  `config.json` is compiled in. E5 wants `query: ` / `passage: ` prefixes
+  and mean pooling; vectors are normalised, so cosine is a dot product.
+- **Runtime: candle, pure Rust, CPU only** (`quill-embed`, behind an
+  `Embedder` trait). Not `ort`: sherpa-onnx already links onnxruntime
+  (statically on macOS), and a second copy risks clashing symbols.
+  sherpa-onnx 1.13.8 can't run a text-embedding model: its API covers
+  speech recognition, TTS, VAD, keyword spotting, punctuation, audio
+  tagging, diarization and speaker embeddings, nothing for text. Not Ollama by default:
+  it isn't installed for most users, and the index would depend on a
+  server being up; an Ollama `Embedder` would fit behind the same trait
+  later. candle is pinned to 0.9.2 because 0.10 and later make
+  candle-core depend on `tokenizers` with Oniguruma (C). `tokenizers` is
+  built without default features (`unstable_wasm` is what picks the
+  pure-Rust regex engine), so there's no new C or C++ in the build. The
+  model is small enough that the CPU suffices; no Metal or Vulkan for it.
+- **Never downloads by itself.** The setting (Settings → Meetings → Search
+  by meaning) is on by default, but until the user asks for the model
+  (the line under the Meetings search box, or Settings → Models), search
+  is by words alone. It isn't in the onboarding download either:
+  `models::required` doesn't list it.
+- **Chunks, not segments.** Single segments are often a few words ("Sounds
+  good."), too little to carry meaning, so consecutive segments are
+  grouped until ~80 words (never past 140; a pause over a minute starts a
+  new chunk): ~100 chunks per hour of meeting, each about half a minute.
+  A result found by meaning opens at the line in its chunk that shares
+  most words with the query (ignoring filler words like "about", and
+  counting "crash" for "crashes"), or else its first line. Summaries
+  aren't embedded: the transcript already holds what they say, and a
+  summary hit has no moment to jump to.
+- **Storage:** migration 11 (after known voices' 10), `semantic_chunks` (segment range, times,
+  model, the vector as a little-endian f32 BLOB) and `semantic_index`
+  (which meetings are indexed, by which model). `save_transcript` deletes
+  a meeting's rows in the same transaction, so a new transcript is
+  indexed again; vectors from another model id are ignored, so changing
+  the model rebuilds everything. Indexing reads, embeds without holding
+  the library lock, then writes only if the transcript is unchanged.
+- **Indexing in the background** (`app/src-tauri/src/semantic.rs`): a
+  worker indexes one meeting at a time, newest first, woken when a
+  transcript is saved, the model arrives or the setting changes. It waits
+  while recording, transcribing, moving recordings or dictating, and
+  stops between batches of 16 chunks when one starts. The model loads on
+  first use (~0.7 s; focusing the search box loads it ahead), and is
+  unloaded after 10 minutes unused: resident it's ~0.5 GB, and loading
+  peaks at ~0.9 GB because the weights are read into memory, then copied
+  into tensors. (Memory-mapping would avoid the copy but needs `unsafe`
+  and holds the file open, so Windows couldn't delete it.)
+- **Threads:** half the cores, at most 4. On a 32-thread Windows PC, 4
+  threads indexed at 7.3 s per hour of transcript and 16 at 10.3 s: the
+  model is too small to keep more busy.
+- **Ranking: weighted reciprocal rank fusion.** Each result scores
+  weight / (60 + rank) per list it's in. Keyword hits stay one per
+  matching line, as before. A chunk found by meaning that contains a
+  keyword hit lifts it (`both`); one without becomes a result of its own
+  (`meaning`, shown as **Related**). Meaning has weight 0.5, so a result
+  found only by meaning always ranks after every line with the words:
+  for a query like "Thursday" the nearest chunks by meaning are only
+  loosely related, while exact words are the surer sign.
+- **Cut-offs.** E5's similarities are bunched: unrelated chunks score
+  0.75–0.82, good matches 0.82–0.87. A chunk counts if it scores at least
+  0.80 *and* is within 0.04 of the query's best; at most 10, and none for
+  queries under 3 characters (while typing). Chosen by sweeping
+  `quill-cli search --eval --min-score --spread`: 0.78 let in noise for
+  nonsense queries, 0.82 lost true matches, and the spread changed
+  little between 0.03 and 0.06.
+- **Brute force is enough.** Each query reads every vector from SQLite
+  and takes dot products. Measured on Windows (32 threads, 4 for the
+  model), `quill-cli search --eval eval/search/queries.json`:
+
+  | | |
+  |---|---|
+  | Indexing | 6–10 s per hour of transcript (machine shared with other builds) |
+  | Index size | 1.5 KB per chunk, ~100 chunks per hour: the database grows ~200 KB per hour |
+  | Query, the 16-minute eval library | 7 ms median (embedding the query is most of it) |
+  | Query, padded to 100 hours (9,906 chunks, 15 MB of vectors) | 38 ms median (words alone 0.6 ms) |
+  | Query, padded to 500 hours (49,426 chunks, 76 MB) | 145 ms median |
+
+  A personal library of a few hundred hours stays well under the 150 ms
+  the search box waits before searching. Past that, keep the vectors in
+  memory (or as f16/int8) instead of reading them from SQLite each time.
+- **Quality** on 24 labelled queries over five synthetic meetings
+  (`eval/search/`: four English, one Spanish), counting a result that
+  opens the meeting at most 15 s before the right stretch:
+
+  | | Right result first | In the top 3 |
+  |---|---:|---:|
+  | Words only (before) | 2 / 22 | 2 / 22 |
+  | Words + meaning | 13 / 22 | 18 / 22 |
+
+  (Two of the 24 are nonsense queries with no answer; both return
+  nothing.) Paraphrases work well ("app crashes when you turn the phone
+  sideways" finds "a crash on older Android phones when you rotate the
+  screen"), as do Spanish queries over the Spanish meeting and a Spanish
+  query over an English one. English queries over the Spanish meeting
+  mostly failed ("trade show budget" didn't reach "el presupuesto para la
+  feria"), as did the single word "vacation" for "two weeks off": a lone
+  word gives the model little to go on.

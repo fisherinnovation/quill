@@ -108,6 +108,7 @@ export function ModelsGroup({
   const speech = byName(settings.stt_model);
   const vad = info.models.filter((m) => m.kind === "vad");
   const speakers = info.models.filter((m) => m.for_speakers);
+  const search = info.models.filter((m) => m.kind === "search");
   // Downloaded, but no job uses them (other Whisper sizes, voice models
   // from comparisons).
   const unused = info.models.filter(
@@ -330,6 +331,14 @@ export function ModelsGroup({
         enabled: settings.identify_speakers,
         offText: "Turn on Tell speakers apart above to use it.",
       })}
+      {localJob({
+        id: "search",
+        label: "Search by meaning",
+        hint: "multilingual-e5-small: finds moments in meetings that say what you searched for in other words. Runs on this computer.",
+        files: search,
+        enabled: settings.semantic_search,
+        offText: "Turn on Search by meaning under Settings → Meetings to use it.",
+      })}
 
       <div className="row stack model-job">
         <div className="row-label">
@@ -513,8 +522,12 @@ export function ModelDownload({
   // onboarding can say when it's done instead of just disappearing.
   const [plan, setPlan] = useState<string[]>([]);
   const relevant = (info?.models ?? []).filter(
-    // Dictation only needs Whisper and VAD; onboarding fetches everything.
-    (m) => m.in_use && (variant === "onboarding" || m.kind !== "speakers"),
+    // Dictation only needs Whisper and VAD; onboarding fetches everything
+    // but the search model, which downloads only when asked for.
+    (m) =>
+      m.in_use &&
+      m.kind !== "search" &&
+      (variant === "onboarding" || m.kind !== "speakers"),
   );
   const missingNames = relevant.filter((m) => !m.downloaded).map((m) => m.name);
   const missingKey = missingNames.join(",");

@@ -24,6 +24,7 @@ tauri-build.workspace = true
 jiff.workspace = true
 quill-audio.workspace = true
 quill-core.workspace = true
+quill-embed.workspace = true
 quill-insert.workspace = true
 base64.workspace = true
 quill-llm.workspace = true

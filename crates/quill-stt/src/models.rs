@@ -186,11 +186,37 @@ pub const VOICE_MODELS: &[ModelInfo] = &[
     },
 ];
 
-/// Every non-Whisper model: VAD and the diarization models.
+/// Search by meaning (`quill_core::semantic`): Microsoft's
+/// multilingual-e5-small (MIT), weights and tokenizer, run by `quill-embed`.
+/// Both files are needed. Most of the weights are its 250k-token
+/// vocabulary, which is what covers ~100 languages.
+pub const SEARCH_MODELS: &[ModelInfo] = &[
+    ModelInfo {
+        name: "search",
+        repo: "intfloat/multilingual-e5-small",
+        file_name: "multilingual-e5-small.safetensors",
+        remote_name: Some("model.safetensors"),
+        size_bytes: 470_641_600,
+        sha256: "1a55775f53449dac10a2bcbc312469fac40b96d53198c407081a831f81c98477",
+        description: "multilingual-e5-small: finds moments by meaning, in ~100 languages",
+    },
+    ModelInfo {
+        name: "search-tokenizer",
+        repo: "intfloat/multilingual-e5-small",
+        file_name: "multilingual-e5-small-tokenizer.json",
+        remote_name: Some("tokenizer.json"),
+        size_bytes: 17_082_730,
+        sha256: "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+        description: "multilingual-e5-small's tokenizer",
+    },
+];
+
+/// Every non-Whisper model: VAD, the diarization models and search.
 pub fn support_models() -> impl Iterator<Item = &'static ModelInfo> {
     [&VAD_MODEL, &SEGMENTATION_MODEL]
         .into_iter()
         .chain(VOICE_MODELS)
+        .chain(SEARCH_MODELS)
 }
 
 /// Looks up any model by its short name: Whisper, `"vad"`, or a

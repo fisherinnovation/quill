@@ -12,3 +12,10 @@
 - `benchmarks.md` records Whisper real-time factors per model and machine.
 - `dictation/` and `diarization/` hold the dictation latency checks and the
   speaker diarization evaluation, each with its own README.
+- `search/` holds the search-by-meaning check: `queries.json` (labelled
+  queries, with the stretch of which meeting should answer each) over
+  `product-sync.json` and four more synthetic transcripts (`launch-planning`
+  from `diarization/ten_people.txt`; a support review, a one-on-one and a
+  Spanish marketing meeting written for it). Run
+  `quill-cli search --eval eval/search/queries.json` (`--scores` shows the
+  closest chunks per query, `--scale-hours 100` times a bigger library).

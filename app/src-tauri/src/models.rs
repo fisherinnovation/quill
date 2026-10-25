@@ -59,6 +59,8 @@ pub enum Kind {
     Vad,
     /// Telling speakers apart.
     Speakers,
+    /// Search by meaning.
+    Search,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -158,14 +160,18 @@ pub fn ensure(
     };
     lock(&downloads.active).remove(model.name);
     match &result {
-        Ok(_) => emit(
-            app,
-            model.name,
-            model.size_bytes,
-            model.size_bytes,
-            true,
-            None,
-        ),
+        Ok(_) => {
+            emit(
+                app,
+                model.name,
+                model.size_bytes,
+                model.size_bytes,
+                true,
+                None,
+            );
+            // It may be the search model, which indexing waits for.
+            crate::semantic::wake(app);
+        }
         Err(e) => {
             tracing::warn!(model = model.name, "download failed: {e}");
             emit(app, model.name, 0, model.size_bytes, true, Some(e.clone()));
@@ -228,16 +234,24 @@ fn catalog(dir: &std::path::Path) -> Vec<(&'static ModelInfo, Kind)> {
             list.push((m, Kind::Speakers));
         }
     }
+    list.extend(models::SEARCH_MODELS.iter().map(|m| (m, Kind::Search)));
     list
 }
 
 fn info(app: &AppHandle) -> Result<ModelsInfo, String> {
     let state = app.state::<AppState>();
     let dir = models_dir()?;
-    let needed: Vec<&str> = required(&lock(&state.settings))
-        .iter()
-        .map(|m| m.name)
-        .collect();
+    let settings = lock(&state.settings).clone();
+    let mut needed: Vec<&str> = required(&settings).iter().map(|m| m.name).collect();
+    // Not in `required`: it downloads only when the user asks, never with
+    // the speech models.
+    if settings.semantic_search {
+        needed.extend(
+            quill_core::semantic::required_models()
+                .iter()
+                .map(|m| m.name),
+        );
+    }
     let active = lock(&state.downloads.active).clone();
     let entries: Vec<ModelEntry> = catalog(&dir)
         .into_iter()
@@ -392,6 +406,9 @@ fn remove(app: &AppHandle, model: &'static ModelInfo) -> CommandResult<()> {
         }
     }
     tracing::info!(model = model.name, "deleted model");
+    if models::SEARCH_MODELS.contains(model) {
+        crate::semantic::unload(app);
+    }
     // A meeting already transcribing keeps its own reference to the loaded
     // model and finishes normally.
     let mut loaded = lock(&state.transcriber);

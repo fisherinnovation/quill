@@ -33,8 +33,9 @@ where reality differs.
 
 - the summary and clean-up model you configure: OpenRouter (`openrouter.ai`),
   or an Ollama server (`localhost:11434` by default, or `OLLAMA_HOST`);
-- Hugging Face, to download speech models. Each download is checked against
-  a pinned SHA-256 hash before use.
+- Hugging Face, to download speech models, and the search model when you
+  ask for it. Each download is checked against a pinned SHA-256 hash before
+  use.
 - OpenRouter's public model list (no key, nothing about you), and the local
   Ollama server's list of installed models, to fill the model pickers in
   Settings.
@@ -85,7 +86,12 @@ named or confirmed them in. Fingerprints are numeric embeddings from the
 local voice model, not audio, but they can identify a voice, so treat them
 like biometric data: they never leave your computer, are never logged, and
 a known voice is kept until you forget it in Settings → Meetings (deleting
-a meeting doesn't). Your own microphone track is never remembered. Logs contain events, timings and errors,
+a meeting doesn't). Your own microphone track is never remembered.
+Search by meaning (Settings → Meetings, on by default, but only once its
+model is downloaded) stores an embedding of each half minute or so of
+every transcript in `quill.sqlite`; it's computed on your computer, deleted
+with the meeting, and kept (unused) if you turn search by meaning off.
+Search queries are never logged, stored or sent anywhere. Logs contain events, timings and errors,
 never transcripts, notes, dictated text or keys.
 
 **Permissions.**
