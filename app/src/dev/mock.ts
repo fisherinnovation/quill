@@ -11,8 +11,10 @@
 // notes panel, ?writeup (or ?writeup=failed) for a meeting being written
 // up after recording (also what stopping a recording shows), ?update for a
 // new version waiting to be installed, ?backlog for enough older
-// meetings and dictations to need "Show more", and ?voices for a meeting
-// where Quill recognised someone by voice (Speaker 3 named Priya).
+// meetings and dictations to need "Show more", ?voices for a meeting
+// where Quill recognised someone by voice (Speaker 3 named Priya),
+// ?nosearch for search by meaning without its model yet, and ?indexing
+// for meetings being indexed for it.
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { UpdateInfo } from "../api";
@@ -275,6 +277,7 @@ const settings = {
   live_notes: true,
   notify_notes_ready: true,
   recognize_voices: true,
+  semantic_search: true,
   gpu: { kind: "automatic" },
   dictation: {
     enabled: true,
@@ -462,6 +465,8 @@ let models = [
   ["segmentation", "speakers", "pyannote segmentation 3.0: where speaker turns are", 5_992_913, !fresh, true, true],
   ["voice-titanet-small", "speakers", "NVIDIA NeMo TitaNet small (CC BY 4.0)", 40_257_283, !fresh, true, true],
   ["voice-eres2net", "speakers", "3D-Speaker ERes2Net, VoxCeleb (Apache-2.0)", 26_485_263, !fresh, false, false],
+  ["search", "search", "multilingual-e5-small: finds moments by meaning, in ~100 languages", 470_641_600, !fresh && !flags.has("nosearch"), true, false],
+  ["search-tokenizer", "search", "multilingual-e5-small's tokenizer", 17_082_730, !fresh && !flags.has("nosearch"), true, false],
 ].map(([name, kind, description, size_bytes, downloaded, in_use, for_speakers]) => ({
   name,
   kind,
@@ -497,7 +502,38 @@ async function fakeDownload(names: string[]) {
     model.downloaded = true;
     await emit("model-download", { name, done: model.size_bytes, total: model.size_bytes, finished: true, error: null });
   }
+  if (names.some((n) => n.startsWith("search")) && semanticReady()) void fakeIndexing(0);
 }
+
+/** Search by meaning: meetings indexed so far (all, unless ?indexing). */
+let indexed = flags.has("indexing") ? 2 : Infinity;
+
+const semanticReady = () => models.filter((m) => m.kind === "search").every((m) => m.downloaded);
+
+function semanticStatus() {
+  const total = meetings.filter((m) => m.has_transcript).length;
+  return {
+    enabled: settings.semantic_search,
+    model_ready: semanticReady(),
+    indexed: Math.min(indexed, total),
+    total,
+    paused: false,
+    error: null,
+  };
+}
+
+/** Pretends to index meetings, one every second or so. */
+async function fakeIndexing(from: number) {
+  indexed = from;
+  const total = semanticStatus().total;
+  while (indexed < total) {
+    await emit("semantic-index", semanticStatus());
+    await new Promise((r) => setTimeout(r, 1200));
+    indexed++;
+  }
+  await emit("semantic-index", semanticStatus());
+}
+if (flags.has("indexing")) setTimeout(() => void fakeIndexing(2), 1500);
 
 let suggestions: { id: number; kind: string; from: string; to: string; app: string | null; seen: number; status: string }[] = [
   { id: 1, kind: "replacement", from: "open router", to: "OpenRouter", app: "Slack", seen: 2, status: "pending" },
@@ -646,9 +682,18 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     String(query).length < 2
       ? []
       : [
-          { meeting_id: "m1", title: "Product sync", start_ms: 55_000, speaker: "Others", snippet: `…signups have been about twelve percent too high since the [${query}] upgrade…` },
-          { meeting_id: "m4", title: "Design review: settings", start_ms: 312_000, speaker: "Me", snippet: `…the [${query}] page needs grouping like System Settings…` },
+          { meeting_id: "m1", title: "Product sync", start_ms: 55_000, speaker: "Others", snippet: `…signups have been about twelve percent too high since the [${query}] upgrade…`, matched: "both" },
+          { meeting_id: "m4", title: "Design review: settings", start_ms: 312_000, speaker: "Me", snippet: `…the [${query}] page needs grouping like System Settings…`, matched: "words" },
+          // What search by meaning adds: the same subject in other words.
+          ...(settings.semantic_search && semanticReady() && String(query).length >= 3
+            ? [{ meeting_id: "m6", title: "Hiring sync", start_ms: 141_000, speaker: "Dan", snippet: "We're bringing on two more engineers before the end of the quarter, and the design role has two finalists.", matched: "meaning" }]
+            : []),
         ],
+  semantic_status: () => semanticStatus(),
+  prepare_search: () => null,
+  download_search_model: () => {
+    void fakeDownload(models.filter((m) => m.kind === "search").map((m) => m.name));
+  },
   rename_meeting: ({ id, title }) => {
     meetings = meetings.map((m) => (m.id === id ? { ...m, title: String(title) } : m));
   },
@@ -656,7 +701,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     meetings = meetings.filter((m) => m.id !== id);
   },
   get_settings: () => settings,
-  save_settings: () => null,
+  save_settings: ({ settings: next }) => {
+    // Kept for what depends on it here (search by meaning's status).
+    settings.semantic_search = (next as typeof settings).semantic_search;
+    void emit("semantic-index", semanticStatus());
+  },
   recording_state: () => recording ?? { recording: false, paused: false, meeting_id: null, elapsed_ms: 0 },
   pause_recording: () => {
     if (recording) recording = { ...recording, paused: true };

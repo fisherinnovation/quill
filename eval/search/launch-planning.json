@@ -1,0 +1,572 @@
+[
+  {
+    "start_ms": 0,
+    "end_ms": 2307,
+    "text": "Hi everyone, thanks for making time.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 2607,
+    "end_ms": 6838,
+    "text": "We've got a full house today, so let's keep it moving.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 7138,
+    "end_ms": 11753,
+    "text": "The goal is to agree on the launch plan for the mobile",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 12053,
+    "end_ms": 14746,
+    "text": "release and figure out who owns what.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 15646,
+    "end_ms": 18723,
+    "text": "Before we start, can everyone hear me okay?",
+    "speaker": "Daniel"
+  },
+  {
+    "start_ms": 19023,
+    "end_ms": 22484,
+    "text": "I'm on the train, so the connection might drop.",
+    "speaker": "Daniel"
+  },
+  {
+    "start_ms": 23384,
+    "end_ms": 26846,
+    "text": "You're fine, Daniel. Okay, quick round of updates first.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 27146,
+    "end_ms": 30992,
+    "text": "Karen, do you want to kick us off with engineering?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 31892,
+    "end_ms": 34969,
+    "text": "Sure. The release branch was cut on Monday.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 35269,
+    "end_ms": 39115,
+    "text": "We have eleven open bugs, three of them marked critical.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 39415,
+    "end_ms": 44030,
+    "text": "Two of the critical ones are in the offline sync code, and",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 44330,
+    "end_ms": 50099,
+    "text": "one is a crash on older Android phones when you rotate the screen during checkout.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 51000,
+    "end_ms": 52923,
+    "text": "The rotation crash is mine.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 53223,
+    "end_ms": 57069,
+    "text": "I have a fix in review, it should land today.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 57969,
+    "end_ms": 60661,
+    "text": "Great. The offline sync bugs are harder.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 60961,
+    "end_ms": 65576,
+    "text": "We think it's a race between the background refresh and the user",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 65876,
+    "end_ms": 68569,
+    "text": "editing a record at the same moment.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 69469,
+    "end_ms": 72161,
+    "text": "Do we have a date for those?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 73061,
+    "end_ms": 76907,
+    "text": "Realistically, end of next week. I'd rather not promise sooner.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 77807,
+    "end_ms": 78961,
+    "text": "Yeah, that's fair.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 79861,
+    "end_ms": 81015,
+    "text": "Okay. Moira, design?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 81915,
+    "end_ms": 84607,
+    "text": "All the final screens are handed off.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 84907,
+    "end_ms": 89907,
+    "text": "The only open item is the empty state for the new activity feed.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 90207,
+    "end_ms": 96746,
+    "text": "We tested two versions with users and the simpler one did better, so we're going with that.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 97646,
+    "end_ms": 101107,
+    "text": "Can I ask a question about the activity feed?",
+    "speaker": "Tessa"
+  },
+  {
+    "start_ms": 101407,
+    "end_ms": 106407,
+    "text": "Are we showing notifications from shared projects, or only the user's own projects?",
+    "speaker": "Tessa"
+  },
+  {
+    "start_ms": 107307,
+    "end_ms": 109230,
+    "text": "Only their own for launch.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 109530,
+    "end_ms": 112223,
+    "text": "Shared projects come in the next release.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 113123,
+    "end_ms": 116199,
+    "text": "Okay, that makes support a lot easier. Thanks.",
+    "speaker": "Tessa"
+  },
+  {
+    "start_ms": 117099,
+    "end_ms": 119407,
+    "text": "Marketing next. Fred, where are we?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 120307,
+    "end_ms": 124923,
+    "text": "The launch page is drafted, the press list is ready, and we",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 125223,
+    "end_ms": 128299,
+    "text": "have three customers lined up to give quotes.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 128599,
+    "end_ms": 133215,
+    "text": "What I don't have yet is a firm date, which makes it",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 133515,
+    "end_ms": 136207,
+    "text": "hard to book anything with the press.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 137107,
+    "end_ms": 140184,
+    "text": "Understood. That's really the main question for today.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 141084,
+    "end_ms": 145699,
+    "text": "From the support side, we'd like at least a week's notice before",
+    "speaker": "Tara"
+  },
+  {
+    "start_ms": 145999,
+    "end_ms": 152153,
+    "text": "launch so we can train the team on the new screens and update the help articles.",
+    "speaker": "Tara"
+  },
+  {
+    "start_ms": 153053,
+    "end_ms": 155746,
+    "text": "That's reasonable. Let's make that a rule.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 156046,
+    "end_ms": 159123,
+    "text": "Support gets a week's notice for any launch.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 160023,
+    "end_ms": 161561,
+    "text": "Sorry to jump in.",
+    "speaker": "Reed"
+  },
+  {
+    "start_ms": 161861,
+    "end_ms": 167246,
+    "text": "Legal still needs to review the new data sharing text in the onboarding flow.",
+    "speaker": "Reed"
+  },
+  {
+    "start_ms": 167546,
+    "end_ms": 169469,
+    "text": "Has anyone sent that over?",
+    "speaker": "Reed"
+  },
+  {
+    "start_ms": 170369,
+    "end_ms": 172292,
+    "text": "I sent it on Tuesday.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 172592,
+    "end_ms": 174899,
+    "text": "I'll ping them again this afternoon.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 175799,
+    "end_ms": 176184,
+    "text": "Thanks.",
+    "speaker": "Reed"
+  },
+  {
+    "start_ms": 176484,
+    "end_ms": 180330,
+    "text": "They usually turn things around in two or three days.",
+    "speaker": "Reed"
+  },
+  {
+    "start_ms": 181230,
+    "end_ms": 182384,
+    "text": "Okay. So, dates.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 182684,
+    "end_ms": 186530,
+    "text": "Karen says the sync bugs are end of next week.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 186830,
+    "end_ms": 189138,
+    "text": "Legal is two or three days.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 189438,
+    "end_ms": 191361,
+    "text": "Support needs a week's notice.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 191661,
+    "end_ms": 194738,
+    "text": "Fred needs a firm date for the press.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 195638,
+    "end_ms": 201792,
+    "text": "What if we pick a date two weeks after the sync fixes land, instead of one?",
+    "speaker": "Daniel"
+  },
+  {
+    "start_ms": 202092,
+    "end_ms": 206323,
+    "text": "It gives us room if something else comes up during testing.",
+    "speaker": "Daniel"
+  },
+  {
+    "start_ms": 207223,
+    "end_ms": 208376,
+    "text": "I'd support that.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 208676,
+    "end_ms": 211753,
+    "text": "A week of buffer has burned us before.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 212653,
+    "end_ms": 213038,
+    "text": "Agreed.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 213938,
+    "end_ms": 217784,
+    "text": "Two weeks puts us right before the holiday weekend, though.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 218084,
+    "end_ms": 220392,
+    "text": "Press coverage is terrible that week.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 221292,
+    "end_ms": 222061,
+    "text": "Good point.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 222361,
+    "end_ms": 228130,
+    "text": "So either we go a few days earlier, or we push into the following week.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 229030,
+    "end_ms": 231338,
+    "text": "Can I add something from finance?",
+    "speaker": "Shelley"
+  },
+  {
+    "start_ms": 231638,
+    "end_ms": 236253,
+    "text": "If we launch after the first of the month, the new pricing",
+    "speaker": "Shelley"
+  },
+  {
+    "start_ms": 236553,
+    "end_ms": 243092,
+    "text": "applies automatically, and we avoid a messy migration for anyone who signs up during the last week.",
+    "speaker": "Shelley"
+  },
+  {
+    "start_ms": 243992,
+    "end_ms": 247069,
+    "text": "That's a strong argument for the later date.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 247369,
+    "end_ms": 250446,
+    "text": "Fred, does the following week work for press?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 251346,
+    "end_ms": 253653,
+    "text": "It's much better for press, honestly.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 253953,
+    "end_ms": 256261,
+    "text": "Tuesday or Wednesday would be ideal.",
+    "speaker": "Fred"
+  },
+  {
+    "start_ms": 257161,
+    "end_ms": 260238,
+    "text": "Let's tentatively say Tuesday the fourteenth. Any objections?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 261138,
+    "end_ms": 266138,
+    "text": "No objection from engineering, as long as the sync fixes land on time.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 266438,
+    "end_ms": 269515,
+    "text": "I'll flag it by Wednesday if they're slipping.",
+    "speaker": "Karen"
+  },
+  {
+    "start_ms": 270415,
+    "end_ms": 271569,
+    "text": "Works for support.",
+    "speaker": "Tessa"
+  },
+  {
+    "start_ms": 272469,
+    "end_ms": 272853,
+    "text": "Great.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 273153,
+    "end_ms": 278923,
+    "text": "Decision: launch on Tuesday the fourteenth, with a go or no-go check the Wednesday before.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 279823,
+    "end_ms": 282130,
+    "text": "Who runs the go or no-go?",
+    "speaker": "Daniel"
+  },
+  {
+    "start_ms": 283030,
+    "end_ms": 283799,
+    "text": "I will.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 284099,
+    "end_ms": 289869,
+    "text": "Karen, Fred and Tara, please come with a clear yes or no from your teams.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 290769,
+    "end_ms": 291538,
+    "text": "Will do.",
+    "speaker": "Tara"
+  },
+  {
+    "start_ms": 292438,
+    "end_ms": 294361,
+    "text": "One more thing on engineering.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 294661,
+    "end_ms": 299276,
+    "text": "We'd like to turn on the new crash reporting before launch, so",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 299576,
+    "end_ms": 302269,
+    "text": "we catch anything in the first week.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 302569,
+    "end_ms": 305261,
+    "text": "It needs a privacy review as well.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 306161,
+    "end_ms": 313084,
+    "text": "Send it to me and I'll bundle it with the onboarding text so legal looks at both together.",
+    "speaker": "Reed"
+  },
+  {
+    "start_ms": 313984,
+    "end_ms": 315907,
+    "text": "Perfect, I'll send it today.",
+    "speaker": "Rishi"
+  },
+  {
+    "start_ms": 316807,
+    "end_ms": 319115,
+    "text": "Okay, let's recap the action items.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 319415,
+    "end_ms": 324800,
+    "text": "Rishi lands the rotation fix today and sends the crash reporting details to Reed.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 325100,
+    "end_ms": 331638,
+    "text": "Karen's team fixes the sync bugs by end of next week and flags any slip by Wednesday.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 331938,
+    "end_ms": 334630,
+    "text": "Moira follows up with legal this afternoon.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 334930,
+    "end_ms": 338776,
+    "text": "Fred books the press for the week of the fourteenth.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 339076,
+    "end_ms": 341384,
+    "text": "Tara starts the support training plan.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 341684,
+    "end_ms": 344761,
+    "text": "And I'll run the go or no-go check.",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 345661,
+    "end_ms": 346430,
+    "text": "Sounds right.",
+    "speaker": "Moira"
+  },
+  {
+    "start_ms": 347330,
+    "end_ms": 351946,
+    "text": "I'll send the pricing timeline to everyone so the dates line up.",
+    "speaker": "Shelley"
+  },
+  {
+    "start_ms": 352846,
+    "end_ms": 355923,
+    "text": "Thank you, Shelley. Anything else before we wrap?",
+    "speaker": "Samantha"
+  },
+  {
+    "start_ms": 356823,
+    "end_ms": 361438,
+    "text": "Just that I'll be offline Friday, so send anything urgent before then.",
+    "speaker": "Daniel"
+  },
+  {
+    "start_ms": 362338,
+    "end_ms": 364261,
+    "text": "Noted. Thanks everyone, great meeting.",
+    "speaker": "Samantha"
+  }
+]

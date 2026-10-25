@@ -77,12 +77,11 @@ pub fn get_meeting(state: State<'_, AppState>, id: String) -> CommandResult<Meet
     Ok(state.library.get(&id)?)
 }
 
+/// Searches transcripts by words, and by meaning when that's on (see
+/// `semantic.rs`).
 #[tauri::command]
-pub fn search_transcripts(
-    state: State<'_, AppState>,
-    query: String,
-) -> CommandResult<Vec<SearchHit>> {
-    Ok(state.library.search(&query, 50)?)
+pub async fn search_transcripts(app: AppHandle, query: String) -> CommandResult<Vec<SearchHit>> {
+    blocking(move || crate::semantic::search(&app, &query)).await
 }
 
 #[tauri::command]
@@ -136,6 +135,8 @@ pub fn save_settings(
     if theme != theme_was {
         crate::theme::apply(&app, theme);
     }
+    // Search by meaning may have been turned on or off.
+    crate::semantic::wake(&app);
     Ok(())
 }
 

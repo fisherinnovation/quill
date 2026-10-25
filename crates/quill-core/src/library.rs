@@ -196,6 +196,30 @@ CREATE TABLE meeting_voices (
     PRIMARY KEY (meeting_id, label)
 );
 ",
+    "
+-- Search by meaning (`semantic`): each transcript cut into chunks of a few
+-- segments (`first_idx`..`last_idx`), each with its embedding from `model`
+-- (little-endian f32s). `semantic_index` lists the meetings indexed and
+-- with which model. Saving a transcript deletes its rows, so it's indexed
+-- again; so is everything when the model changes.
+CREATE TABLE semantic_index (
+    meeting_id TEXT PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE,
+    model      TEXT NOT NULL,
+    chunks     INTEGER NOT NULL,
+    indexed_at TEXT NOT NULL               -- RFC 3339
+);
+CREATE TABLE semantic_chunks (
+    id         INTEGER PRIMARY KEY,
+    meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    model      TEXT NOT NULL,
+    first_idx  INTEGER NOT NULL,
+    last_idx   INTEGER NOT NULL,
+    start_ms   INTEGER NOT NULL,
+    end_ms     INTEGER NOT NULL,
+    vector     BLOB NOT NULL
+);
+CREATE INDEX semantic_chunks_by_meeting ON semantic_chunks (meeting_id);
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -262,6 +286,8 @@ pub struct SearchHit {
     pub speaker: Option<String>,
     /// Matching text with hits wrapped in `[` `]`.
     pub snippet: String,
+    /// Found by its words, its meaning (`semantic`), or both.
+    pub matched: crate::semantic::Matched,
 }
 
 /// One dictation, as stored in the history.
@@ -719,6 +745,8 @@ impl Library {
         tx.execute("DELETE FROM segments_fts WHERE meeting_id = ?1", [id])?;
         // Their labels go with the old transcript (see `save_meeting_voices`).
         tx.execute("DELETE FROM meeting_voices WHERE meeting_id = ?1", [id])?;
+        // The meaning index is of the old text: index it again.
+        crate::semantic::forget(&tx, id)?;
         for (i, s) in (0_i64..).zip(segments) {
             tx.execute(
                 "INSERT INTO segments (meeting_id, idx, start_ms, end_ms, speaker, text) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1284,6 +1312,7 @@ impl Library {
                         start_ms: from_i64(r.get(2)?),
                         speaker: r.get(3)?,
                         snippet: r.get(4)?,
+                        matched: crate::semantic::Matched::Words,
                     })
                 },
             )?
@@ -1628,6 +1657,8 @@ mod tests {
                  DROP TABLE meeting_voices;
                  DROP TABLE voice_samples;
                  DROP TABLE known_voices;
+                 DROP TABLE semantic_chunks;
+                 DROP TABLE semantic_index;
                  PRAGMA user_version = 7;",
             )
             .unwrap();

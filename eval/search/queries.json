@@ -1,0 +1,35 @@
+{
+  "transcripts": {
+    "product-sync": "../transcripts/product-sync.json",
+    "launch-planning": "launch-planning.json",
+    "support-review": "support-review.json",
+    "one-on-one": "one-on-one.json",
+    "reunion-marketing": "reunion-marketing.json"
+  },
+  "queries": [
+    {"query": "when did we talk about hiring", "expect": [["product-sync", 171000, 211000]]},
+    {"query": "bringing on new engineers", "expect": [["product-sync", 171000, 211000]]},
+    {"query": "database downtime", "expect": [["product-sync", 16000, 38000]]},
+    {"query": "customers get stuck during setup", "expect": [["product-sync", 46000, 100000]]},
+    {"query": "cheaper yearly subscriptions", "expect": [["product-sync", 120000, 168000]]},
+    {"query": "sales quoting the wrong discount", "expect": [["product-sync", 154000, 168000]]},
+    {"query": "app crashes when you turn the phone sideways", "expect": [["launch-planning", 39000, 57000]]},
+    {"query": "lawyers checking the privacy wording", "expect": [["launch-planning", 160000, 181000], ["launch-planning", 294000, 313000]]},
+    {"query": "picking a launch date", "expect": [["launch-planning", 181000, 278000]]},
+    {"query": "slow replies to customers", "expect": [["support-review", 19000, 43000], ["support-review", 139000, 156000]]},
+    {"query": "someone was billed twice", "expect": [["support-review", 92000, 107000]]},
+    {"query": "a page showing whether the service is down", "expect": [["support-review", 108000, 139000]]},
+    {"query": "feeling overwhelmed with work", "expect": [["one-on-one", 6000, 43000]]},
+    {"query": "vacation", "expect": [["one-on-one", 93000, 107000]]},
+    {"query": "career growth and leading a project", "expect": [["one-on-one", 54000, 92000]]},
+    {"query": "trade show budget", "expect": [["reunion-marketing", 0, 30000]]},
+    {"query": "who is travelling to Barcelona", "expect": [["reunion-marketing", 60000, 72000]]},
+    {"query": "contratar ingenieros", "expect": [["product-sync", 171000, 211000]]},
+    {"query": "Thursday", "expect": [["product-sync", 162000, 171000], ["product-sync", 215000, 230000]]},
+    {"query": "status page", "expect": [["support-review", 108000, 156000]]},
+    {"query": "cuánto cuesta el stand", "expect": [["reunion-marketing", 7000, 30000]]},
+    {"query": "quién se encarga de los folletos", "expect": [["reunion-marketing", 34000, 46000]]},
+    {"query": "banana smoothie recipe", "expect": []},
+    {"query": "xyzzy", "expect": []}
+  ]
+}

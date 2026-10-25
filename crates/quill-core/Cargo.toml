@@ -13,6 +13,7 @@ futures.workspace = true
 jiff.workspace = true
 quill-audio.workspace = true
 quill-diarize.workspace = true
+quill-embed.workspace = true
 quill-llm.workspace = true
 quill-stt.workspace = true
 rusqlite.workspace = true

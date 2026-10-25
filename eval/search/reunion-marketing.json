@@ -1,0 +1,134 @@
+[
+  {
+    "start_ms": 0,
+    "end_ms": 1538,
+    "text": "Buenos días a todos.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 1838,
+    "end_ms": 6838,
+    "text": "Hoy tenemos que cerrar el plan para la feria de Barcelona en noviembre.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 7738,
+    "end_ms": 8123,
+    "text": "Perfecto.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 8423,
+    "end_ms": 13038,
+    "text": "Ya tengo el presupuesto: el stand cuesta doce mil euros, y con",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 13338,
+    "end_ms": 17184,
+    "text": "los viajes y el hotel llegamos a unos veinte mil.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 18084,
+    "end_ms": 21546,
+    "text": "Es más de lo que pensábamos. ¿Podemos reducir algo?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 22446,
+    "end_ms": 25907,
+    "text": "Podríamos compartir el stand con nuestro socio de Valencia.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 26207,
+    "end_ms": 27746,
+    "text": "Ellos pagarían la mitad.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 28646,
+    "end_ms": 30184,
+    "text": "Me gusta la idea.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 30484,
+    "end_ms": 33176,
+    "text": "Habla con ellos esta semana, por favor.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 34076,
+    "end_ms": 34846,
+    "text": "De acuerdo.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 35146,
+    "end_ms": 42069,
+    "text": "Otra cosa: necesitamos folletos nuevos en inglés y en español, los antiguos tienen los precios del año pasado.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 42969,
+    "end_ms": 46430,
+    "text": "Sí, eso es urgente. Laura puede encargarse del diseño.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 47330,
+    "end_ms": 52715,
+    "text": "También quería proponer una demostración en directo del producto en el stand, cada hora.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 53615,
+    "end_ms": 57076,
+    "text": "Buena idea, pero necesitamos una conexión a internet fiable.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 57376,
+    "end_ms": 59684,
+    "text": "Pregunta a los organizadores qué ofrecen.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 60584,
+    "end_ms": 63661,
+    "text": "Lo haré. Y sobre el equipo, ¿quién viaja?",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 64561,
+    "end_ms": 66869,
+    "text": "Tres personas: tú, Laura y yo.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 67169,
+    "end_ms": 69476,
+    "text": "Volvemos el viernes por la tarde.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 70376,
+    "end_ms": 72684,
+    "text": "Perfecto. Reservo los vuelos hoy mismo.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 73584,
+    "end_ms": 73969,
+    "text": "Gracias.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 74269,
+    "end_ms": 78115,
+    "text": "Nos vemos la semana que viene para revisar los folletos.",
+    "speaker": "Me"
+  }
+]

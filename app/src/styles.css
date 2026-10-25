@@ -6142,3 +6142,27 @@ html.indicator-window #root {
   border-radius: 1px;
   background: color-mix(in srgb, var(--sky-text) 70%, transparent);
 }
+
+/* Search by meaning: the line under the Meetings search, and the tag on
+   results found by meaning rather than by their words. */
+.search-note {
+  margin: 8px 2px 0;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.search-note .progress {
+  max-width: 320px;
+}
+
+.match-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--sky-text);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
+}

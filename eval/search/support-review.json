@@ -1,0 +1,236 @@
+[
+  {
+    "start_ms": 0,
+    "end_ms": 1153,
+    "text": "Thanks for joining.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 1453,
+    "end_ms": 6069,
+    "text": "This is the monthly support review, so let's start with the numbers",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 6369,
+    "end_ms": 9061,
+    "text": "and then go through the two escalations.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 9961,
+    "end_ms": 10346,
+    "text": "Sure.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 10646,
+    "end_ms": 15261,
+    "text": "Ticket volume was up eighteen percent on last month, mostly after the",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 15561,
+    "end_ms": 18253,
+    "text": "invoicing change went out on the third.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 19153,
+    "end_ms": 21076,
+    "text": "First response time slipped badly.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 21376,
+    "end_ms": 25223,
+    "text": "The median was nine hours, against our target of two.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 25523,
+    "end_ms": 29369,
+    "text": "Some people waited more than a day before anyone replied.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 30269,
+    "end_ms": 33346,
+    "text": "That's the part that worries me. What happened?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 34246,
+    "end_ms": 41169,
+    "text": "Two of the team were out sick in the same week, and the weekend rota had a gap.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 41469,
+    "end_ms": 43776,
+    "text": "Nobody was covering Saturday at all.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 44676,
+    "end_ms": 47753,
+    "text": "Okay. Let's fix the rota before anything else.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 48053,
+    "end_ms": 52669,
+    "text": "I'd like a named person on every weekend shift, with a backup.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 53569,
+    "end_ms": 57800,
+    "text": "I can draft that today and share it in the channel.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 58700,
+    "end_ms": 62546,
+    "text": "Great. Now the escalations. The first was the hospital group?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 63446,
+    "end_ms": 67292,
+    "text": "Yes. Their exports were failing every night for a week.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 67592,
+    "end_ms": 72207,
+    "text": "It turned out a file was bigger than the limit on our",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 72507,
+    "end_ms": 75969,
+    "text": "side, so the job just stopped without telling anyone.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 76869,
+    "end_ms": 79946,
+    "text": "So the customer found out before we did.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 80846,
+    "end_ms": 83153,
+    "text": "They did, and they weren't happy.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 83453,
+    "end_ms": 88453,
+    "text": "We've added an alert for failed exports, and engineering raised the size limit.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 89353,
+    "end_ms": 91276,
+    "text": "Good. And the second one?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 92176,
+    "end_ms": 96407,
+    "text": "A reseller in Canada was charged twice for the same quarter.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 96707,
+    "end_ms": 102476,
+    "text": "Finance refunded it within a day, but they want a written explanation for their accountant.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 103376,
+    "end_ms": 107223,
+    "text": "Let's send that this week. I'll write it with finance.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 108123,
+    "end_ms": 111969,
+    "text": "One more thing. Customers keep asking for a status page.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 112269,
+    "end_ms": 117269,
+    "text": "When something breaks, they email us to ask whether it's them or us.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 118169,
+    "end_ms": 119707,
+    "text": "That's a good point.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 120007,
+    "end_ms": 124623,
+    "text": "A public status page would take a lot of that load off.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 124923,
+    "end_ms": 128384,
+    "text": "Let's put it on the roadmap for next quarter.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 129284,
+    "end_ms": 135053,
+    "text": "Should I collect how many tickets were really just people asking if we were down?",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 135953,
+    "end_ms": 139030,
+    "text": "Yes, please. Numbers will help make the case.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 139930,
+    "end_ms": 142238,
+    "text": "Last item: satisfaction scores. Anything unusual?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 143138,
+    "end_ms": 147753,
+    "text": "Scores dropped from ninety-one to eighty-four, almost all from the slow replies.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 148053,
+    "end_ms": 150361,
+    "text": "The answers themselves still rate well.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 151261,
+    "end_ms": 153184,
+    "text": "Then the plan is clear.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 153484,
+    "end_ms": 156946,
+    "text": "Fix the weekend cover first, then the status page.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 157246,
+    "end_ms": 158015,
+    "text": "Thanks everyone.",
+    "speaker": "Me"
+  }
+]

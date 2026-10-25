@@ -23,6 +23,7 @@ mod notify;
 mod onboarding;
 mod pipeline;
 mod recorder;
+mod semantic;
 mod storage;
 mod theme;
 mod tray;
@@ -101,6 +102,7 @@ fn main() {
         .on_menu_event(|app, event| about::on_menu_event(app, event.id().as_ref()))
         .manage(llm_models::CatalogCache::default())
         .manage(updates::Updates::default())
+        .manage(semantic::Semantic::default())
         .manage(AppState {
             data_dir,
             library,
@@ -154,6 +156,7 @@ fn main() {
                 }
                 pipeline::preload(&handle);
                 pipeline::compact_existing(&handle);
+                semantic::spawn(handle);
             });
             updates::spawn_checks(app.handle().clone());
             Ok(())
@@ -260,6 +263,9 @@ fn main() {
             voices::known_voices,
             voices::delete_known_voice,
             voices::forget_known_voices,
+            semantic::semantic_status,
+            semantic::prepare_search,
+            semantic::download_search_model,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Quill")

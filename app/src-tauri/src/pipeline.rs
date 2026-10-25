@@ -305,6 +305,8 @@ pub fn spawn(app: AppHandle, meeting_id: String, steps: Steps) {
             let _ = tauri::async_runtime::spawn_blocking(move || compact(&app2, &id)).await;
         }
         lock(&app.state::<AppState>().processing).remove(&meeting_id);
+        // A new transcript to index for search by meaning.
+        crate::semantic::wake(&app);
     });
 }
 

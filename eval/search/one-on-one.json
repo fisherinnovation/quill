@@ -1,0 +1,194 @@
+[
+  {
+    "start_ms": 0,
+    "end_ms": 2307,
+    "text": "How are things going this week?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 2607,
+    "end_ms": 5299,
+    "text": "You seemed a bit quiet in standup.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 6199,
+    "end_ms": 8123,
+    "text": "Honestly, I'm stretched pretty thin.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 8423,
+    "end_ms": 13807,
+    "text": "Between the migration work and covering on-call for Sam, I've been working most evenings.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 14707,
+    "end_ms": 16630,
+    "text": "I'm glad you said something.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 16930,
+    "end_ms": 21161,
+    "text": "That's not sustainable, and I don't want you running on empty.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 22061,
+    "end_ms": 27061,
+    "text": "It's fine for a week or two, but it's been more like six.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 27961,
+    "end_ms": 30269,
+    "text": "Let's take something off your plate.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 30569,
+    "end_ms": 33261,
+    "text": "Could the reporting dashboard move to Priya?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 33561,
+    "end_ms": 35869,
+    "text": "She asked for more front-end work.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 36769,
+    "end_ms": 38692,
+    "text": "That would help a lot.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 38992,
+    "end_ms": 43223,
+    "text": "The dashboard is maybe a third of my time right now.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 44123,
+    "end_ms": 47969,
+    "text": "Done. I'll talk to her this afternoon. What about on-call?",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 48869,
+    "end_ms": 52715,
+    "text": "Sam is back on Monday, so that sorts itself out.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 53615,
+    "end_ms": 54000,
+    "text": "Okay.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 54300,
+    "end_ms": 58915,
+    "text": "I also wanted to talk about your goals for the next review.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 59215,
+    "end_ms": 63061,
+    "text": "Last time you said you wanted to lead a project.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 63961,
+    "end_ms": 65115,
+    "text": "I still do.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 65415,
+    "end_ms": 71184,
+    "text": "I'd like to own something end to end, from the design doc to the launch.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 72084,
+    "end_ms": 75161,
+    "text": "The search rewrite next quarter could be yours.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 75461,
+    "end_ms": 80461,
+    "text": "It's big enough to matter but not so big it needs three teams.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 81361,
+    "end_ms": 82515,
+    "text": "I'd love that.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 82815,
+    "end_ms": 86276,
+    "text": "Would I get to pick who works on it?",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 87176,
+    "end_ms": 88715,
+    "text": "You'd have a say.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 89015,
+    "end_ms": 92861,
+    "text": "Let's write the proposal together in a couple of weeks.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 93761,
+    "end_ms": 94915,
+    "text": "One more thing.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 95215,
+    "end_ms": 100984,
+    "text": "I'm planning to take two weeks off in August, to visit my family in Portugal.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 101884,
+    "end_ms": 102653,
+    "text": "Of course.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 102953,
+    "end_ms": 107569,
+    "text": "Put it in the calendar now so we can plan around it.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 108469,
+    "end_ms": 110392,
+    "text": "Will do. Thanks for listening.",
+    "speaker": "Others"
+  },
+  {
+    "start_ms": 111292,
+    "end_ms": 111676,
+    "text": "Anytime.",
+    "speaker": "Me"
+  },
+  {
+    "start_ms": 111976,
+    "end_ms": 115823,
+    "text": "Let's check in again on Friday about the dashboard handover.",
+    "speaker": "Me"
+  }
+]
