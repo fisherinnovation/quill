@@ -1,6 +1,6 @@
 [package]
 name = "quill-stt"
-description = "Speech-to-text: the Transcriber trait and its whisper-rs implementation"
+description = "Speech-to-text: the Transcriber trait, with Whisper (whisper-rs) and Parakeet (sherpa-onnx)"
 version.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -16,6 +16,12 @@ sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+# Parakeet runs through sherpa-onnx, linked as quill-diarize links it: static
+# on macOS, DLLs on Windows (below: the static build's /MT runtime can't link
+# alongside whisper.cpp's /MD objects).
+[target.'cfg(not(windows))'.dependencies]
+sherpa-onnx = { workspace = true, features = ["static"] }
+
 # On macOS, always build whisper.cpp with Metal (Apple GPU). A dependency listed
 # again under a target table merges its features with the entry above, so this
 # adds `metal` only when compiling for macOS. `--cpu` on the CLI still lets you
@@ -30,6 +36,7 @@ whisper-rs = { workspace = true, features = ["metal"] }
 # back to the CPU.
 [target.'cfg(windows)'.dependencies]
 whisper-rs = { workspace = true, features = ["vulkan"] }
+sherpa-onnx = { workspace = true, features = ["shared"] }
 
 # CUDA (Nvidia only) is opt-in, as is Vulkan elsewhere. Both need their SDK
 # installed. Example: `cargo build -p quill-cli --features cuda`.

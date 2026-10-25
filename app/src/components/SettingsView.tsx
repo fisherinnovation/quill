@@ -269,6 +269,7 @@ export function SettingsView({
       {tab === "dictation" && (
         <DictationSettingsTab
           settings={dictation}
+          speechModel={dictation.stt_model ?? current.stt_model}
           update={(patch) => setDictation({ ...dictation, ...patch })}
           onReviewSamples={onReviewSamples}
         />

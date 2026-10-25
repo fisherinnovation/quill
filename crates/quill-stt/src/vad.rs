@@ -7,14 +7,18 @@
 //! the speech together the way whisper.cpp does: speech regions back to back
 //! with 0.1 s of silence between them.
 
+use std::path::PathBuf;
+use std::sync::{Mutex, PoisonError};
+use std::time::Duration;
+
 use whisper_rs::{WhisperVadContext, WhisperVadContextParams, WhisperVadParams};
 
 use crate::SttError;
 
-const SAMPLES_PER_MS: usize = 16;
+pub(crate) const SAMPLES_PER_MS: usize = 16;
 /// Silence inserted between packed speech regions, so words from separate
 /// regions don't run together.
-const GAP_SAMPLES: usize = 100 * SAMPLES_PER_MS;
+pub(crate) const GAP_SAMPLES: usize = 100 * SAMPLES_PER_MS;
 
 /// Where one stretch of speech sits in the original and the packed audio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +40,42 @@ pub(crate) fn load(model_path: &str, threads: usize) -> Result<WhisperVadContext
     Ok(WhisperVadContext::new(model_path, ctx_params)?)
 }
 
+/// Loads the Silero model at `path`, if one is given, behind a mutex:
+/// running it needs `&mut`, and it takes milliseconds, so concurrent
+/// callers barely wait.
+pub(crate) fn load_shared(
+    path: Option<&PathBuf>,
+    threads: usize,
+) -> Result<Option<Mutex<WhisperVadContext>>, SttError> {
+    match path {
+        Some(path) if !path.is_file() => Err(SttError::ModelNotFound(path.clone())),
+        // whisper.cpp takes the path as a C string, so it must be UTF-8.
+        Some(path) => {
+            let path = path
+                .to_str()
+                .ok_or_else(|| SttError::NonUtf8Path(path.clone()))?;
+            Ok(Some(Mutex::new(load(path, threads)?)))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Speech sample ranges in `pcm`, from a shared Silero model.
+pub(crate) fn detect_shared(
+    vad: &Mutex<WhisperVadContext>,
+    pcm: &[f32],
+) -> Result<Vec<(usize, usize)>, SttError> {
+    let mut vad = vad.lock().unwrap_or_else(PoisonError::into_inner);
+    detect_speech(&mut vad, pcm)
+}
+
+/// Where speech ends in 16 kHz mono `pcm`: the end of the last stretch
+/// Silero hears as speech, or `None` with no speech.
+pub(crate) fn speech_end(vad: &Mutex<WhisperVadContext>, pcm: &[f32]) -> Option<Duration> {
+    let (_, end) = *detect_shared(vad, pcm).ok()?.last()?;
+    Some(Duration::from_secs_f64(end as f64 / 16_000.0))
+}
+
 /// Runs Silero VAD over 16 kHz mono audio and returns speech sample ranges.
 pub(crate) fn detect_speech(
     vad: &mut WhisperVadContext,
@@ -52,12 +92,21 @@ pub(crate) fn detect_speech(
 
 /// Concatenates the speech ranges with short gaps between them.
 pub(crate) fn pack(pcm: &[f32], ranges: &[(usize, usize)]) -> (Vec<f32>, Vec<Region>) {
+    pack_with_gap(pcm, ranges, GAP_SAMPLES)
+}
+
+/// [`pack`] with `gap` samples of silence between the ranges.
+pub(crate) fn pack_with_gap(
+    pcm: &[f32],
+    ranges: &[(usize, usize)],
+    gap: usize,
+) -> (Vec<f32>, Vec<Region>) {
     let speech: usize = ranges.iter().map(|(s, e)| e - s).sum();
-    let mut packed = Vec::with_capacity(speech + ranges.len() * GAP_SAMPLES);
+    let mut packed = Vec::with_capacity(speech + ranges.len() * gap);
     let mut regions = Vec::with_capacity(ranges.len());
     for (i, &(start, end)) in ranges.iter().enumerate() {
         if i > 0 {
-            packed.resize(packed.len() + GAP_SAMPLES, 0.0);
+            packed.resize(packed.len() + gap, 0.0);
         }
         regions.push(Region {
             orig_start: start,

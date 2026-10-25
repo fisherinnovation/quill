@@ -67,6 +67,12 @@ pub(crate) fn options(settings: &DictationSettings, context: Option<&str>) -> Tr
     TranscribeOptions {
         language: language(settings.language.as_deref()),
         initial_prompt: prompt,
+        vocabulary: settings
+            .vocabulary
+            .iter()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .collect(),
         short_clip: true,
         no_fallback: false,
         progress: None,

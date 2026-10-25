@@ -14,16 +14,18 @@ pub struct Args {
     /// WAV file (any sample rate / channel count), or a directory from
     /// `quill-cli record` to get a merged "Me" / "Others" transcript
     file: PathBuf,
-    /// Model name (see `quill-cli models list`)
+    /// Model name: a Whisper size or a Parakeet model such as
+    /// `parakeet-v2` (see `quill-cli models list`)
     #[arg(long, short, default_value = "turbo")]
     model: String,
-    /// Use this model file instead of a named model
+    /// Use this Whisper model file instead of a named model
     #[arg(long, conflicts_with = "model")]
     model_path: Option<PathBuf>,
     /// Spoken language code, e.g. `en` [default: auto-detect]
     #[arg(long, short)]
     language: Option<String>,
     /// Prime the decoder with vocabulary or names, e.g. "Quill, OpenRouter"
+    /// (Whisper only)
     #[arg(long)]
     prompt: Option<String>,
     /// Output format
@@ -55,19 +57,24 @@ enum Format {
 }
 
 pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
-    let model_path = match args.model_path {
-        Some(path) => path,
-        None => crate::models::resolve(&args.model, models_dir)?,
-    };
-
     let config = WhisperConfig {
         use_gpu: !args.cpu,
         vad_model: crate::models::vad_model(!args.no_vad, models_dir)?,
         ..WhisperConfig::default()
     };
     let started = Instant::now();
-    let transcriber = WhisperTranscriber::load(&model_path, &config)
-        .with_context(|| format!("loading {}", model_path.display()))?;
+    let transcriber: Box<dyn Transcriber> = match &args.model_path {
+        Some(path) => Box::new(
+            WhisperTranscriber::load(path, &config)
+                .with_context(|| format!("loading {}", path.display()))?,
+        ),
+        None => {
+            crate::models::require_speech(&args.model, models_dir)?;
+            quill_stt::load(&args.model, models_dir, &config)
+                .with_context(|| format!("loading {}", args.model))?
+        }
+    };
+    let transcriber = transcriber.as_ref();
     let load_secs = started.elapsed().as_secs_f64();
 
     let opts = TranscribeOptions {
@@ -77,13 +84,9 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     };
     let started = Instant::now();
     let (segments, audio_secs) = if args.file.is_dir() {
-        let segments = quill_core::meeting::transcribe_recording(
-            &args.file,
-            &transcriber,
-            &opts,
-            !args.no_aec,
-        )
-        .with_context(|| format!("transcribing recording {}", args.file.display()))?;
+        let segments =
+            quill_core::meeting::transcribe_recording(&args.file, transcriber, &opts, !args.no_aec)
+                .with_context(|| format!("transcribing recording {}", args.file.display()))?;
         // Kept as the two-track ("Me" / "Others") transcript: `summarize
         // <dir>` reads it, and speakers are split again from it.
         quill_core::speakers::save_track_transcript(&args.file, &segments)

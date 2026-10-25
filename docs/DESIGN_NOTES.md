@@ -915,3 +915,92 @@ keyword search rather than replacing it (`quill_core::semantic`).
   mostly failed ("trade show budget" didn't reach "el presupuesto para la
   feria"), as did the single word "vacation" for "two weeks off": a lone
   word gives the model little to go on.
+
+## Parakeet
+
+- **A second engine.** NVIDIA's Parakeet TDT 0.6B (CC BY 4.0) runs through
+  sherpa-onnx 1.13.8's offline recognizer, already linked for diarization
+  (`model_type = "nemo_transducer"`). Two models: **v2**, English only, and
+  **v3**, 25 European languages, detected (it takes no language). Both as
+  sherpa-onnx's int8 exports (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-*-int8`,
+  about 660 MB each: encoder, decoder, joiner and `tokens.txt`, downloaded
+  and hash-checked like any model). int8 was good enough not to try fp32
+  (2.4 GB): on these clips its words were within a point or two of Whisper
+  turbo's. Unmeasured: fp32.
+- **Settings.** The engine follows the model: `stt_model` takes a Whisper
+  size or `parakeet-v2`/`-v3`, and `dictation.stt_model` (new, `None` by
+  default) gives dictation its own. The app keeps both loaded when they
+  differ (`AppState::transcriber` holds up to two), so a meeting never
+  reloads dictation's model. Defaults are unchanged: Whisper turbo for both.
+- **CPU only.** sherpa-onnx's prebuilt libraries bring ONNX Runtime's CPU
+  provider, so Parakeet ignores the graphics card. 4 threads: on an
+  i9-14900KF, 4 and 8 were equally fast (short clips 174–187 ms median),
+  16 four to five times slower (862–871 ms; the efficiency cores and
+  hyperthreads hold the rest up).
+- **What it doesn't take.** No prompt and no language. The vocabulary goes
+  in as sherpa-onnx **hotwords**, which needs beam search
+  (`modified_beam_search`; greedy gave the same text on 108 clips, a few
+  percent faster) and a SentencePiece `.vocab` the export lacks: Quill
+  writes one from `tokens.txt` (score = −id, BPE's merge order) to a temp
+  file while loading. Learned the hard way:
+  - with no `modeling_unit` (or anything but `bpe`/`cjkchar`), sherpa-onnx
+    `exit()`s the process on the first per-stream hotword;
+  - a hotword word starting with `:` (or `#`/`@` once encoded) reaches
+    `std::stof` and throws across FFI; `/` is read as a line break.
+  So terms with those, or with letters the model can't write, are left
+  out (`usable_hotword`). On the eval clips with `fetchUser, loadUser,
+  standup` as vocabulary, WER went 10.4% → 7.1% (Whisper's prompt: 9.4% →
+  7.8%).
+- **Segments.** Parakeet gives a time per token, not segments. Quill
+  splits at sentence ends, and for meetings at pauses between VAD regions
+  when the text so far ends in punctuation or the pause was a second or
+  more. The punctuation that ends a turn often comes with the next turn's
+  first token, so the pause is looked for after the last *word*. Packed
+  with Whisper's 0.1 s gaps, Parakeet ran sentences and different
+  speakers' turns together with commas (one 32 s segment had three
+  speakers); 0.5 s gaps made a full stop at every pause ("Before we dive
+  in."); 0.25 s (`PACK_GAP_SAMPLES`) punctuates like Whisper. Long
+  recordings are decoded in windows of at most 30 s, cut at pauses: its
+  encoder attends over the whole input.
+- **Windows 11 has its own `onnxruntime.dll`** in System32, older, and
+  found before `PATH`: a test binary in `target/debug/deps` without the
+  sherpa-onnx DLLs beside it crashes (`STATUS_ACCESS_VIOLATION`). The app
+  and the CLI have theirs beside the executable, which wins.
+- **Measured** (2026-10-25, Windows 11, i9-14900KF, RTX 4070 SUPER;
+  `quill-cli dictate --no-polish -l en`, medians of two runs on a quiet
+  machine). Clips: the 20 eval clips (10 utterances × the two SAPI voices,
+  `eval/dictation/make_clips.ps1`), 80 short ones (40 sentences under 4 s ×
+  2 voices) and 8 long ones (four 25 s paragraphs × 2 voices), synthetic,
+  not in the repo but for the script:
+
+  | | Whisper turbo, Vulkan | turbo, CPU | Parakeet v2 | Parakeet v3 |
+  |---|---:|---:|---:|---:|
+  | 72 clips under 4 s | 209–215 ms | 7.1 s | **180–184 ms** | 187–188 ms |
+  | 20 eval clips (4–15 s) | **277–297 ms** | 7.3 s | 386–391 ms | 407 ms |
+  | 8 long clips (25 s) | **634–650 ms** | 7.9 s | 1.33–1.36 s | 1.33–1.36 s |
+  | Long, live captions: wait after release | 389 ms | – | **340 ms** | – |
+  | WER, 80 short clips (428 words) | **0.7%** | 0.7% | 1.2% | 1.9% |
+  | WER, 20 eval clips (308 words) | **9.4%** | 9.4% | 10.4% | 12.7% |
+  | WER, 8 long clips (514 words) | 0% | 0% | 0% | 0.2% |
+  | Meeting (272 s, `eval/bench`), WER / × real time | **1.9%** / 20× | – | 2.4% / 22× | 2.2% / 22× |
+
+  The eval clips' errors are mostly the same in both engines (fillers,
+  the self-correction and the spoken list, which clean-up removes);
+  Parakeet's extra ones on short clips were single words ("poll" for
+  "pull", "merch" for "merge"). Live captions work unchanged: same text as
+  a single pass on 6 of 8 long clips for both engines (the others differ
+  only in commas), passes while speaking 251 ms median. The meeting is
+  `meeting_script.txt` read by the two SAPI voices; turbo made 50
+  segments, Parakeet v2 75, none over 15 s.
+- **Decision: Whisper stays the default.** With a graphics card, Parakeet
+  is no faster for short dictations (30 ms quicker under 4 s, 0.1–0.7 s
+  slower on longer ones, live captions hiding most of that), a little less
+  accurate, and switching would download 660 MB for everyone. It wins
+  where there's no usable GPU: Whisper turbo on the CPU takes over 7 s
+  for any dictation (the full 30 s encoder window), Parakeet 0.2–0.4 s, at
+  the same accuracy. So it's offered for dictation (Settings → Models →
+  Speech recognition for dictation), and suggested there for computers
+  without a graphics card. Not measured: macOS (Parakeet on Apple Silicon's
+  CPU, against Whisper on Metal), real voices, v3 in other languages, a PC
+  with no GPU at all. Worth deciding with those numbers: defaulting
+  dictation to Parakeet when no GPU is found.

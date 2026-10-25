@@ -2,9 +2,10 @@
 //!
 //! Models come from Hugging Face: Whisper from the official whisper.cpp ggml
 //! conversions (`ggerganov/whisper.cpp`), the Silero VAD model from
-//! `ggml-org/whisper-vad`, and the diarization models from sherpa-onnx's ONNX
-//! exports (`csukuangfj/...`). Sizes and SHA-256 hashes are the Git LFS
-//! metadata of those files.
+//! `ggml-org/whisper-vad`, and the diarization and Parakeet models from
+//! sherpa-onnx's ONNX exports (`csukuangfj/...`). Sizes and SHA-256 hashes
+//! are the Git LFS metadata of those files (for Parakeet's small
+//! `tokens.txt`, which isn't in LFS, the hash of the file as downloaded).
 
 use std::fs::{self, File};
 use std::io::{BufWriter, Read, Write};
@@ -219,12 +220,13 @@ pub fn support_models() -> impl Iterator<Item = &'static ModelInfo> {
         .chain(SEARCH_MODELS)
 }
 
-/// Looks up any model by its short name: Whisper, `"vad"`, or a
-/// diarization model.
+/// Looks up any model file by its short name: Whisper, `"vad"`, a
+/// diarization model, or one of a Parakeet model's files.
 pub fn find(name: &str) -> Option<&'static ModelInfo> {
     MODELS
         .iter()
         .chain(support_models())
+        .chain(parakeet_files())
         .find(|m| m.name == name)
 }
 
@@ -337,18 +339,168 @@ fn to_hex(bytes: &[u8]) -> String {
     })
 }
 
+/// An NVIDIA Parakeet TDT model (CC BY 4.0), as sherpa-onnx exports it: an
+/// encoder, a decoder and a joiner (int8-quantized ONNX) and the token
+/// list. The four files download and delete together, through the same
+/// checked downloader as every other model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParakeetModel {
+    /// Short name, used like a Whisper model's, e.g. `"parakeet-v2"`.
+    pub name: &'static str,
+    pub description: &'static str,
+    /// Transcribes English only (v2). v3 knows 25 European languages and
+    /// detects which one it hears; neither takes a language setting.
+    pub english_only: bool,
+    pub encoder: ModelInfo,
+    pub decoder: ModelInfo,
+    pub joiner: ModelInfo,
+    pub tokens: ModelInfo,
+}
+
+impl ParakeetModel {
+    pub fn files(&self) -> [&ModelInfo; 4] {
+        [&self.encoder, &self.decoder, &self.joiner, &self.tokens]
+    }
+
+    pub fn size_bytes(&self) -> u64 {
+        self.files().iter().map(|f| f.size_bytes).sum()
+    }
+
+    pub fn is_downloaded(&self, models_dir: &Path) -> bool {
+        self.files().iter().all(|f| f.is_downloaded(models_dir))
+    }
+}
+
+/// Parakeet TDT 0.6B, int8, from sherpa-onnx's exports (see "Parakeet" in
+/// docs/DESIGN_NOTES.md).
+pub const PARAKEET_MODELS: &[ParakeetModel] = &[
+    ParakeetModel {
+        name: "parakeet-v2",
+        description: "NVIDIA Parakeet TDT 0.6B v2: English only",
+        english_only: true,
+        encoder: ModelInfo {
+            name: "parakeet-v2-encoder",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+            file_name: "parakeet-tdt-0.6b-v2-int8-encoder.onnx",
+            remote_name: Some("encoder.int8.onnx"),
+            size_bytes: 652_184_296,
+            sha256: "a32b12d17bbbc309d0686fbbcc2987b5e9b8333a7da83fa6b089f0a2acd651ab",
+            description: "Parakeet v2 encoder",
+        },
+        decoder: ModelInfo {
+            name: "parakeet-v2-decoder",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+            file_name: "parakeet-tdt-0.6b-v2-int8-decoder.onnx",
+            remote_name: Some("decoder.int8.onnx"),
+            size_bytes: 7_257_753,
+            sha256: "b6bb64963457237b900e496ee9994b59294526439fbcc1fecf705b31a15c6b4e",
+            description: "Parakeet v2 decoder",
+        },
+        joiner: ModelInfo {
+            name: "parakeet-v2-joiner",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+            file_name: "parakeet-tdt-0.6b-v2-int8-joiner.onnx",
+            remote_name: Some("joiner.int8.onnx"),
+            size_bytes: 1_739_080,
+            sha256: "7946164367946e7f9f29a122407c3252b680dbae9a51343eb2488d057c3c43d2",
+            description: "Parakeet v2 joiner",
+        },
+        tokens: ModelInfo {
+            name: "parakeet-v2-tokens",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+            file_name: "parakeet-tdt-0.6b-v2-int8-tokens.txt",
+            remote_name: Some("tokens.txt"),
+            size_bytes: 9_384,
+            sha256: "ec182b70dd42113aff6c5372c75cac58c952443eb22322f57bbd7f53977d497d",
+            description: "Parakeet v2 tokens",
+        },
+    },
+    ParakeetModel {
+        name: "parakeet-v3",
+        description: "NVIDIA Parakeet TDT 0.6B v3: 25 European languages, detected",
+        english_only: false,
+        encoder: ModelInfo {
+            name: "parakeet-v3-encoder",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+            file_name: "parakeet-tdt-0.6b-v3-int8-encoder.onnx",
+            remote_name: Some("encoder.int8.onnx"),
+            size_bytes: 652_184_281,
+            sha256: "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247",
+            description: "Parakeet v3 encoder",
+        },
+        decoder: ModelInfo {
+            name: "parakeet-v3-decoder",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+            file_name: "parakeet-tdt-0.6b-v3-int8-decoder.onnx",
+            remote_name: Some("decoder.int8.onnx"),
+            size_bytes: 11_845_275,
+            sha256: "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e",
+            description: "Parakeet v3 decoder",
+        },
+        joiner: ModelInfo {
+            name: "parakeet-v3-joiner",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+            file_name: "parakeet-tdt-0.6b-v3-int8-joiner.onnx",
+            remote_name: Some("joiner.int8.onnx"),
+            size_bytes: 6_355_277,
+            sha256: "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3",
+            description: "Parakeet v3 joiner",
+        },
+        tokens: ModelInfo {
+            name: "parakeet-v3-tokens",
+            repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+            file_name: "parakeet-tdt-0.6b-v3-int8-tokens.txt",
+            remote_name: Some("tokens.txt"),
+            size_bytes: 93_939,
+            sha256: "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d",
+            description: "Parakeet v3 tokens",
+        },
+    },
+];
+
+/// Every Parakeet model's files.
+pub fn parakeet_files() -> impl Iterator<Item = &'static ModelInfo> {
+    PARAKEET_MODELS.iter().flat_map(|m| m.files())
+}
+
+/// The Parakeet model called `name`, if it is one.
+pub fn find_parakeet(name: &str) -> Option<&'static ParakeetModel> {
+    PARAKEET_MODELS.iter().find(|m| m.name == name)
+}
+
+/// The files speech model `name` needs: a Whisper model's one, or a
+/// Parakeet model's four. `None` for a name that's neither.
+pub fn speech_files(name: &str) -> Option<Vec<&'static ModelInfo>> {
+    if let Some(parakeet) = find_parakeet(name) {
+        return Some(parakeet.files().to_vec());
+    }
+    MODELS.iter().find(|m| m.name == name).map(|m| vec![m])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn names_are_unique_and_hashes_well_formed() {
-        let all: Vec<_> = MODELS.iter().chain(support_models()).collect();
+        let all: Vec<_> = MODELS
+            .iter()
+            .chain(support_models())
+            .chain(parakeet_files())
+            .collect();
         for (i, m) in all.iter().enumerate() {
             assert!(all[i + 1..].iter().all(|o| o.name != m.name));
+            assert!(all[i + 1..].iter().all(|o| o.file_name != m.file_name));
             assert_eq!(m.sha256.len(), 64, "{}", m.name);
             assert!(m.sha256.bytes().all(|b| b.is_ascii_hexdigit()));
         }
+        // A Parakeet model's name is a speech model's, not a file's.
+        for p in PARAKEET_MODELS {
+            assert!(all.iter().all(|m| m.name != p.name));
+            assert_eq!(speech_files(p.name).unwrap().len(), 4);
+        }
+        assert_eq!(speech_files("turbo").unwrap().len(), 1);
+        assert!(speech_files("vad").is_none());
     }
 
     #[test]

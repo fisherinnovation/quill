@@ -75,6 +75,54 @@ const SPEECH_ORDER = [
   "tiny",
 ];
 
+/** NVIDIA Parakeet, the other speech engine: four files each (part_of). */
+const PARAKEET_LABELS: Record<string, string> = {
+  "parakeet-v2": "Parakeet v2 (English)",
+  "parakeet-v3": "Parakeet v3 (25 European languages)",
+};
+
+/** "Whisper turbo" or "Parakeet v2", for showing which model is in use. */
+export function speechModelName(name: string): string {
+  return name.startsWith("parakeet-")
+    ? `Parakeet ${name.slice("parakeet-".length)}`
+    : `Whisper ${name}`;
+}
+
+/** A speech model's files: one for Whisper, four for Parakeet. */
+function speechFiles(models: ModelEntry[], name: string): ModelEntry[] {
+  return models.filter((m) =>
+    name.startsWith("parakeet-") ? m.part_of === name : m.name === name,
+  );
+}
+
+/** The <option>s for choosing a speech model, by engine. */
+function speechOptions(models: ModelEntry[]) {
+  const option = (name: string, label: string) => {
+    const files = speechFiles(models, name);
+    if (files.length === 0) return null;
+    const size = files.reduce((n, m) => n + m.size_bytes, 0);
+    const downloaded = files.every((m) => m.downloaded);
+    return (
+      <option key={name} value={name}>
+        {label} · {fileSize(size)}
+        {downloaded ? " · downloaded" : ""}
+      </option>
+    );
+  };
+  return (
+    <>
+      <optgroup label="Whisper">
+        {SPEECH_ORDER.map((name) => option(name, SPEECH_LABELS[name] ?? name))}
+      </optgroup>
+      <optgroup label="NVIDIA Parakeet (on the CPU)">
+        {Object.entries(PARAKEET_LABELS).map(([name, label]) =>
+          option(name, label),
+        )}
+      </optgroup>
+    </>
+  );
+}
+
 type Pending =
   | { role: string; action: "delete" | "redownload" }
   | { unused: true }
@@ -101,24 +149,60 @@ export function ModelsGroup({
   const [pending, setPending] = useState<Pending>(null);
   if (!info) return null;
 
-  const byName = (name: string) => info.models.find((m) => m.name === name);
-  const speechModels = SPEECH_ORDER.map(byName).filter(
-    (m): m is ModelEntry => !!m,
-  );
-  const speech = byName(settings.stt_model);
+  const speech = speechFiles(info.models, settings.stt_model);
+  const dictationModel = settings.dictation.stt_model ?? settings.stt_model;
+  const dictationSpeech = speechFiles(info.models, dictationModel);
+  const inUse = new Set([...speech, ...dictationSpeech].map((m) => m.name));
   const vad = info.models.filter((m) => m.kind === "vad");
   const speakers = info.models.filter((m) => m.for_speakers);
   const search = info.models.filter((m) => m.kind === "search");
-  // Downloaded, but no job uses them (other Whisper sizes, voice models
+  // Downloaded, but no job uses them (other speech models, voice models
   // from comparisons).
   const unused = info.models.filter(
     (m) =>
       m.downloaded &&
       fraction(m) === null &&
-      ((m.kind === "speech" && m.name !== settings.stt_model) ||
+      ((m.kind === "speech" && !inUse.has(m.name)) ||
         (m.kind === "speakers" && !m.for_speakers)),
   );
   const unusedBytes = unused.reduce((n, m) => n + m.size_bytes, 0);
+  // Parakeet's four files are listed as one.
+  const unusedNames = [
+    ...new Map(
+      unused.map((m) => {
+        const name = m.part_of ?? m.name;
+        const bytes = unused
+          .filter((o) => (o.part_of ?? o.name) === name)
+          .reduce((n, o) => n + o.size_bytes, 0);
+        return [name, `${name} (${fileSize(bytes)})`];
+      }),
+    ).values(),
+  ];
+
+  /** Saves a speech model choice, and fetches it now rather than at the next use. */
+  function chooseSpeech(name: string, patch: Partial<Settings>) {
+    update(patch);
+    for (const m of speechFiles(info?.models ?? [], name))
+      if (!m.downloaded && fraction(m) === null) void api.downloadModel(m.name);
+  }
+  const dictationPicker = (
+    <select
+      value={settings.dictation.stt_model ?? ""}
+      onChange={(e) => {
+        const stt_model = e.target.value || null;
+        chooseSpeech(e.target.value, {
+          dictation: { ...settings.dictation, stt_model },
+        });
+      }}
+    >
+      <option value="">Same as meetings</option>
+      {speechOptions(info.models)}
+    </select>
+  );
+  const engineHint = (name: string) =>
+    name.startsWith("parakeet-")
+      ? " Parakeet runs on the CPU and listens for your vocabulary, but takes no language setting."
+      : "";
 
   async function run(action: () => Promise<ModelsInfo>) {
     setPending(null);
@@ -287,30 +371,49 @@ export function ModelsGroup({
       {localJob({
         id: "speech",
         label: "Speech recognition",
-        hint: "Turns meetings and dictation into text, on this computer. Bigger models are slower and more accurate.",
-        files: speech ? [speech] : [],
+        hint:
+          (settings.dictation.stt_model
+            ? "Turns meetings into text, on this computer."
+            : "Turns meetings and dictation into text, on this computer.") +
+          " Bigger Whisper models are slower and more accurate." +
+          engineHint(settings.stt_model),
+        files: speech,
         enabled: true,
         offText: "",
         picker: (
           <select
             value={settings.stt_model}
-            onChange={(e) => {
-              const next = byName(e.target.value);
-              update({ stt_model: e.target.value });
-              // Fetch it now rather than at the next meeting or dictation.
-              if (next && !next.downloaded && fraction(next) === null)
-                void api.downloadModel(next.name);
-            }}
+            onChange={(e) =>
+              chooseSpeech(e.target.value, { stt_model: e.target.value })
+            }
           >
-            {speechModels.map((m) => (
-              <option key={m.name} value={m.name}>
-                {SPEECH_LABELS[m.name] ?? m.name} · {fileSize(m.size_bytes)}
-                {m.downloaded ? " · downloaded" : ""}
-              </option>
-            ))}
+            {speechOptions(info.models)}
           </select>
         ),
       })}
+      {settings.dictation.stt_model ? (
+        localJob({
+          id: "dictation-speech",
+          label: "Speech recognition for dictation",
+          hint: `Dictation has a model of its own.${engineHint(dictationModel)}`,
+          files: dictationSpeech,
+          enabled: true,
+          offText: "",
+          picker: dictationPicker,
+        })
+      ) : (
+        <div className="row stack model-job">
+          <div className="row-label">
+            <span>Speech recognition for dictation</span>
+            <p className="row-hint">
+              Dictation uses the meetings' model, or one of its own. Without a
+              graphics card, Parakeet types in a fraction of the time
+              Whisper takes.
+            </p>
+          </div>
+          <div className="model-job-body">{dictationPicker}</div>
+        </div>
+      )}
       <GraphicsCardRow
         choice={settings.gpu}
         onChange={(gpu) => update({ gpu })}
@@ -383,13 +486,11 @@ export function ModelsGroup({
           hint={
             pending && "unused" in pending
               ? confirm(
-                  `Deletes ${unused.map((m) => m.name).join(", ")} (${fileSize(unusedBytes)}).`,
+                  `Deletes ${unusedNames.join(", ")}.`,
                   "Delete",
                   () => void run(each(unused, api.deleteModel)),
                 )
-              : `Nothing uses ${unused.length === 1 ? "this" : "these"}: ${unused
-                  .map((m) => `${m.name} (${fileSize(m.size_bytes)})`)
-                  .join(", ")}.`
+              : `Nothing uses ${unusedNames.length === 1 ? "this" : "these"}: ${unusedNames.join(", ")}.`
           }
         >
           {!(pending && "unused" in pending) && (
@@ -473,7 +574,7 @@ function GraphicsCardRow({
         <p className="row-hint">
           {missing
             ? `${missing} isn't available, so Quill uses ${info.automatic ?? "the CPU"}.`
-            : "Speech recognition runs on it. Automatic prefers a dedicated card to integrated graphics. A change applies the next time Quill transcribes."}
+            : "Whisper runs on it (Parakeet uses the CPU). Automatic prefers a dedicated card to integrated graphics. A change applies the next time Quill transcribes."}
         </p>
       </div>
       <div className="model-job-body">

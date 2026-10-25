@@ -531,7 +531,7 @@ impl LiveWorker {
         let stop = Arc::new(AtomicBool::new(false));
         let stopping = Arc::clone(&stop);
         let handle = std::thread::spawn(move || {
-            let transcriber = match pipeline::transcriber(&app, None, &settings) {
+            let transcriber = match pipeline::dictation_transcriber(&app, &settings) {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::warn!("no live captions: {e}");
@@ -620,7 +620,7 @@ async fn process(
         let app = app.clone();
         let settings = settings.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            let transcriber = pipeline::transcriber(&app, None, &settings)?;
+            let transcriber = pipeline::dictation_transcriber(&app, &settings)?;
             let live = live.and_then(LiveWorker::finish);
             let raw = match &live {
                 Some(live) => live.finish(transcriber.as_ref(), &pcm, &settings.dictation),
@@ -713,7 +713,7 @@ async fn process(
         let app = app.clone();
         let settings = settings.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            let transcriber = pipeline::transcriber(&app, None, &settings).ok()?;
+            let transcriber = pipeline::dictation_transcriber(&app, &settings).ok()?;
             let held = audio.saturating_sub(transcriber.speech_end(&speech_pcm)?);
             u64::try_from((held + latency).as_millis()).ok()
         })
@@ -739,7 +739,7 @@ async fn process(
         let meta = samples::Meta {
             app_id: target.as_ref().map(|a| a.id.clone()),
             app: target.as_ref().map(|a| a.name.clone()),
-            stt_model: settings.stt_model.clone(),
+            stt_model: settings.dictation_model().to_string(),
             polish_model: polish_model.clone(),
             whisper: raw.clone(),
         };

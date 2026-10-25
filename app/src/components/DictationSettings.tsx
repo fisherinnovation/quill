@@ -40,10 +40,13 @@ const SOUNDS: [Sounds, string][] = [
  */
 export function DictationSettingsTab({
   settings,
+  speechModel,
   update,
   onReviewSamples,
 }: {
   settings: DictationSettings;
+  /** The speech model dictation uses (Settings → Models). */
+  speechModel?: string;
   update: (patch: Partial<DictationSettings>) => void;
   /** Opens the page that reviews the saved samples. */
   onReviewSamples?: () => void;
@@ -67,6 +70,7 @@ export function DictationSettingsTab({
     setWordsRevision((n) => n + 1);
   }
   const languageName = (code: string | null) => LANGUAGES.find(([c]) => c === code)?.[1] ?? code ?? "unknown";
+  const parakeet = speechModel?.startsWith("parakeet-") ?? false;
 
   return (
     <>
@@ -102,7 +106,16 @@ export function DictationSettingsTab({
             onChange={(live_captions) => update({ live_captions })}
           />
         </Row>
-        <Row label="Language">
+        <Row
+          label="Language"
+          hint={
+            !parakeet
+              ? undefined
+              : speechModel === "parakeet-v2"
+                ? "Parakeet v2 understands English only, whatever this says. Choose Whisper or Parakeet v3 in Settings → Models for other languages."
+                : "Parakeet v3 recognises the language itself, so this applies only to Whisper."
+          }
+        >
           <select value={settings.language ?? ""} onChange={(e) => update({ language: e.target.value || null })}>
             <option value="">System language ({languageName(systemLanguage)})</option>
             <option value="auto">Detect each time (about 0.5 s slower)</option>
@@ -191,7 +204,10 @@ export function DictationSettingsTab({
         <div className="row stack">
           <div className="row-label">
             <span>Vocabulary</span>
-            <p className="row-hint">Names and terms to spell exactly, one per line.</p>
+            <p className="row-hint">
+              Names and terms to spell exactly, one per line.
+              {parakeet && " Parakeet listens out for them as it transcribes."}
+            </p>
           </div>
           <ListInput
             key={`vocabulary-${wordsRevision}`}

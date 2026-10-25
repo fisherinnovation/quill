@@ -110,17 +110,7 @@ impl WhisperTranscriber {
         let ctx = WhisperContext::new_with_params(model_path, params)?;
 
         let threads = config.threads.max(1);
-        let vad = match &config.vad_model {
-            Some(path) if !path.is_file() => return Err(SttError::ModelNotFound(path.clone())),
-            // whisper.cpp takes the path as a C string, so it must be UTF-8.
-            Some(path) => {
-                let path = path
-                    .to_str()
-                    .ok_or_else(|| SttError::NonUtf8Path(path.clone()))?;
-                Some(Mutex::new(vad::load(path, threads)?))
-            }
-            None => None,
-        };
+        let vad = vad::load_shared(config.vad_model.as_ref(), threads)?;
 
         Ok(Self {
             ctx,
@@ -128,20 +118,6 @@ impl WhisperTranscriber {
             vad,
             fit_encoder: use_gpu && backend == Some("Metal"),
         })
-    }
-
-    /// Where speech ends in 16 kHz mono `pcm`: the end of the last stretch
-    /// Silero VAD hears as speech. For measuring how long a dictation took
-    /// to arrive after the speaker stopped talking. `None` without a VAD
-    /// model, or with no speech.
-    pub fn speech_end(&self, pcm: &[f32]) -> Option<Duration> {
-        let mut vad = self
-            .vad
-            .as_ref()?
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (_, end) = *vad::detect_speech(&mut vad, pcm).ok()?.last()?;
-        Some(Duration::from_secs_f64(end as f64 / 16_000.0))
     }
 }
 
@@ -210,12 +186,7 @@ impl Transcriber for WhisperTranscriber {
         // borrow the caller's samples instead of copying them.
         let (audio, regions) = match &self.vad {
             Some(vad) => {
-                let ranges = {
-                    let mut vad = vad
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    vad::detect_speech(&mut vad, pcm_16k_mono)?
-                };
+                let ranges = vad::detect_shared(vad, pcm_16k_mono)?;
                 if ranges.is_empty() {
                     return Ok(Vec::new());
                 }
@@ -293,6 +264,10 @@ impl Transcriber for WhisperTranscriber {
             }
         }
         Ok(segments)
+    }
+
+    fn speech_end(&self, pcm: &[f32]) -> Option<Duration> {
+        vad::speech_end(self.vad.as_ref()?, pcm)
     }
 }
 

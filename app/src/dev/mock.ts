@@ -283,6 +283,7 @@ const settings = {
     enabled: true,
     hotkey: flags.has("fn") ? "Fn" : "Alt+Space",
     language: null,
+    stt_model: null,
     polish: true,
     polish_model: "google/gemini-3.5-flash-lite",
     about: "",
@@ -467,6 +468,14 @@ let models = [
   ["voice-eres2net", "speakers", "3D-Speaker ERes2Net, VoxCeleb (Apache-2.0)", 26_485_263, !fresh, false, false],
   ["search", "search", "multilingual-e5-small: finds moments by meaning, in ~100 languages", 470_641_600, !fresh && !flags.has("nosearch"), true, false],
   ["search-tokenizer", "search", "multilingual-e5-small's tokenizer", 17_082_730, !fresh && !flags.has("nosearch"), true, false],
+  ["parakeet-v2-encoder", "speech", "Parakeet v2 encoder", 652_184_296, false, false, false],
+  ["parakeet-v2-decoder", "speech", "Parakeet v2 decoder", 7_257_753, false, false, false],
+  ["parakeet-v2-joiner", "speech", "Parakeet v2 joiner", 1_739_080, false, false, false],
+  ["parakeet-v2-tokens", "speech", "Parakeet v2 tokens", 9_384, false, false, false],
+  ["parakeet-v3-encoder", "speech", "Parakeet v3 encoder", 652_184_281, false, false, false],
+  ["parakeet-v3-decoder", "speech", "Parakeet v3 decoder", 11_845_275, false, false, false],
+  ["parakeet-v3-joiner", "speech", "Parakeet v3 joiner", 6_355_277, false, false, false],
+  ["parakeet-v3-tokens", "speech", "Parakeet v3 tokens", 93_939, false, false, false],
 ].map(([name, kind, description, size_bytes, downloaded, in_use, for_speakers]) => ({
   name,
   kind,
@@ -476,7 +485,19 @@ let models = [
   in_use,
   for_speakers,
   downloading: false,
-})) as { name: string; kind: string; description: string; size_bytes: number; downloaded: boolean; in_use: boolean; for_speakers: boolean; downloading: boolean }[];
+  // Parakeet's files belong to a model: "parakeet-v2-encoder" to "parakeet-v2".
+  part_of: String(name).startsWith("parakeet-") ? String(name).split("-").slice(0, 2).join("-") : null,
+})) as {
+  name: string;
+  kind: string;
+  description: string;
+  size_bytes: number;
+  downloaded: boolean;
+  in_use: boolean;
+  for_speakers: boolean;
+  downloading: boolean;
+  part_of: string | null;
+}[];
 
 function modelsInfo() {
   return {
@@ -816,6 +837,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     os: "macOS 26.0",
     arch: "Apple Silicon",
     speech_model: "turbo",
+    dictation_model: settings.dictation.stt_model,
     cleanup_model: "google/gemini-3.5-flash-lite",
     summary_model: "anthropic/claude-haiku-5.5",
     identify_speakers: true,

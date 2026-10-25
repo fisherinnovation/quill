@@ -197,6 +197,8 @@ export interface DictationSettings {
   hotkey: string;
   /** Language code, "auto", or null for the system language. */
   language: string | null;
+  /** Speech model for dictation; null uses the meetings' (Settings.stt_model). */
+  stt_model: string | null;
   polish: boolean;
   polish_model: string;
   /** What the user tells the clean-up model about themselves. */
@@ -452,6 +454,8 @@ export interface AboutInfo {
   os: string;
   arch: string;
   speech_model: string;
+  /** Dictation's speech model, when it isn't speech_model. */
+  dictation_model: string | null;
   /** null when clean-up is off. */
   cleanup_model: string | null;
   summary_model: string;
@@ -569,6 +573,8 @@ export interface ModelEntry {
   downloading: boolean;
   /** One of the models "Tell speakers apart" uses. */
   for_speakers: boolean;
+  /** The speech model this file is part of (Parakeet's four files), e.g. "parakeet-v2". */
+  part_of: string | null;
 }
 
 export interface ModelsInfo {

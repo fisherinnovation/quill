@@ -52,6 +52,7 @@ Record any call and get a transcript plus structured notes. Or hold a key, speak
 - **Clean-up only when it helps.** A model removes "um"s, applies self-corrections ("at 3, no wait, 4" becomes "at 4") and formats spoken lists. It only runs when there's something to fix, and its output is checked before use, so it can't type an answer to your question instead of your question.
 - **Per-app style.** Casual in chat apps, formal in email, exact names and commands in code editors and terminals. Built-in defaults, and you can change any app.
 - **Your words.** A vocabulary list for names and jargon, plus replacement rules ("open router" → "OpenRouter").
+- **A second speech engine.** NVIDIA's [Parakeet](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) can transcribe dictation (or meetings) instead of Whisper: **Settings → Models → Speech recognition for dictation**. It runs on the CPU, so on a computer without a usable graphics card it's far quicker than Whisper (about 0.2 s against 7 s for a short dictation on an i9-14900KF); with one, Whisper is as quick or quicker, so it stays the default. v2 is English only; v3 knows 25 European languages and detects which. It takes no language setting, and your vocabulary reaches it as hotwords rather than a prompt.
 - **A floating indicator** with a live level meter, start and stop sounds, and a menu-bar status.
 - **Your clipboard is preserved.** Text is inserted by pasting; whatever you had copied is put back, and the dictated text is hidden from clipboard managers.
 
@@ -250,7 +251,7 @@ cargo run --release -p quill-cli -- --help
 | `diarize <file or dir>` | Who spoke when, optionally scored against a reference RTTM (see [`eval/diarization`](eval/diarization)). |
 | `summarize <dir or transcript.json>` | Write meeting notes (`-m` picks the model, e.g. `-m ollama:qwen3:8b`). |
 | `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models; `--stream` replays them through live captions and compares the text and the wait after release with a single pass. Clips with a reference (`clip.txt`, what should have been typed) are scored by word error rate. |
-| `models list` / `models download <name>` | Manage models: Whisper (`tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`), VAD and the diarization models. |
+| `models list` / `models download <name>` | Manage models: Whisper (`tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`), Parakeet (`parakeet-v2`, `parakeet-v3`), VAD and the diarization models. `transcribe -m` and `dictate --stt-model` take any of the speech models. |
 | `bench <file>` | Compare transcription speed across models (`--short-clip` for dictation settings). |
 | `eval` | Compare summary models on cost, latency and quality judged by an LLM. |
 | `import <dir>` | Add a recording folder made elsewhere to the library. |
@@ -276,7 +277,7 @@ Inside it:
 
 - `quill.sqlite`: meetings, transcripts, summaries, action items (and which are done), dictation history and insight counts. Also known voices: the name of each person you named on a call, with one voice fingerprint (a 192-number embedding, not audio) per meeting you named them in, and each meeting's average voice fingerprint per person on the call, kept so naming them later can teach Quill their voice. And the index for search by meaning: a vector of 384 numbers for every half minute or so of transcript (about 200 KB per hour), deleted with the meeting.
 - `recordings/<meeting id>/`: audio (`mic`/`system`, `.wav` while recording and `.flac` afterwards), `transcript.json` (the two-track transcript), `speakers.json` (voice fingerprints of the people on the call, used to re-split speakers; deleted with the meeting), `summary.md`, `recording.json`. The recordings folder can be moved in **Settings → Storage**.
-- `models/`: downloaded Whisper, VAD, speaker and search models.
+- `models/`: downloaded Whisper, Parakeet, VAD, speaker and search models.
 - `settings.toml`: settings (safe to edit while Quill isn't running).
 - `logs/`: daily log files, kept for two weeks.
 - `dictation-samples/`: only with **Save dictations for testing** on. Each dictation's audio (`.flac`), what was typed (`.typed.txt`), the app it went into (`.json`), and once reviewed, what you said (`.txt`).
@@ -315,7 +316,7 @@ The Rust workspace is split so that the app and the CLI are thin layers over lib
 | Crate | Responsibility |
 |---|---|
 | [`quill-audio`](crates/quill-audio) | Microphone and system-audio capture (cpal: Core Audio process taps on macOS, WASAPI loopback on Windows), live mic for dictation, resampling, echo cancellation, WAV/FLAC, sounds. |
-| [`quill-stt`](crates/quill-stt) | Speech-to-text behind a `Transcriber` trait: whisper.cpp via whisper-rs, Silero VAD, model catalog and verified downloads. |
+| [`quill-stt`](crates/quill-stt) | Speech-to-text behind a `Transcriber` trait: whisper.cpp via whisper-rs, NVIDIA Parakeet via sherpa-onnx, Silero VAD, model catalog and verified downloads. |
 | [`quill-llm`](crates/quill-llm) | LLM providers behind an `LlmProvider` trait (OpenRouter, Ollama), keychain access, versioned prompt templates. |
 | [`quill-diarize`](crates/quill-diarize) | Telling speakers apart: sherpa-onnx segmentation and voice embeddings, Quill's own clustering, DER scoring. |
 | [`quill-core`](crates/quill-core) | Meeting pipeline, track merging, speaker labelling, summaries, the dictation pipeline, the SQLite library, settings, insights. |
@@ -353,7 +354,7 @@ CI runs exactly these on macOS and Windows for every push and pull request.
 
 **Releases:** bump `version` in `app/src-tauri/tauri.conf.json`, `app/package.json` and the workspace `Cargo.toml` in a pull request; once it's merged, tag `main` to match and push the tag (`git tag v0.2.0 && git push origin v0.2.0`). The [release workflow](.github/workflows/release.yml) builds the macOS `.dmg` and the Windows installers and attaches them to a draft GitHub Release to review and publish. Its notes are written from the `feat` and `fix` commits since the last tag ([`scripts/release-notes.sh`](scripts/release-notes.sh); run it to preview them); edit them in the draft before publishing. Running the workflow by hand (Actions → Release → Run workflow) builds the same installers as downloadable artifacts, without a release. Locally, `cd app && npx tauri build --bundles app && sh scripts/package-macos.sh` makes the `.dmg` in `dist-release/`.
 
-- **Tests that need models** are ignored by default. Run them with `QUILL_TEST_MODEL=<path to ggml model> QUILL_TEST_VAD_MODEL=<path to VAD model> cargo test -p quill-stt -- --ignored`.
+- **Tests that need models** are ignored by default. Run them with `QUILL_TEST_MODEL=<path to ggml model> QUILL_TEST_VAD_MODEL=<path to VAD model> cargo test -p quill-stt -- --ignored`; the Parakeet ones need `QUILL_TEST_MODELS_DIR` (see `crates/quill-stt/tests/parakeet_smoke.rs`).
 - **Previewing the interface without Rust:** `cd app && npm run dev`, then open http://localhost:1420. In a plain browser the app uses sample data ([`app/src/dev/mock.ts`](app/src/dev/mock.ts)). URL flags show particular states: `?onboarding`, `?recording`, `?listening`, `?processing`, `?failed`, `?nopaste`, `?empty`, `?light`, `?indicator`, `?about` (the About window), `?others` (call audio as one "Others" speaker), `?nomodels` (nothing downloaded), `?noollama` (Ollama not running), `?nokey` (no OpenRouter key), `?fn` (fn as the dictation shortcut), `?dark` (the dark theme), `?prompt` or `?prompt=stop` (the call prompt), `?gpus` (Windows' graphics card choice), `?voices` (a speaker recognized by voice), `?nosearch` (search by meaning without its model), `?indexing` (meetings being indexed for it).
 - **Evaluating summary models:** see [`eval/README.md`](eval/README.md). Put your own meeting transcripts in `eval/transcripts/private/`, which is gitignored.
 - **Changing a prompt:** copy it to the next version directory (for example `prompts/summary-v3/`) rather than editing a shipped one, so results stay comparable.
@@ -401,7 +402,7 @@ at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
-Speech models downloaded at runtime have their own licenses: [Whisper](https://github.com/openai/whisper) (MIT), [Silero VAD](https://github.com/snakers4/silero-vad) (MIT), [pyannote segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) (MIT) and NVIDIA NeMo [TitaNet-small](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_small) (CC BY 4.0), the last two as exported to ONNX by sherpa-onnx. The search model, Microsoft's [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small), is MIT-licensed.
+Speech models downloaded at runtime have their own licenses: [Whisper](https://github.com/openai/whisper) (MIT), [Silero VAD](https://github.com/snakers4/silero-vad) (MIT), [pyannote segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) (MIT) and NVIDIA NeMo [TitaNet-small](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_small) (CC BY 4.0), the last two as exported to ONNX by sherpa-onnx, and, if you choose it, NVIDIA [Parakeet TDT 0.6B](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) v2 or [v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) (CC BY 4.0), as exported to ONNX and quantized by sherpa-onnx. The search model, Microsoft's [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small), is MIT-licensed.
 
 ## Acknowledgments
 

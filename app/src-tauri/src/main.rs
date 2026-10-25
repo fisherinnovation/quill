@@ -62,8 +62,9 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     /// The recording in progress, if any.
     pub recording: Mutex<Option<recorder::ActiveRecording>>,
-    /// Whisper model kept in memory between meetings.
-    pub transcriber: Mutex<Option<pipeline::LoadedTranscriber>>,
+    /// Speech models kept in memory between meetings and dictations: the
+    /// meetings' and, if it's another, dictation's.
+    pub transcriber: Mutex<Vec<pipeline::LoadedTranscriber>>,
     /// Meetings currently being transcribed/summarized.
     pub processing: Mutex<HashSet<String>>,
     /// Set once the tray icon exists (in `setup`).
@@ -108,7 +109,7 @@ fn main() {
             library,
             settings: Mutex::new(settings),
             recording: Mutex::new(None),
-            transcriber: Mutex::new(None),
+            transcriber: Mutex::new(Vec::new()),
             processing: Mutex::new(HashSet::new()),
             tray: Mutex::new(None),
             openrouter_key: Mutex::new(None),
@@ -275,7 +276,8 @@ fn main() {
                 // restarting after an update). whisper.cpp's Metal backend
                 // aborts in its exit-time destructor while a model is still
                 // loaded, so every quit ended in a crash report.
-                let loaded = commands::lock(&app.state::<AppState>().transcriber).take();
+                let loaded =
+                    std::mem::take(&mut *commands::lock(&app.state::<AppState>().transcriber));
                 drop(loaded);
             }
         });

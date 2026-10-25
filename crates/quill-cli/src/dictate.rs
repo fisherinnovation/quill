@@ -13,16 +13,23 @@ use quill_core::settings::{DEFAULT_POLISH_MODEL, DictationSettings, Style};
 use quill_core::{dictation, samples};
 use quill_eval::wer::{self, Tally};
 use quill_llm::Privacy;
-use quill_stt::{WhisperConfig, WhisperTranscriber};
+use quill_stt::{Transcriber, WhisperConfig};
 
 #[derive(Debug, clap::Args)]
 pub struct Args {
     /// WAV or FLAC files, each one utterance
     #[arg(required = true)]
     files: Vec<PathBuf>,
-    /// Whisper model
+    /// Speech model: a Whisper size or a Parakeet model (`parakeet-v2`)
     #[arg(long, default_value = "turbo")]
     stt_model: String,
+    /// CPU threads for the speech model [default: up to 8]
+    #[arg(long)]
+    threads: Option<usize>,
+    /// Run Whisper on the CPU only, even if a GPU backend is available
+    /// (Parakeet always runs on the CPU)
+    #[arg(long)]
+    cpu: bool,
     /// Spoken language code, or "auto" [default: the system language]
     #[arg(long, short)]
     language: Option<String>,
@@ -59,12 +66,17 @@ pub struct Args {
 }
 
 pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
-    let model_path = crate::models::resolve(&args.stt_model, models_dir)?;
-    let config = WhisperConfig {
+    crate::models::require_speech(&args.stt_model, models_dir)?;
+    let mut config = WhisperConfig {
+        use_gpu: !args.cpu,
         vad_model: crate::models::vad_model(true, models_dir)?,
         ..WhisperConfig::default()
     };
-    let transcriber = WhisperTranscriber::load(&model_path, &config)?;
+    if let Some(threads) = args.threads {
+        config.threads = threads;
+    }
+    let transcriber = quill_stt::load(&args.stt_model, models_dir, &config)?;
+    let transcriber = transcriber.as_ref();
     let settings = DictationSettings {
         vocabulary: args.vocabulary.clone(),
         about: args.about.clone(),
@@ -88,14 +100,16 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     // app pays it once at startup, so don't count it.
     if let Some(first) = args.files.first() {
         let pcm = quill_audio::load_for_stt(first)?;
-        dictation::transcribe(&transcriber, &pcm, &settings)?;
+        dictation::transcribe(transcriber, &pcm, &settings)?;
     }
 
     if args.stream {
-        return stream(&args, &transcriber, &settings);
+        return stream(&args, transcriber, &settings);
     }
 
     let mut whisper_total = Tally::default();
+    // (clip seconds, ms to transcribe), for the summary.
+    let mut stt_times = Vec::new();
     let mut typed_totals = vec![Tally::default(); providers.len()];
     let mut unscored = 0;
     for file in &args.files {
@@ -119,10 +133,11 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
 
         let secs = pcm.len() as f64 / f64::from(STT_SAMPLE_RATE);
         let started = Instant::now();
-        let raw = dictation::transcribe(&transcriber, &pcm, &settings)?;
+        let raw = dictation::transcribe(transcriber, &pcm, &settings)?;
         let stt_ms = started.elapsed().as_millis();
+        stt_times.push((secs, stt_ms));
         println!("\n## {} ({secs:.1} s)", display_name(file));
-        println!("- whisper {stt_ms} ms: {raw}");
+        println!("- {} {stt_ms} ms: {raw}", args.stt_model);
         match &reference {
             Some(reference) => whisper_total += score(reference, &raw),
             None => unscored += 1,
@@ -181,11 +196,12 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
             whisper_total.reference_words
         );
         println!("\n| Typed by | WER | Errors (sub / del / ins) |\n|---|---:|---:|");
-        print_row("whisper only", whisper_total);
+        print_row(&format!("{} only", args.stt_model), whisper_total);
         for ((_, model), total) in providers.iter().zip(&typed_totals) {
             print_row(&format!("{model} when needed"), *total);
         }
     }
+    print_times(&args.stt_model, &mut stt_times);
     if unscored > 0 {
         println!(
             "\n{unscored} of {} clips have no reference (clip.txt beside clip.wav), so weren't scored.",
@@ -198,7 +214,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
 /// `--stream`: each clip through live dictation and through a single pass.
 fn stream(
     args: &Args,
-    transcriber: &WhisperTranscriber,
+    transcriber: &dyn Transcriber,
     settings: &DictationSettings,
 ) -> anyhow::Result<()> {
     let step = (args.step_ms as usize * STT_SAMPLE_RATE as usize / 1000).max(1);
@@ -292,6 +308,36 @@ fn stream(
         );
     }
     Ok(())
+}
+
+/// Median and slowest transcription times, by clip length.
+fn print_times(model: &str, times: &mut [(f64, u128)]) {
+    if times.is_empty() {
+        return;
+    }
+    println!("\n## Speed ({model})\n\n| Clips | Count | Median | Max |\n|---|---:|---:|---:|");
+    for (label, lo, hi) in [
+        ("under 4 s", 0.0, 4.0),
+        ("4–15 s", 4.0, 15.0),
+        ("over 15 s", 15.0, f64::MAX),
+        ("all", 0.0, f64::MAX),
+    ] {
+        let mut ms: Vec<u128> = times
+            .iter()
+            .filter(|(secs, _)| *secs >= lo && *secs < hi)
+            .map(|(_, ms)| *ms)
+            .collect();
+        if ms.is_empty() {
+            continue;
+        }
+        ms.sort_unstable();
+        println!(
+            "| {label} | {} | {} ms | {} ms |",
+            ms.len(),
+            ms[ms.len() / 2],
+            ms[ms.len() - 1]
+        );
+    }
 }
 
 /// Prints how far `text` is from `reference` under the step it scores.
