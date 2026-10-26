@@ -5,7 +5,8 @@
 //! serialized back as JSON. Errors must be serializable too; we send their
 //! message as a string.
 
-use quill_core::library::{LibraryError, Meeting, MeetingDetail, SearchHit};
+use quill_core::library::{LibraryError, Meeting, MeetingDetail};
+use quill_core::search::{Results, Scope};
 use quill_core::settings::{Settings, SettingsError};
 use std::sync::atomic::Ordering;
 
@@ -77,11 +78,11 @@ pub fn get_meeting(state: State<'_, AppState>, id: String) -> CommandResult<Meet
     Ok(state.library.get(&id)?)
 }
 
-/// Searches transcripts by words, and by meaning when that's on (see
-/// `semantic.rs`).
+/// Searches meetings, notes, action items and dictations (or one of them)
+/// by words, and by meaning when that's on (see `semantic.rs`).
 #[tauri::command]
-pub async fn search_transcripts(app: AppHandle, query: String) -> CommandResult<Vec<SearchHit>> {
-    blocking(move || crate::semantic::search(&app, &query)).await
+pub async fn search_library(app: AppHandle, query: String, scope: Scope) -> CommandResult<Results> {
+    blocking(move || crate::semantic::search(&app, &query, scope)).await
 }
 
 #[tauri::command]

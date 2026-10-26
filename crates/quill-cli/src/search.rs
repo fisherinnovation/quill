@@ -1,6 +1,7 @@
-//! `quill-cli search`: search the meeting library by words and meaning,
-//! index it for search by meaning, or measure search on labelled
-//! transcripts (`--eval eval/search/queries.json`).
+//! `quill-cli search`: search the meeting library by words and meaning
+//! (transcripts, or `--everything`: titles, notes, action items and
+//! dictations too), index it for search by meaning, or measure search on
+//! labelled transcripts (`--eval eval/search/queries.json`).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -8,6 +9,7 @@ use std::time::Instant;
 
 use anyhow::{Context, bail};
 use quill_core::library::{Library, SearchHit};
+use quill_core::search::{self, Scope};
 use quill_core::semantic::{self, LabelledQuery, Matched};
 use quill_embed::Embedder;
 use quill_stt::Segment;
@@ -19,8 +21,13 @@ pub struct Args {
     /// Search by words only, as Quill does without the search model
     #[arg(long)]
     words_only: bool,
-    /// First index the meetings not yet indexed for search by meaning.
-    /// Writes to the library, as the app does in the background
+    /// Search everything, as the app's search window does: meeting titles,
+    /// moments in transcripts, notes, action items and dictations (up to
+    /// --limit of each)
+    #[arg(long)]
+    everything: bool,
+    /// First index what isn't yet indexed for search by meaning. Writes to
+    /// the library, as the app does in the background
     #[arg(long)]
     index: bool,
     /// Measure search quality and speed on labelled transcripts (e.g.
@@ -31,6 +38,10 @@ pub struct Args {
     /// this many hours of transcript (copies of the same meetings)
     #[arg(long, default_value_t = 0.0)]
     scale_hours: f64,
+    /// With --eval: also time searching everything with the scratch library
+    /// holding this many dictations (copies of one, embedded once)
+    #[arg(long, default_value_t = 0)]
+    scale_dictations: usize,
     /// Most results to show
     #[arg(long, default_value_t = 20)]
     limit: usize,
@@ -78,6 +89,30 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
                 coverage.indexed, coverage.total
             );
         }
+        let items = library.search_items_coverage(e.id())?;
+        if args.everything && items.indexed < items.total {
+            eprintln!(
+                "{} of {} notes, action items and dictations are indexed for search by meaning; --index does the rest",
+                items.indexed, items.total
+            );
+        }
+    }
+    if args.everything {
+        let started = Instant::now();
+        let results = library.search_everything(
+            query,
+            Scope::All,
+            embedder.as_ref().map(|e| e as &dyn Embedder),
+            args.limit,
+        )?;
+        let took = started.elapsed();
+        print_results(&results);
+        eprintln!(
+            "{} results in {:.0} ms",
+            results.len(),
+            took.as_secs_f64() * 1000.0
+        );
+        return Ok(());
     }
     let started = Instant::now();
     let hits = library.hybrid_search(
@@ -121,9 +156,30 @@ fn load(models_dir: &Path, threads: Option<usize>) -> anyhow::Result<quill_embed
     Ok(e)
 }
 
-/// Indexes every pending meeting, printing progress. Returns the time
-/// spent embedding and storing.
+/// Indexes every pending meeting, then the notes, action items and
+/// dictations, printing progress. Returns the time spent on meetings.
 fn index(library: &Library, embedder: &dyn Embedder) -> anyhow::Result<std::time::Duration> {
+    let took = index_meetings(library, embedder)?;
+    let started = Instant::now();
+    let mut items = 0;
+    while let Some(n) = library.index_search_items(embedder, &|| true)?
+        && n > 0
+    {
+        items += n;
+    }
+    if items > 0 {
+        eprintln!(
+            "indexed {items} notes, action items and dictations in {:.1} s",
+            started.elapsed().as_secs_f64()
+        );
+    }
+    Ok(took)
+}
+
+fn index_meetings(
+    library: &Library,
+    embedder: &dyn Embedder,
+) -> anyhow::Result<std::time::Duration> {
     let pending = library.semantic_pending(embedder.id())?;
     let started = Instant::now();
     let mut chunks = 0;
@@ -163,6 +219,65 @@ fn print_hit(h: &SearchHit) {
             .unwrap_or_default(),
         h.snippet
     );
+}
+
+/// Results of searching everything, by kind.
+fn print_results(r: &search::Results) {
+    let how = |m: Matched| match m {
+        Matched::Words => "words  ",
+        Matched::Meaning => "meaning",
+        Matched::Both => "both   ",
+    };
+    let more = |more: bool| if more { " (more)" } else { "" };
+    if !r.meetings.hits.is_empty() {
+        println!("Meetings{}", more(r.meetings.more));
+        for h in &r.meetings.hits {
+            println!("  words   {}", h.snippet);
+        }
+    }
+    if !r.moments.hits.is_empty() {
+        println!("Moments{}", more(r.moments.more));
+        for h in &r.moments.hits {
+            print!("  ");
+            print_hit(h);
+        }
+    }
+    if !r.notes.hits.is_empty() {
+        println!("Notes{}", more(r.notes.more));
+        for h in &r.notes.hits {
+            println!(
+                "  {} {} · {}  {}",
+                how(h.matched),
+                h.title,
+                h.heading.as_deref().unwrap_or("Notes"),
+                h.snippet.replace('\n', " ")
+            );
+        }
+    }
+    if !r.actions.hits.is_empty() {
+        println!("Action items{}", more(r.actions.more));
+        for h in &r.actions.hits {
+            println!(
+                "  {} {}{}  ({})",
+                how(h.matched),
+                if h.done { "✓ " } else { "" },
+                h.snippet,
+                h.title
+            );
+        }
+    }
+    if !r.dictations.hits.is_empty() {
+        println!("Dictations{}", more(r.dictations.more));
+        for h in &r.dictations.hits {
+            println!(
+                "  {} {} {}  {}",
+                how(h.matched),
+                h.created_at.get(..10).unwrap_or(&h.created_at),
+                h.app.as_deref().unwrap_or(""),
+                h.snippet
+            );
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -317,6 +432,30 @@ fn eval(args: &Args, path: &Path, models_dir: &Path) -> anyhow::Result<()> {
             words_ms
         );
     }
+    if args.scale_dictations > 0 {
+        search::pad_dictations_for_benchmark(&library, args.scale_dictations, &embedder)?;
+    }
+    // Searching everything, as the app's search window does (five of each).
+    library.search_everything("warm up", Scope::All, Some(&embedder), 5)?;
+    let mut everything_ms: Vec<f64> = Vec::new();
+    for q in &queries {
+        let started = Instant::now();
+        library.search_everything(&q.query, Scope::All, Some(&embedder), 5)?;
+        everything_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+    }
+    everything_ms.sort_by(f64::total_cmp);
+    println!(
+        "Searching everything{}: median {:.0} ms per query.",
+        if args.scale_dictations > 0 {
+            format!(" with {} dictations", args.scale_dictations)
+        } else {
+            String::new()
+        },
+        everything_ms
+            .get(everything_ms.len() / 2)
+            .copied()
+            .unwrap_or(0.0)
+    );
     let _ = std::fs::remove_dir_all(&scratch);
     Ok(())
 }

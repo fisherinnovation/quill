@@ -220,6 +220,81 @@ CREATE TABLE semantic_chunks (
 );
 CREATE INDEX semantic_chunks_by_meeting ON semantic_chunks (meeting_id);
 ",
+    "
+-- Search across everything (`search`): besides transcripts (segments_fts
+-- and semantic_chunks), each meeting's title, its latest notes by section,
+-- its action items, and dictation history. Rows follow what they're from:
+-- triggers below for titles, action items and dictations, `save_summary`
+-- for notes, and deletes cascade. `vector` is the embedding for search by
+-- meaning, from `model` (none for titles); a change of text clears it so
+-- the item is embedded again.
+CREATE TABLE search_items (
+    id           INTEGER PRIMARY KEY,
+    kind         TEXT NOT NULL,           -- 'title' | 'notes' | 'action' | 'dictation'
+    meeting_id   TEXT REFERENCES meetings(id) ON DELETE CASCADE,
+    action_id    INTEGER REFERENCES action_items(id) ON DELETE CASCADE,
+    dictation_id INTEGER REFERENCES dictations(id) ON DELETE CASCADE,
+    heading      TEXT,                    -- notes: the section or topic
+    text         TEXT NOT NULL,
+    model        TEXT,
+    vector       BLOB
+);
+CREATE INDEX search_items_by_meeting ON search_items (meeting_id);
+CREATE INDEX search_items_by_action ON search_items (action_id);
+CREATE INDEX search_items_by_dictation ON search_items (dictation_id);
+CREATE VIRTUAL TABLE search_fts USING fts5(
+    text,
+    content = 'search_items',
+    content_rowid = 'id',
+    tokenize = 'porter unicode61'
+);
+CREATE TRIGGER search_items_ai AFTER INSERT ON search_items BEGIN
+    INSERT INTO search_fts (rowid, text) VALUES (new.id, new.text);
+END;
+CREATE TRIGGER search_items_ad AFTER DELETE ON search_items BEGIN
+    INSERT INTO search_fts (search_fts, rowid, text) VALUES ('delete', old.id, old.text);
+END;
+CREATE TRIGGER search_items_au AFTER UPDATE OF text ON search_items BEGIN
+    INSERT INTO search_fts (search_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO search_fts (rowid, text) VALUES (new.id, new.text);
+END;
+
+CREATE TRIGGER search_title_ai AFTER INSERT ON meetings BEGIN
+    INSERT INTO search_items (kind, meeting_id, text) VALUES ('title', new.id, new.title);
+END;
+CREATE TRIGGER search_title_au AFTER UPDATE OF title ON meetings
+WHEN old.title IS NOT new.title BEGIN
+    UPDATE search_items SET text = new.title WHERE kind = 'title' AND meeting_id = new.id;
+END;
+
+CREATE TRIGGER search_action_ai AFTER INSERT ON action_items BEGIN
+    INSERT INTO search_items (kind, meeting_id, action_id, text)
+    VALUES ('action', new.meeting_id, new.id, COALESCE(new.owner || ': ', '') || new.task);
+END;
+CREATE TRIGGER search_action_au AFTER UPDATE OF owner, task ON action_items
+WHEN old.owner IS NOT new.owner OR old.task IS NOT new.task BEGIN
+    UPDATE search_items SET text = COALESCE(new.owner || ': ', '') || new.task,
+                            model = NULL, vector = NULL
+    WHERE action_id = new.id;
+END;
+
+CREATE TRIGGER search_dictation_ai AFTER INSERT ON dictations BEGIN
+    INSERT INTO search_items (kind, dictation_id, text)
+    VALUES ('dictation', new.id, COALESCE(new.corrected, new.text));
+END;
+CREATE TRIGGER search_dictation_au AFTER UPDATE OF text, corrected ON dictations
+WHEN old.text IS NOT new.text OR old.corrected IS NOT new.corrected BEGIN
+    UPDATE search_items SET text = COALESCE(new.corrected, new.text), model = NULL, vector = NULL
+    WHERE dictation_id = new.id;
+END;
+
+-- What's already in the library (notes are read in `Library::init`).
+INSERT INTO search_items (kind, meeting_id, text) SELECT 'title', id, title FROM meetings;
+INSERT INTO search_items (kind, meeting_id, action_id, text)
+SELECT 'action', meeting_id, id, COALESCE(owner || ': ', '') || task FROM action_items;
+INSERT INTO search_items (kind, dictation_id, text)
+SELECT 'dictation', id, COALESCE(corrected, text) FROM dictations;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -229,6 +304,10 @@ const TRANSCRIBED_MIGRATION: i64 = 6;
 /// The migration that added `action_items`; they're read once from the notes
 /// already in the library (see `Library::init`).
 const ACTION_ITEMS_MIGRATION: i64 = 8;
+
+/// The migration that added `search_items`; each meeting's latest notes are
+/// read into it once (see `Library::init`).
+const SEARCH_ITEMS_MIGRATION: i64 = 12;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -567,6 +646,9 @@ impl Library {
         if applied < ACTION_ITEMS_MIGRATION {
             library.read_action_items_from_notes()?;
         }
+        if applied < SEARCH_ITEMS_MIGRATION {
+            library.index_notes_for_search()?;
+        }
         Ok(library)
     }
 
@@ -826,6 +908,7 @@ impl Library {
             )?;
         }
         sync_action_items(&tx, id, &summary.markdown)?;
+        crate::search::sync_notes(&tx, id, &summary.markdown)?;
         tx.commit()?;
         Ok(())
     }
@@ -1405,7 +1488,7 @@ fn strip_trailing_date(title: &str) -> &str {
 /// Turns what the user typed into a safe FTS5 query: each word quoted (so
 /// characters like `"` `-` `:` can't be read as query syntax), all required,
 /// the last one as a prefix.
-fn fts_query(input: &str) -> Option<String> {
+pub(crate) fn fts_query(input: &str) -> Option<String> {
     let words: Vec<String> = input
         .split_whitespace()
         .map(|w| format!("\"{}\"", w.replace('"', "\"\"")))
@@ -1645,13 +1728,20 @@ mod tests {
         let m = lib.create_meeting().unwrap();
         lib.save_summary(
             &m.id,
-            &summary("# Sync\n\n## Action items\n- **You** — a task\n"),
+            &summary("# Sync\n\n## Decisions\n- Ship it\n\n## Action items\n- **You** — a task\n"),
         )
         .unwrap();
-        // As if the library predated action items.
+        // As if the library predated action items (and so search across
+        // everything).
         lib.conn()
             .execute_batch(
-                "DROP TABLE action_items;
+                "DROP TRIGGER search_title_ai;
+                 DROP TRIGGER search_title_au;
+                 DROP TRIGGER search_dictation_ai;
+                 DROP TRIGGER search_dictation_au;
+                 DROP TABLE search_fts;
+                 DROP TABLE search_items;
+                 DROP TABLE action_items;
                  ALTER TABLE dictation_stats DROP COLUMN wait_ms;
                  ALTER TABLE dictations DROP COLUMN wait_ms;
                  DROP TABLE meeting_voices;
@@ -1668,9 +1758,18 @@ mod tests {
         let items = lib.action_items().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].task, "a task");
+        // Its title, notes and action items are searchable, read in once.
+        let found = |q: &str| {
+            lib.search_everything(q, crate::search::Scope::All, None, 5)
+                .unwrap()
+        };
+        assert_eq!(found("sync").meetings.hits.len(), 1);
+        assert_eq!(found("ship").notes.hits.len(), 1);
+        assert_eq!(found("task").actions.hits.len(), 1);
 
         lib.delete(&m.id).unwrap();
         assert!(lib.action_items().unwrap().is_empty());
+        assert!(found("ship").is_empty());
     }
 
     #[test]

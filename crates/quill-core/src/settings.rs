@@ -58,8 +58,8 @@ pub struct Settings {
     /// Remember the voices of people the user names on calls, and name them
     /// automatically in later meetings (`quill_core::voices`).
     pub recognize_voices: bool,
-    /// Search transcripts by meaning as well as by words
-    /// (`quill_core::semantic`), once the search model is downloaded.
+    /// Search by meaning as well as by words (`quill_core::semantic` and
+    /// `quill_core::search`), once the search model is downloaded.
     pub semantic_search: bool,
     // Tables must come after plain values in TOML, so keep these last.
     /// Which graphics card transcribes, where there's a choice (Windows).

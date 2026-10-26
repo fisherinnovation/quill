@@ -205,13 +205,13 @@ pub struct Coverage {
 
 /// One chunk found by meaning.
 #[derive(Debug, Clone, PartialEq)]
-struct ChunkHit {
+pub(crate) struct ChunkHit {
     meeting_id: String,
     first: usize,
     last: usize,
     start_ms: u64,
     end_ms: u64,
-    score: f32,
+    pub(crate) score: f32,
 }
 
 /// Which chunks count as found by meaning. E5's similarities are bunched
@@ -239,19 +239,47 @@ impl Default for Cutoffs {
 /// Reciprocal rank fusion's constant: a result's score is the sum of
 /// weight / (K + rank) over the lists it's in. 60 is the usual choice;
 /// larger flattens the difference between first and tenth.
-const RRF_K: f32 = 60.0;
+pub(crate) const RRF_K: f32 = 60.0;
 /// How much a match by meaning counts against a match by words. At half,
 /// a chunk found only by meaning ranks after every line with the words
 /// (there are at most 50), while a line found both ways goes first.
 /// Exact words are the surer sign: for a query like "Thursday", the
 /// closest chunks by meaning are only loosely related.
-const MEANING_WEIGHT: f32 = 0.5;
+pub(crate) const MEANING_WEIGHT: f32 = 0.5;
 /// At most this many chunks found by meaning: past the first few, they're
 /// rarely what was meant.
-const MAX_BY_MEANING: usize = 10;
+pub(crate) const MAX_BY_MEANING: usize = 10;
 /// Queries shorter than this (in characters) are only searched by words:
 /// while typing the first letters, meaning is noise.
-const MIN_QUERY_CHARS: usize = 3;
+pub(crate) const MIN_QUERY_CHARS: usize = 3;
+
+/// Keeps the `hits` (sorted best first) that count as found by meaning: at
+/// least `min_score`, within `spread` of `best` (the best match anywhere the
+/// search looked, so one clear answer elsewhere doesn't leave each list its
+/// own loosely related best), and at most `limit` ([`MAX_BY_MEANING`]).
+pub(crate) fn cut<T>(
+    hits: &mut Vec<T>,
+    score: impl Fn(&T) -> f32,
+    best: f32,
+    cutoffs: Cutoffs,
+    limit: usize,
+) {
+    hits.retain(|h| score(h) >= cutoffs.min_score && score(h) >= best - cutoffs.spread);
+    hits.truncate(limit.min(MAX_BY_MEANING));
+}
+
+/// The query's embedding, if it's long enough to search by meaning.
+pub(crate) fn embed_query(
+    query: &str,
+    embedder: Option<&dyn Embedder>,
+) -> Result<Option<Vec<f32>>, SemanticError> {
+    match embedder {
+        Some(e) if query.trim().chars().count() >= MIN_QUERY_CHARS => {
+            Ok(Some(e.embed_query(query.trim())?))
+        }
+        _ => Ok(None),
+    }
+}
 
 impl Library {
     /// Meetings with a transcript that aren't indexed with `model` yet,
@@ -361,14 +389,20 @@ impl Library {
     /// Deletes the whole meaning index (every model's), e.g. to measure a
     /// rebuild. It's rebuilt as meetings are indexed again.
     pub fn clear_semantic_index(&self) -> Result<(), LibraryError> {
-        self.conn()
-            .execute_batch("DELETE FROM semantic_chunks; DELETE FROM semantic_index;")?;
+        self.conn().execute_batch(
+            "DELETE FROM semantic_chunks; DELETE FROM semantic_index;
+             UPDATE search_items SET model = NULL, vector = NULL;",
+        )?;
         Ok(())
     }
 
     /// Every chunk from this model, scored against `query` by brute-force
     /// cosine, best first.
-    fn scored_chunks(&self, query: &[f32], model: &str) -> rusqlite::Result<Vec<ChunkHit>> {
+    pub(crate) fn scored_chunks(
+        &self,
+        query: &[f32],
+        model: &str,
+    ) -> rusqlite::Result<Vec<ChunkHit>> {
         let conn = self.conn();
         let mut stmt = conn.prepare_cached(
             "SELECT meeting_id, first_idx, last_idx, start_ms, end_ms, vector
@@ -391,22 +425,6 @@ impl Library {
             });
         }
         hits.sort_by(|a, b| b.score.total_cmp(&a.score));
-        Ok(hits)
-    }
-
-    /// The chunks most like `query` that are close enough to count, best
-    /// first.
-    fn chunks_like(
-        &self,
-        query: &[f32],
-        model: &str,
-        limit: usize,
-        cutoffs: Cutoffs,
-    ) -> rusqlite::Result<Vec<ChunkHit>> {
-        let mut hits = self.scored_chunks(query, model)?;
-        let best = hits.first().map_or(0.0, |h| h.score);
-        hits.retain(|h| h.score >= cutoffs.min_score && h.score >= best - cutoffs.spread);
-        hits.truncate(limit.min(MAX_BY_MEANING));
         Ok(hits)
     }
 
@@ -454,13 +472,31 @@ impl Library {
         limit: usize,
         cutoffs: Cutoffs,
     ) -> Result<Vec<SearchHit>, SemanticError> {
+        let vector = embed_query(query, embedder)?;
+        let similar = match (&vector, embedder) {
+            (Some(vector), Some(e)) => {
+                let mut hits = self.scored_chunks(vector, e.id())?;
+                let best = hits.first().map_or(0.0, |h| h.score);
+                cut(&mut hits, |h| h.score, best, cutoffs, limit);
+                Some(hits)
+            }
+            _ => None,
+        };
+        self.hybrid_search_by(query, similar, limit)
+    }
+
+    /// [`Library::hybrid_search_with`] given the chunks found by meaning
+    /// (already [`cut`]), or by words only with `None`.
+    pub(crate) fn hybrid_search_by(
+        &self,
+        query: &str,
+        similar: Option<Vec<ChunkHit>>,
+        limit: usize,
+    ) -> Result<Vec<SearchHit>, SemanticError> {
         let keyword = self.search(query, limit)?;
-        let Some(embedder) = embedder.filter(|_| query.trim().chars().count() >= MIN_QUERY_CHARS)
-        else {
+        let Some(similar) = similar else {
             return Ok(keyword);
         };
-        let vector = embedder.embed_query(query.trim())?;
-        let similar = self.chunks_like(&vector, embedder.id(), limit, cutoffs)?;
 
         let rrf = |rank: usize| 1.0 / (RRF_K + rank as f32 + 1.0);
         let mut fused: Vec<(f32, SearchHit)> = keyword
@@ -570,10 +606,10 @@ impl Library {
 }
 
 /// About as long as a keyword snippet (12 words either side).
-const SNIPPET_CHARS: usize = 160;
+pub(crate) const SNIPPET_CHARS: usize = 160;
 
 /// `text` cut to about `max` characters at a word boundary, with "…".
-fn shorten(text: &str, max: usize) -> String {
+pub(crate) fn shorten(text: &str, max: usize) -> String {
     if text.chars().count() <= max {
         return text.to_string();
     }
@@ -754,51 +790,14 @@ pub fn index_size(library: &Library) -> Result<(u64, u64), LibraryError> {
     )?)
 }
 
+/// A stand-in embedder for tests (here and in `search`).
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use quill_embed::EmbedError;
+pub(crate) mod testing {
+    use quill_embed::{EmbedError, Embedder};
 
-    fn seg(start_s: u64, text: &str) -> Segment {
-        Segment {
-            start_ms: start_s * 1000,
-            end_ms: start_s * 1000 + 3000,
-            text: text.into(),
-            speaker: Some("Others".into()),
-        }
-    }
-
-    fn words(n: usize) -> String {
-        vec!["word"; n].join(" ")
-    }
-
-    #[test]
-    fn chunks_group_segments_and_break_at_pauses() {
-        let segments = vec![
-            seg(0, &words(30)),
-            seg(4, &words(30)),
-            seg(8, &words(30)), // 90 words: closes
-            seg(12, "  "),      // skipped
-            seg(13, &words(10)),
-            seg(200, &words(50)), // after a long pause: new chunk
-            seg(204, &words(5)),  // short tail joins it
-        ];
-        let c = chunks(&segments);
-        assert_eq!(c.len(), 3, "{c:?}");
-        assert_eq!((c[0].first, c[0].last), (0, 2));
-        assert_eq!((c[1].first, c[1].last), (4, 4));
-        assert_eq!((c[2].first, c[2].last), (5, 6));
-        assert_eq!(c[2].start_ms, 200_000);
-        assert_eq!(c[2].end_ms, 207_000);
-        // No chunk grows past the maximum by adding a segment.
-        let long = vec![seg(0, &words(70)), seg(3, &words(100))];
-        assert_eq!(chunks(&long).len(), 2);
-        assert!(chunks(&[]).is_empty());
-    }
-
-    /// A stand-in embedder: a vector per topic, by keywords, so tests can
-    /// check the plumbing without the real model.
-    struct Topics;
+    /// A vector per topic, by keywords, so tests can check the plumbing
+    /// without the real model.
+    pub(crate) struct Topics;
 
     const TOPICS: [&[&str]; 3] = [
         &[
@@ -836,6 +835,49 @@ mod tests {
         fn embed_query(&self, text: &str) -> Result<Vec<f32>, EmbedError> {
             Ok(topic_vector(text))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::testing::Topics;
+    use super::*;
+
+    fn seg(start_s: u64, text: &str) -> Segment {
+        Segment {
+            start_ms: start_s * 1000,
+            end_ms: start_s * 1000 + 3000,
+            text: text.into(),
+            speaker: Some("Others".into()),
+        }
+    }
+
+    fn words(n: usize) -> String {
+        vec!["word"; n].join(" ")
+    }
+
+    #[test]
+    fn chunks_group_segments_and_break_at_pauses() {
+        let segments = vec![
+            seg(0, &words(30)),
+            seg(4, &words(30)),
+            seg(8, &words(30)), // 90 words: closes
+            seg(12, "  "),      // skipped
+            seg(13, &words(10)),
+            seg(200, &words(50)), // after a long pause: new chunk
+            seg(204, &words(5)),  // short tail joins it
+        ];
+        let c = chunks(&segments);
+        assert_eq!(c.len(), 3, "{c:?}");
+        assert_eq!((c[0].first, c[0].last), (0, 2));
+        assert_eq!((c[1].first, c[1].last), (4, 4));
+        assert_eq!((c[2].first, c[2].last), (5, 6));
+        assert_eq!(c[2].start_ms, 200_000);
+        assert_eq!(c[2].end_ms, 207_000);
+        // No chunk grows past the maximum by adding a segment.
+        let long = vec![seg(0, &words(70)), seg(3, &words(100))];
+        assert_eq!(chunks(&long).len(), 2);
+        assert!(chunks(&[]).is_empty());
     }
 
     fn library() -> (Library, tempfile::TempDir) {

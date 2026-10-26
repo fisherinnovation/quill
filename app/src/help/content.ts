@@ -77,8 +77,9 @@ Choose models in **Settings → Models**. See [Summary and clean-up models](#llm
         keywords: "navigation sidebar collapse pages menu",
         body: `The sidebar leads to:
 
+- **Search** (or \`key:${MOD}\` \`key:K\` from anywhere): everything you've recorded and dictated. See [Searching everything](#search).
 - **Home**: your day at a glance, the notes from your latest meeting, recent meetings and your usage numbers.
-- **Meetings**: every meeting, by day, with search across all transcripts.
+- **Meetings**: every meeting, by day.
 - **Action items**: what your meetings agreed needs doing, gathered from their notes to tick off. The number beside it is how many of yours are open.
 - **Dictations**: whether dictation is ready, your dictation numbers, and what you've dictated.
 - **Help**: this page.
@@ -87,6 +88,21 @@ Choose models in **Settings → Models**. See [Summary and clean-up models](#llm
 Collapse the sidebar to icons with the button at its foot or \`key:${MOD}\` \`key:\\\`; hover an icon to see its name. **Record meeting** stays at the top either way.
 
 Closing the window doesn't quit Quill: it keeps running from the ${TRAY}, so a recording is never cut off and the dictation shortcut keeps working. Quit from that icon's menu.`,
+      },
+      {
+        id: "search",
+        title: "Searching everything",
+        keywords: "search find look up meaning semantic related similar command palette ctrl k cmd k transcripts notes dictations",
+        body: `**Search** at the top of the sidebar, or \`key:${MOD}\` \`key:K\` from anywhere, looks through everything at once:
+
+- **Meetings**: their titles, and what was said in every transcript. A moment opens the meeting there.
+- **Notes**: each meeting's latest notes, section by section (TL;DR, decisions, topics, open questions).
+- **Action items**: by task or by who owns them.
+- **Dictations**: what you've dictated, as corrected, while **Settings → Dictation** keeps a history.
+
+A few of each kind show at first; **Show all** or the chips at the top narrow it to one kind. \`key:↑\` \`key:↓\` move through the results, \`key:Enter\` opens one and \`key:Esc\` closes search. The search box on the Meetings page opens it narrowed to meetings.
+
+**Search by meaning** finds things that say what you searched for in other words, too: "when did we talk about hiring" finds "we're bringing on two more engineers". Those results are marked **Related** and come after the ones with your exact words. It works in about 100 languages and uses a 488 MB model that runs on this computer, so what you search and what's searched never leave it. The model downloads only when you ask: the line at the foot of search offers it, as does **Settings → Models**. Quill then prepares your library in the background (seconds per hour of meetings), waiting while you record or dictate; new meetings, notes and dictations are added as they arrive. Turn it off in **Settings → Meetings → Search by meaning**.`,
       },
     ],
   },
@@ -192,16 +208,14 @@ If something stops the write-up, the step that failed is marked and the reason g
       {
         id: "meetings-page",
         title: "The Meetings page and search",
-        keywords: "list library find search transcripts meaning semantic related similar",
+        keywords: "list library find search transcripts filters",
         body: `At the top, **Meetings** shows what's happening (ready to record, recording, or writing up) over a weave of your recent conversations, each a ribbon of who was talking. Below it are this week's numbers: meetings, time on calls (with the last seven days), how much of the talking was you, and action items.
 
 **Meetings** lists every meeting by day. Each shows the first point of its notes, who was there, its length, its action items and how much you spoke, over a faint picture of the conversation's back and forth.
 
 Filters above the list show only meetings with action items, new ones, ones that need attention (not transcribed, nothing said, or failed), or meetings with the people you meet most.
 
-The search box looks through every transcript. Results show the matching line and who said it; click one to open the meeting at that moment.
-
-**Search by meaning** finds moments that say what you searched for in other words, too: "when did we talk about hiring" finds "we're bringing on two more engineers". Those results are marked **Related** and come after the ones with your exact words. It works in about 100 languages and uses a 488 MB model that runs on this computer, so your transcripts and searches never leave it. The model downloads only when you ask: the line under the search box offers it, as does **Settings → Models**. Quill then prepares your meetings in the background (seconds per hour of meetings), waiting while you record or dictate; new meetings are added as they're transcribed. Turn it off in **Settings → Meetings → Search by meaning**.`,
+The search box opens [search](#search), narrowed to meetings: their titles and every transcript. A result shows the matching line and who said it; open one to go to that moment in the meeting.`,
       },
       {
         id: "summary-tab",
@@ -608,6 +622,7 @@ Your own voice missing? Check **Microphone** permission the same way, and that t
 |---|---|
 | \`key:${ALT}\` \`key:Space\` (hold or tap)${isMac ? ", or `key:fn`" : ""} | Dictate (change it in Settings → Dictation) |
 | \`key:Esc\` | Cancel dictation |
+| \`key:${MOD}\` \`key:K\` | Search everything (\`key:Esc\` closes it) |
 | \`key:${MOD}\` \`key:\\\` | Collapse or expand the sidebar |
 ${isMac ? "| \`key:⌘\` \`key:,\` | Open Settings |\n" : ""}| \`key:${MOD}\` \`key:Enter\` | Save a corrected dictation |
 | \`key:${MOD}\` \`key:F\` or \`key:/\` | Search Help (on this page) |`,

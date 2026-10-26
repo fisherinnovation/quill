@@ -6166,3 +6166,214 @@ html.indicator-window #root {
   color: var(--sky-text);
   background: color-mix(in srgb, var(--sky) 14%, transparent);
 }
+
+/* Search across everything (SearchPalette): a dialog over the page, opened
+   with Ctrl+K / ⌘K, the sidebar's Search, or the Meetings page. */
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10vh 16px 16px;
+  background: rgb(28 29 43 / 0.28);
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: 78vh;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+}
+
+.palette-search input,
+.palette-search input:focus {
+  flex: 1;
+  min-width: 0;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.palette-esc {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.palette-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.palette-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.palette-empty {
+  margin: 16px 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.palette-group + .palette-group {
+  margin-top: 4px;
+}
+
+.palette-group-title {
+  margin: 8px 10px 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-3);
+}
+
+.palette-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  width: 100%;
+  height: auto;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.palette-row.active,
+.palette-row.active:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.palette-row-icon {
+  grid-row: 1 / span 2;
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+  color: var(--text-3);
+}
+
+.palette-row-icon .app-badge {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+.palette-row-title {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.palette-row-meta {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.palette-row .snippet {
+  grid-column: 2 / 4;
+}
+
+/* A dictation's or action item's own text, as the row's title. */
+.snippet-inline {
+  font-weight: 500;
+}
+
+.palette-more {
+  font-weight: 500;
+  color: var(--accent-text);
+}
+
+.palette .search-note {
+  margin: 0;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.palette-foot {
+  display: flex;
+  gap: 16px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.palette-foot kbd,
+.nav-shortcut {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.palette-foot kbd {
+  margin-right: 3px;
+}
+
+/* The sidebar's Search: its shortcut on the right. */
+.nav-item .nav-shortcut {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  font-family: var(--font);
+}
+
+/* The Meetings page's way into search: looks like a search box. */
+.search-opener {
+  justify-content: flex-start;
+  width: 100%;
+  height: 32px;
+  padding: 0 6px 0 29px;
+  border-color: var(--border-strong);
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.search-opener kbd {
+  margin-left: auto;
+  height: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}

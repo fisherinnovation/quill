@@ -90,11 +90,16 @@ local voice model, not audio, but they can identify a voice, so treat them
 like biometric data: they never leave your computer, are never logged, and
 a known voice is kept until you forget it in Settings → Meetings (deleting
 a meeting doesn't). Your own microphone track is never remembered.
-Search by meaning (Settings → Meetings, on by default, but only once its
-model is downloaded) stores an embedding of each half minute or so of
-every transcript in `quill.sqlite`; it's computed on your computer, deleted
-with the meeting, and kept (unused) if you turn search by meaning off.
-Search queries are never logged, stored or sent anywhere. Logs contain events, timings and errors,
+Search (Ctrl+K / ⌘K) keeps a word index in `quill.sqlite` holding a copy
+of each meeting's title, latest notes (by section) and action items, and
+of each dictation in the history. Search by meaning (Settings → Meetings,
+on by default, but only once its model is downloaded) stores an embedding
+of each half minute or so of every transcript, and of each notes section,
+action item and dictation. Both are computed on your computer, and each
+entry is deleted with what it came from: the meeting, the dictation, or
+the whole dictation history when you clear it. Embeddings are kept
+(unused) if you turn search by meaning off. Search queries are never
+logged, stored or sent anywhere. Logs contain events, timings and errors,
 never transcripts, notes, dictated text or keys.
 
 **Permissions.**
