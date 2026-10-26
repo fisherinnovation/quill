@@ -84,7 +84,8 @@ export function Sidebar({
       <div className="drag" data-tauri-drag-region />
       <div className="sidebar-head">{header}</div>
 
-      <nav className="sidebar-nav">
+      {/* Search opens over whatever page is showing, so it sits apart from the pages. */}
+      <div className="sidebar-nav sidebar-actions">
         <button
           className="nav-item"
           aria-label={collapsed ? `Search (${SEARCH_SHORTCUT})` : undefined}
@@ -96,6 +97,9 @@ export function Sidebar({
           <span className="nav-label">Search</span>
           {!collapsed && <span className="nav-shortcut">{SEARCH_SHORTCUT}</span>}
         </button>
+      </div>
+
+      <nav className="sidebar-nav">
         {item("home", "home", "Home")}
         {item(
           "meetings",
