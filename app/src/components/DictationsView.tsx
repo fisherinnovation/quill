@@ -36,6 +36,14 @@ export function DictationsView({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [only, setOnly] = useState<Kind | null>(null);
+  /** The dictation just copied from the list, shown as a tick for a moment. */
+  const [copied, setCopied] = useState<number | null>(null);
+
+  async function copy(d: DictationEntry) {
+    await navigator.clipboard.writeText(d.corrected ?? d.text);
+    setCopied(d.id);
+    setTimeout(() => setCopied((id) => (id === d.id ? null : id)), 1500);
+  }
 
   useEffect(() => {
     void api.getSettings().then((s) => setSettings(s.dictation));
@@ -134,7 +142,7 @@ export function DictationsView({
             <div>
               <strong>Your dictations will appear here</strong>
               <p className="muted small">
-                Open one to copy it, or to correct it so Quill learns the names and terms it got wrong.
+                Copy one with the button beside it, or open it to correct it so Quill learns the names and terms it got wrong.
               </p>
             </div>
           ) : (
@@ -167,7 +175,7 @@ export function DictationsView({
                 </h2>
                 <ul className="card item-list dictation-list">
                   {group.map((d) => (
-                    <li key={d.id}>
+                    <li key={d.id} className="dictation-item">
                       <button className={`item-row dictation-row ${kindOf(d)}`} onClick={() => onOpen(d.id)}>
                         <AppIcon id={d.app_id} name={d.app} />
                         <span className="dictation-row-body">
@@ -181,7 +189,17 @@ export function DictationsView({
                           </span>
                         </span>
                         <Tags entry={d} />
+                        {/* Room for the copy button, which sits over the row. */}
+                        <span className="dictation-copy-room" />
                         <Icon name="chevron-right" size={14} />
+                      </button>
+                      <button
+                        className={`dictation-copy${copied === d.id ? " done" : ""}`}
+                        aria-label={copied === d.id ? "Copied" : "Copy dictation"}
+                        title={copied === d.id ? "Copied" : "Copy"}
+                        onClick={() => void copy(d)}
+                      >
+                        <Icon name={copied === d.id ? "check" : "copy"} size={14} />
                       </button>
                     </li>
                   ))}
