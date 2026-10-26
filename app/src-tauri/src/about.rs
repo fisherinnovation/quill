@@ -150,9 +150,10 @@ const SETTINGS: &str = "settings";
 const HELP: &str = "help";
 const REPORT: &str = "report-problem";
 const WEBSITE: &str = "website";
+const MAIN_WINDOW: &str = "main-window";
 
 /// The macOS menu bar: the standard menus, with Quill's About window,
-/// Settings (⌘,) and Help links.
+/// Settings (⌘,), the main window in the Window menu (⌘0) and Help links.
 #[cfg(target_os = "macos")]
 pub fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem as P, Submenu};
@@ -198,6 +199,10 @@ pub fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
             &P::minimize(app, None)?,
             &P::maximize(app, None)?,
             &sep()?,
+            // Brings the window back after it's closed (closing only hides
+            // it); ⌘0, as many Mac apps do for their main window.
+            &MenuItem::with_id(app, MAIN_WINDOW, "Quill", true, Some("CmdOrCtrl+0"))?,
+            &sep()?,
             &P::close_window(app, None)?,
         ],
     )?;
@@ -219,6 +224,7 @@ pub fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
 pub fn on_menu_event(app: &AppHandle, id: &str) {
     match id {
         ABOUT => show(app),
+        MAIN_WINDOW => crate::tray::show_window(app),
         SETTINGS => {
             crate::tray::show_window(app);
             let _ = app.emit(crate::NAVIGATE_EVENT, "settings");
