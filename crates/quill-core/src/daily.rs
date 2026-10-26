@@ -18,8 +18,9 @@ use serde::Serialize;
 use crate::library::{Library, LibraryError};
 use crate::summary::{Summary, SummaryError, clean, format_duration};
 
-/// Output budget for the day's summary.
-const MAX_TOKENS: u32 = 2048;
+/// Output budget for the day's summary, as for a meeting's notes. Models
+/// whose reasoning can't be turned off spend part of it thinking.
+const MAX_TOKENS: u32 = 4096;
 /// As for meeting notes: factual and consistent.
 const TEMPERATURE: f32 = 0.2;
 /// Room for the system prompt, the template and the answer.
@@ -256,7 +257,9 @@ pub async fn summarize_day(
             messages: vec![Message::system(prompts.system), Message::user(prompt)],
             max_tokens: Some(MAX_TOKENS),
             temperature: Some(TEMPERATURE),
-            no_reasoning: false,
+            // The notes are already distilled, so thinking first adds
+            // little, and it used up 2,048 tokens on a real day's notes.
+            no_reasoning: true,
         })
         .await?;
     Ok(Summary {

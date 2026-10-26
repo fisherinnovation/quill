@@ -61,7 +61,14 @@ async fn write(app: &AppHandle, day: Date) -> CommandResult<DailySummary> {
         &sources,
     )
     .await
-    .map_err(|e| CommandError::Other(e.to_string()))?;
+    .map_err(|e| {
+        tracing::warn!(
+            meetings = sources.len(),
+            ms = started.elapsed().as_millis(),
+            "couldn't write a daily summary: {e}"
+        );
+        CommandError::Other(e.to_string())
+    })?;
     tracing::info!(
         meetings = sources.len(),
         ms = started.elapsed().as_millis(),

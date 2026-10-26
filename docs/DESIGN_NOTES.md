@@ -218,6 +218,16 @@ On the Meetings page, a day with two or more meetings that have notes gets
   its owner, cited meetings by title and named no one who wasn't in the
   notes. It took 6.8 s with the model loaded (53 s the first time,
   loading it), for 940 prompt and 365 completion tokens.
+- **No thinking first.** 0.6.0 let the model reason and capped the answer
+  at 2,048 tokens. With `anthropic/claude-haiku-5.5` on OpenRouter, the
+  three test meetings took 1,359 completion tokens for a summary of about
+  450: the rest was reasoning. A real day's longer notes used up the cap
+  thinking, and the model returned no text. The request now asks for no
+  reasoning (dropped automatically for models whose reasoning is
+  mandatory) and allows 4,096 tokens, as meeting notes do. On the same
+  test: 670 completion tokens, 3.1 s instead of 6.0 s, half the cost
+  ($0.00046), and the same checks pass. The notes are already distilled,
+  so there's little left to think through.
 
 ## Action items
 
