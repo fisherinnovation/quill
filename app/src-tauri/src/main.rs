@@ -11,6 +11,7 @@
 mod about;
 mod calls;
 mod commands;
+mod daily;
 mod dictation;
 mod floating;
 mod icons;
@@ -193,6 +194,8 @@ fn main() {
             commands::get_meeting,
             commands::meeting_stats,
             commands::search_library,
+            daily::daily_summaries,
+            daily::summarize_day,
             commands::rename_meeting,
             commands::delete_meeting,
             commands::get_settings,

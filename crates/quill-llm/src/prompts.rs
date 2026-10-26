@@ -135,6 +135,23 @@ pub const LIVE: LivePrompts = LivePrompts {
     user: prompt!("live-v1/user.md"),
 };
 
+/// Prompts that summarize a day of meetings from their notes
+/// (quill_core::daily).
+#[derive(Debug, Clone, Copy)]
+pub struct DailyPrompts {
+    /// Recorded with every daily summary, e.g. `daily-v1`.
+    pub version: &'static str,
+    pub system: &'static str,
+    /// Vars: count, date, meetings (each meeting's heading and notes).
+    pub user: &'static str,
+}
+
+pub const DAILY: DailyPrompts = DailyPrompts {
+    version: "daily-v1",
+    system: prompt!("daily-v1/system.md"),
+    user: prompt!("daily-v1/user.md"),
+};
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum RenderError {
     #[error("template uses {{{{{0}}}}} but no value was given")]
@@ -229,6 +246,36 @@ mod tests {
         )
         .unwrap();
         render(DICTATION.user, &[("transcript", "t")]).unwrap();
+        render(DAILY.system, &[]).unwrap();
+        render(
+            DAILY.user,
+            &[("count", "2"), ("date", "2026-10-26"), ("meetings", "m")],
+        )
+        .unwrap();
+    }
+
+    /// Golden file for the daily summary prompt; regenerate like the others.
+    #[test]
+    fn daily_prompt_golden() {
+        let rendered = render(
+            DAILY.user,
+            &[
+                ("count", "2"),
+                ("date", "Monday, 2026-10-26"),
+                (
+                    "meetings",
+                    "### Product sync (09:30, 31 min)\n\n#### TL;DR\nShip Friday.\n\n\
+                     ### 1:1 with Priya (14:00, 24 min)\n\n#### TL;DR\nFriday still holds.",
+                ),
+            ],
+        )
+        .unwrap();
+        let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("tests/golden/{}-user.md", DAILY.version));
+        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+            std::fs::write(&golden, &rendered).unwrap();
+        }
+        assert_eq!(rendered, std::fs::read_to_string(&golden).unwrap());
     }
 
     fn check_summary_templates(p: &SummaryPrompts) {

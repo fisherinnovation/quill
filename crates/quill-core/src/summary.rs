@@ -24,6 +24,9 @@ const MAX_PART_TOKENS: usize = 15_000;
 pub enum SummaryError {
     #[error("the transcript is empty")]
     EmptyTranscript,
+    /// A daily summary was asked for a day whose meetings have no notes.
+    #[error("no meeting that day has notes yet")]
+    NoNotes,
     #[error(transparent)]
     Llm(#[from] LlmError),
     #[error("prompt template error: {0}")]
@@ -219,7 +222,7 @@ fn clock(ms: u64) -> String {
 /// Meeting length for the prompt: exact for short meetings (a 2:22 call is
 /// "2 min 22 s", not "3 min", which a model will repeat back), rounded to
 /// the nearest minute for longer ones.
-fn format_duration(ms: u64) -> String {
+pub(crate) fn format_duration(ms: u64) -> String {
     let secs = (ms + 500) / 1000;
     if secs < 10 * 60 {
         return match (secs / 60, secs % 60) {

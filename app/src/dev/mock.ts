@@ -154,6 +154,43 @@ let meetings = flags.has("empty")
       { id: "m5", title: "Customer call — Northwind", started_at: iso(4 * D), duration_ms: 37 * 60_000, has_transcript: true, has_summary: true , empty: false },
       { id: "m6", title: "Hiring sync", started_at: iso(12 * D), duration_ms: 55 * 60_000, has_transcript: true, has_summary: true , empty: false },
     ];
+// Daily summaries (quill_core::daily) by day; ?daily starts with today's written.
+const SAMPLE_DAY = `## TL;DR
+Onboarding ships Friday behind a flag at 10% of new sign-ups, and pricing experiments wait until Priya fixes the double-counted sign-ups. Priya's promotion packet and next quarter's goals are under way.
+
+## Decisions
+- Ship the onboarding redesign Friday at 10% of new sign-ups (Product sync)
+- Pause pricing experiments until the events pipeline is fixed (Product sync)
+
+## Your action items
+- Send the rollout plan to support by Wednesday (Product sync)
+- Share the promotion packet template with Priya by the end of the week (1:1 with Priya)
+
+## Others' action items
+- **Priya** — fix the duplicate \`signup_completed\` events by Thursday (Product sync)
+- **Dan** — prepare two pricing-page variants for the next sprint (Product sync)
+
+## Across meetings
+- **Priya's week** — she owns the analytics fix from the Product sync, and her 1:1 set next quarter's goals around it.
+
+## Open questions
+- Should the invite step move after the first project is created? (Product sync)`;
+const dayOf = (at: string) => new Date(at).toLocaleDateString("en-CA");
+function dailyFor(day: string) {
+  return {
+    day,
+    markdown: SAMPLE_DAY,
+    model: "google/gemini-3.5-flash",
+    prompt_version: "daily-v1",
+    created_at: new Date().toISOString(),
+    cost_usd: 0.0011,
+    meetings: meetings.filter((m) => m.has_summary && dayOf(m.started_at) === day).length,
+    outdated: false,
+  };
+}
+const dailies = new Map<string, ReturnType<typeof dailyFor>>();
+if (flags.has("daily")) dailies.set(dayOf(iso(2 * H)), dailyFor(dayOf(iso(2 * H))));
+
 // A meeting's write-up after recording: it isn't transcribed until the
 // transcription steps are done, and has notes once the notes are.
 function startWriteUp(id: string, fail = flags.get("writeup") === "failed") {
@@ -810,6 +847,14 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   search_library: ({ query, scope }) => searchLibrary(String(query), String(scope) as SearchScope),
   semantic_status: () => semanticStatus(),
+  daily_summaries: () => [...dailies.values()],
+  summarize_day: async ({ day }) => {
+    // About as long as a fast hosted model takes.
+    await new Promise((r) => setTimeout(r, 1500));
+    const summary = dailyFor(String(day));
+    dailies.set(summary.day, summary);
+    return summary;
+  },
   prepare_search: () => null,
   download_search_model: () => {
     void fakeDownload(models.filter((m) => m.kind === "search").map((m) => m.name));

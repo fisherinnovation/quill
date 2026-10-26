@@ -461,14 +461,7 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
         return Ok(());
     }
     job.start(StepKind::Notes);
-    let (provider, model) =
-        llm_provider(app, &settings.summary_model, settings.zdr).map_err(|e| match e {
-            // The library's message suggests the CLI; point to Settings.
-            quill_llm::LlmError::MissingKey(_) => "No OpenRouter key yet. Add one in Settings → \
-                 OpenRouter, or choose a local Ollama model in Settings → Models."
-                .to_string(),
-            e => e.to_string(),
-        })?;
+    let (provider, model) = notes_provider(app, &settings)?;
     let date = meeting_date(&detail.meeting.started_at);
     let summary = summary::summarize(
         provider.as_ref(),
@@ -615,6 +608,21 @@ pub fn preload(app: &AppHandle) {
             Err(e) => tracing::warn!("couldn't preload the speech model: {e}"),
         }
     }
+}
+
+/// The summary model from settings, for meeting notes and daily summaries,
+/// with an error that says where to fix it.
+pub fn notes_provider(
+    app: &AppHandle,
+    settings: &Settings,
+) -> Result<(Box<dyn quill_llm::LlmProvider>, String), String> {
+    llm_provider(app, &settings.summary_model, settings.zdr).map_err(|e| match e {
+        // The library's message suggests the CLI; point to Settings.
+        quill_llm::LlmError::MissingKey(_) => "No OpenRouter key yet. Add one in Settings → \
+             OpenRouter, or choose a local Ollama model in Settings → Models."
+            .to_string(),
+        e => e.to_string(),
+    })
 }
 
 /// An LLM provider for `spec` (OpenRouter id or `ollama:<model>`), with

@@ -72,7 +72,7 @@ results.
 | `crates/quill-diarize` | Telling speakers apart: sherpa-onnx segmentation and embeddings, Quill's own clustering, DER scoring, RTTM |
 | `crates/quill-embed` | Text embeddings for search by meaning behind `Embedder`: multilingual-e5-small on candle (CPU) |
 | `crates/quill-llm` | OpenRouter and Ollama behind `LlmProvider`, keychain, versioned prompts |
-| `crates/quill-core` | Meeting pipeline (`meeting`, `speakers`), summaries, action items read from notes (`action_items`), dictation pipeline, SQLite library and migrations, settings, insights, per-meeting and per-dictation stats (`stats`), search by meaning (`semantic`) and across everything (`search`) |
+| `crates/quill-core` | Meeting pipeline (`meeting`, `speakers`), summaries, daily summaries (`daily`), action items read from notes (`action_items`), dictation pipeline, SQLite library and migrations, settings, insights, per-meeting and per-dictation stats (`stats`), search by meaning (`semantic`) and across everything (`search`) |
 | `crates/quill-insert` | Pasting into the focused app, the frontmost app, and the macOS fn-key watcher (`fn_key`) |
 | `crates/quill-eval`, `crates/quill-cli` | Summary-model evaluation; the CLI over everything |
 | `app/src-tauri` | Tauri shell: commands, pipeline orchestration, dictation controller, models, storage, tray, indicator window, updates |
@@ -131,7 +131,8 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
 - **URL flags:** `?onboarding ?recording ?listening ?processing ?failed
   ?nopaste ?empty ?light ?dark ?indicator ?prompt ?prompt=stop
   ?live ?live=empty ?about ?others ?nomodels ?noollama
-  ?nokey ?fn ?update ?backlog ?gpus ?voices ?nosearch ?indexing`.
+  ?nokey ?fn ?update ?backlog ?gpus ?voices ?nosearch ?indexing
+  ?daily`.
 - **Themes:** check light (`?light`) and dark (`?dark`).
 - **Clicking in the preview:** the first click after a page load is often
   lost. Use `find` refs, or click twice.
