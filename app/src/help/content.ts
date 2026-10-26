@@ -96,7 +96,7 @@ Closing the window doesn't quit Quill: it keeps running from the ${TRAY}, so a r
         body: `**Search** at the top of the sidebar, or \`key:${MOD}\` \`key:K\` from anywhere, looks through everything at once:
 
 - **Meetings**: their titles, and what was said in every transcript. A moment opens the meeting there.
-- **Notes**: each meeting's latest notes, section by section (TL;DR, decisions, topics, open questions).
+- **Notes**: each meeting's latest notes, point by point (the TL;DR, each decision, topic and open question).
 - **Action items**: by task or by who owns them.
 - **Dictations**: what you've dictated, as corrected, while **Settings → Dictation** keeps a history.
 
@@ -389,7 +389,7 @@ A misspelled name ("Quil" → "Quill") becomes a vocabulary word; words typed ap
         id: "history",
         title: "Your dictation history",
         keywords: "history past dictations copy lost text clipboard time to insert wait delay latency speed",
-        body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into, shown by its icon. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. Open one to **Copy** it (handy when text didn't land where you meant), **Correct** it, or delete it.
+        body: `**Dictations** lists what you've dictated, by day, newest first, with each day's totals and the app each went into, shown by its icon. Above the list are your all-time numbers, and a waveform shaped by your last 30 days that follows your voice while you dictate. **Copy** one with the button beside it (handy when text didn't land where you meant), or open it to **Correct** it or delete it.
 
 **Time to insert** is how long you wait from when you stop speaking to the text appearing: the time you keep holding the shortcut after your last word, plus Quill transcribing and typing after you let go. Quill finds where your speech ended with the same silence detection it uses to skip quiet stretches, after the text is typed, so measuring it adds no delay. The panel shows the last week's median against the week before, how it splits between holding the key and Quill, and the last 30 days, each day's median with its slowest 1 in 10 marked above. Each dictation shows its own wait too. It's measured with **Skip silence** on (the default), from the dictations made since it was added.
 

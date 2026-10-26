@@ -2198,9 +2198,49 @@ mark {
     transform 0.15s ease;
 }
 
-.dictation-row:hover > .icon {
+.dictation-row:hover > .icon,
+.dictation-item:hover .dictation-row > .icon {
   opacity: 1;
   transform: none;
+}
+
+/* Copy, beside each dictation in the list: a button of its own over the
+   row (a button can't hold another), in the room the row leaves for it. */
+.dictation-item {
+  position: relative;
+}
+
+.dictation-item:hover .dictation-row:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.dictation-copy-room {
+  flex: none;
+  width: 28px;
+}
+
+.dictation-copy {
+  position: absolute;
+  top: 50%;
+  /* The row's padding (16), chevron (14) and gap (12): over its room. */
+  right: 42px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text-3);
+  transform: translateY(-50%);
+}
+
+.dictation-copy:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-active);
+}
+
+.dictation-copy.done {
+  color: var(--green);
 }
 
 .app-badge {
