@@ -171,6 +171,54 @@ decision someone might otherwise undo.
   `review.md`, and evaluate on real meetings in
   `eval/transcripts/private/`, not only the synthetic one.
 
+## Daily summaries
+
+On the Meetings page, a day with two or more meetings that have notes gets
+**Summarize this day** under its heading; the result is a card there
+(`quill_core::daily`, `prompts/daily-v1/`, `DailySummary.tsx`).
+
+- **From notes, not transcripts.** The notes already hold what each meeting
+  came to, so a day is one short request (about 950 prompt tokens for three
+  meetings) with the summary model, and nothing goes to the model that its
+  notes didn't already send. Re-reading transcripts would cost tens of
+  thousands of tokens a day to repeat what the notes distilled. If a day's
+  notes don't fit the model's context, only their essential sections are
+  sent (TL;DR, decisions, action items, open questions).
+- **Only when asked.** No model calls the user didn't ask for: a day may
+  never be looked at, and with OpenRouter each summary costs money. One
+  meeting's notes are already their own summary, hence the two-meeting
+  minimum.
+- **Outdated, not rewritten.** A summary stores the notes it was written
+  from (`meeting id@summary id` for each), so new notes for one of its
+  meetings, or another meeting that day getting notes, mark it **Notes
+  changed** until the user rewrites it. A plain list rather than a hash,
+  so it stays comparable across Rust versions.
+- **Deleted with its meetings.** It holds its meetings' content, so
+  deleting any of them deletes it: `daily_summary_meetings` links it to
+  each meeting with `ON DELETE CASCADE`, and a trigger on that table
+  deletes the summary (migration 13). Saving checks each meeting still
+  exists, so a meeting deleted while its day was being summarized doesn't
+  leave its content behind.
+- **Days are local.** Keyed `YYYY-MM-DD` in the computer's time zone, in
+  both Rust (jiff) and the UI (`toLocaleDateString("en-CA")`), matching how
+  the Meetings page groups meetings.
+- **The prompt** asks for TL;DR, Decisions (as they ended up, when a later
+  meeting changed one), Your action items, Others' action items, Across
+  meetings (topics in two or more meetings, at most five) and Open
+  questions, each citing its meeting by title. The meetings are given as
+  `### Title (09:30, 31 min)` headings with their notes demoted under them.
+  An earlier draft numbered them ("Meeting 3: …"), and the model then
+  cited "(Meeting 3)" instead of the title.
+- **Checked with a real model:** `crates/quill-core/tests/daily_smoke.rs`
+  (ignored by default; `QUILL_TEST_DAILY_MODEL=ollama:…`) gives three
+  meetings whose notes disagree: a launch planned for Friday in one, moved
+  to Monday in another. With local `qwen3.5:9b` (Windows, RTX 4070 SUPER),
+  the summary kept the launch on Monday and said why, linked the analytics
+  fix and the hiring thread across meetings, kept every action item with
+  its owner, cited meetings by title and named no one who wasn't in the
+  notes. It took 6.8 s with the model loaded (53 s the first time,
+  loading it), for 940 prompt and 365 completion tokens.
+
 ## Action items
 
 - **Read from the notes, not asked for separately.** The summary prompts

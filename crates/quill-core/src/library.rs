@@ -295,6 +295,34 @@ SELECT 'action', meeting_id, id, COALESCE(owner || ': ', '') || task FROM action
 INSERT INTO search_items (kind, dictation_id, text)
 SELECT 'dictation', id, COALESCE(corrected, text) FROM dictations;
 ",
+    "
+-- Daily summaries (`daily`): one per local day, written when asked from that
+-- day's meetings' notes. `sources` lists the notes it was written from
+-- (meeting id @ summary id), so new or rewritten notes show it's outdated.
+-- It holds its meetings' content, so deleting any of them deletes it
+-- (through daily_summary_meetings and the trigger).
+CREATE TABLE daily_summaries (
+    day               TEXT PRIMARY KEY,   -- YYYY-MM-DD, local
+    markdown          TEXT NOT NULL,
+    sources           TEXT NOT NULL,
+    model             TEXT NOT NULL,
+    prompt_version    TEXT NOT NULL,
+    prompt_tokens     INTEGER NOT NULL,
+    completion_tokens INTEGER NOT NULL,
+    cost_usd          REAL,
+    latency_ms        INTEGER NOT NULL,
+    created_at        TEXT NOT NULL       -- RFC 3339
+);
+CREATE TABLE daily_summary_meetings (
+    day        TEXT NOT NULL REFERENCES daily_summaries(day) ON DELETE CASCADE,
+    meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    PRIMARY KEY (day, meeting_id)
+);
+CREATE INDEX daily_summary_meetings_by_meeting ON daily_summary_meetings (meeting_id);
+CREATE TRIGGER daily_summary_forget AFTER DELETE ON daily_summary_meetings BEGIN
+    DELETE FROM daily_summaries WHERE day = old.day;
+END;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -1735,7 +1763,9 @@ mod tests {
         // everything).
         lib.conn()
             .execute_batch(
-                "DROP TRIGGER search_title_ai;
+                "DROP TABLE daily_summary_meetings;
+                 DROP TABLE daily_summaries;
+                 DROP TRIGGER search_title_ai;
                  DROP TRIGGER search_title_au;
                  DROP TRIGGER search_dictation_ai;
                  DROP TRIGGER search_dictation_au;

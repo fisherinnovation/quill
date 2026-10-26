@@ -4450,6 +4450,73 @@ html.indicator-window #root {
   margin-top: 20px;
 }
 
+/* A day's summary on the Meetings page (DailySummary): under the day's
+   heading, above its meetings. Before it's written, a link to write it. */
+.day-summary-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -2px 2px 10px;
+}
+
+.day-summary-start .link-button {
+  gap: 6px;
+}
+
+.day-summary {
+  margin: 0 0 12px;
+  padding: 14px 18px 12px;
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--panel-edge);
+}
+
+.day-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-text);
+}
+
+.day-summary-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.day-summary-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.day-summary-body {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.day-summary-body p {
+  margin: 0.35em 0;
+}
+
+.day-summary-body h2 {
+  margin: 0.9em 0 0.3em;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.day-summary-body ul {
+  margin: 0;
+  padding-left: 1.15em;
+}
+
+.day-summary-more {
+  margin-top: 4px;
+}
+
 @media (max-width: 900px) {
   .home-actions {
     grid-template-columns: 1fr;

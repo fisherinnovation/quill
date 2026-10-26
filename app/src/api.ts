@@ -139,6 +139,22 @@ export interface DictationHit {
   matched: SearchMatch;
 }
 
+/** A day's meetings summarized from their notes (quill_core::daily). */
+export interface DailySummary {
+  /** The local day, YYYY-MM-DD. */
+  day: string;
+  markdown: string;
+  model: string;
+  prompt_version: string;
+  /** When it was written (RFC 3339). */
+  created_at: string;
+  cost_usd: number | null;
+  /** How many meetings' notes it was written from. */
+  meetings: number;
+  /** The day's notes changed since: rewritten notes, or another meeting's. */
+  outdated: boolean;
+}
+
 /** What a search across the library found, by kind. */
 export interface SearchResults {
   /** Meetings whose title matches. */
@@ -692,6 +708,10 @@ export const api = {
   /** Searches meetings, notes, action items and dictations: a few of each, or more of one `scope`. */
   search: (query: string, scope: SearchScope = "all") => invoke<SearchResults>("search_library", { query, scope }),
   semanticStatus: () => invoke<SemanticStatus>("semantic_status"),
+  /** Every stored daily summary, marked outdated where the day's notes changed. */
+  dailySummaries: () => invoke<DailySummary[]>("daily_summaries"),
+  /** Writes a day's summary (YYYY-MM-DD, local) from its meetings' notes; takes a few seconds. */
+  summarizeDay: (day: string) => invoke<DailySummary>("summarize_day", { day }),
   /** Loads the search model ahead of the first search. */
   prepareSearch: () => invoke<void>("prepare_search"),
   /** Downloads the search model (progress as `model-download` events). */

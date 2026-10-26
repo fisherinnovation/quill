@@ -7,6 +7,7 @@
 pub mod action_items;
 pub mod calls;
 pub mod corrections;
+pub mod daily;
 pub mod dictation;
 pub mod insights;
 pub mod library;

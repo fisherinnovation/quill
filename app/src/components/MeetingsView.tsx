@@ -7,11 +7,13 @@ import {
   minutes,
   type Insights,
   type Meeting,
+  type DailySummary,
   type MeetingOverview,
   type Progress,
   type RecordingState,
 } from "../api";
 import { ConversationWeave } from "./ConversationWeave";
+import { DaySummary, localDay } from "./DailySummary";
 import { Icon, type IconName, Logo } from "./Icon";
 import { duration } from "./Insights";
 import { useElapsed } from "./RecordButton";
@@ -58,6 +60,8 @@ export function MeetingsView({
   const [filter, setFilter] = useState<Filter>({ kind: "all" });
   const [shown, setShown] = useState(PAGE);
   const [overviews, setOverviews] = useState<Map<string, MeetingOverview>>(new Map());
+  /** Daily summaries by day (YYYY-MM-DD). */
+  const [daily, setDaily] = useState<Map<string, DailySummary>>(new Map());
 
   // Refetched when the list changes (a new meeting, a finished transcript).
   useEffect(() => {
@@ -69,6 +73,19 @@ export function MeetingsView({
       .getInsights()
       .then(setInsights)
       .catch(() => setInsights(null));
+    // Again when meetings change: new notes can make a day's summary outdated.
+    api
+      .dailySummaries()
+      .then((all) => setDaily(new Map(all.map((d) => [d.day, d]))))
+      .catch(() => {});
+  }, [meetings]);
+  // How many meetings each day has with notes, for its summary.
+  const withNotes = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const m of meetings) {
+      if (m.has_summary) count.set(localDay(m.started_at), (count.get(localDay(m.started_at)) ?? 0) + 1);
+    }
+    return count;
   }, [meetings]);
 
   const attention = (m: Meeting) =>
@@ -163,6 +180,13 @@ export function MeetingsView({
           {groupByDay(listed.slice(0, shown), (m) => m.started_at).map(([label, group, oneDay]) => (
             <section className="group" key={label}>
               <h2 className="group-title">{label}</h2>
+              <DaySummary
+                day={localDay(group[0].started_at)}
+                // The whole day's, whatever the filter shows.
+                withNotes={withNotes.get(localDay(group[0].started_at)) ?? 0}
+                summary={daily.get(localDay(group[0].started_at))}
+                onWritten={(s) => setDaily((all) => new Map(all).set(s.day, s))}
+              />
               <ul className="meeting-tiles">
                 {group.map((m) => (
                   <li key={m.id}>

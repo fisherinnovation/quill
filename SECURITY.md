@@ -66,9 +66,11 @@ those steps run, and only to the provider you chose. With live notes on
 minutes of a meeting is sent to the summary model every minute while
 it's being recorded; the live notes panel is excluded from screen sharing
 and screen recording, and the live transcript and notes are kept only in
-memory (they aren't saved or logged). OpenRouter requests ask
-for providers that don't collect data (`data_collection: deny`), and
-optionally for zero data retention.
+memory (they aren't saved or logged). A daily summary, written only when
+you click **Summarize this day** on the Meetings page, sends that day's
+meetings' notes (not their transcripts) to the summary model. OpenRouter
+requests ask for providers that don't collect data (`data_collection:
+deny`), and optionally for zero data retention.
 
 **Secrets.** API keys are stored in the macOS Keychain or Windows Credential
 Manager, never written to configuration files, and never logged. For
@@ -90,6 +92,8 @@ local voice model, not audio, but they can identify a voice, so treat them
 like biometric data: they never leave your computer, are never logged, and
 a known voice is kept until you forget it in Settings → Meetings (deleting
 a meeting doesn't). Your own microphone track is never remembered.
+Daily summaries are kept in `quill.sqlite`, one per day; since each holds
+its meetings' content, deleting any of that day's meetings deletes it.
 Search (Ctrl+K / ⌘K) keeps a word index in `quill.sqlite` holding a copy
 of each meeting's title, latest notes (point by point) and action items, and
 of each dictation in the history. Search by meaning (Settings → Meetings,

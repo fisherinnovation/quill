@@ -208,14 +208,16 @@ If something stops the write-up, the step that failed is marked and the reason g
       {
         id: "meetings-page",
         title: "The Meetings page and search",
-        keywords: "list library find search transcripts filters",
+        keywords: "list library find search transcripts filters daily summary day digest",
         body: `At the top, **Meetings** shows what's happening (ready to record, recording, or writing up) over a weave of your recent conversations, each a ribbon of who was talking. Below it are this week's numbers: meetings, time on calls (with the last seven days), how much of the talking was you, and action items.
 
 **Meetings** lists every meeting by day. Each shows the first point of its notes, who was there, its length, its action items and how much you spoke, over a faint picture of the conversation's back and forth.
 
 Filters above the list show only meetings with action items, new ones, ones that need attention (not transcribed, nothing said, or failed), or meetings with the people you meet most.
 
-The search box opens [search](#search), narrowed to meetings: their titles and every transcript. A result shows the matching line and who said it; open one to go to that moment in the meeting.`,
+The search box opens [search](#search), narrowed to meetings: their titles and every transcript. A result shows the matching line and who said it; open one to go to that moment in the meeting.
+
+**Daily summary.** On a day with two or more meetings that have notes, **Summarize this day** under the day's heading writes one summary from those notes, with your summary model: what the day came to, the decisions as they ended up (if a later meeting changed one), your action items and other people's, threads that ran across meetings, and what's still open. The TL;DR shows first; **Decisions, action items and more** shows the rest. It's written only when you ask, so it costs nothing until then. If a meeting's notes are rewritten, or another meeting that day gets notes, it's marked **Notes changed**; **Rewrite** writes it again. Deleting any of that day's meetings deletes the day's summary too, since it holds what they said.`,
       },
       {
         id: "summary-tab",
