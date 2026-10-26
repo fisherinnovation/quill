@@ -4153,6 +4153,11 @@ html.indicator-window #root {
   letter-spacing: -0.01em;
   color: var(--text);
   text-align: left;
+  /* A heading, not a button label: long titles wrap inside the card
+     (buttons don't wrap by default), very long words included. */
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .latest-title:hover:not(:disabled) {
