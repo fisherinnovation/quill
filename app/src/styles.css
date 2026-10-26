@@ -82,6 +82,8 @@
   --shadow-sm: none;
   --shadow-md: 0 1px 2px rgb(28 29 43 / 0.06);
   --shadow-lg: 0 1px 2px rgb(28 29 43 / 0.05), 0 10px 30px rgb(28 29 43 / 0.08);
+  /* Behind the search window: dims the page, which is also blurred. */
+  --scrim: rgb(28 29 43 / 0.22);
   --radius: 6px;
   --radius-lg: 8px;
   /* Height of the area the macOS window buttons sit in (0 elsewhere). */
@@ -150,6 +152,7 @@
 
     --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow-lg: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.4);
+    --scrim: rgb(0 0 0 / 0.45);
   }
 }
 
@@ -193,6 +196,7 @@
 
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-lg: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.4);
+  --scrim: rgb(0 0 0 / 0.45);
 }
 
 /* ==========================================================================
@@ -6208,7 +6212,8 @@ html.indicator-window #root {
 }
 
 /* Search across everything (SearchPalette): a dialog over the page, opened
-   with Ctrl+K / ⌘K, the sidebar's Search, or the Meetings page. */
+   with Ctrl+K / ⌘K, the sidebar's Search, or the Meetings page. The page
+   behind is dimmed and blurred, so the window stands out from it. */
 .palette-scrim {
   position: fixed;
   inset: 0;
@@ -6217,7 +6222,10 @@ html.indicator-window #root {
   justify-content: center;
   align-items: flex-start;
   padding: 10vh 16px 16px;
-  background: rgb(28 29 43 / 0.28);
+  background: var(--scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: scrim-in 0.12s ease-out;
 }
 
 .palette {
@@ -6230,6 +6238,27 @@ html.indicator-window #root {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  animation: palette-in 0.12s ease-out;
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette-scrim,
+  .palette {
+    animation: none;
+  }
 }
 
 .palette-search {
