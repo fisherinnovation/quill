@@ -91,10 +91,10 @@ like biometric data: they never leave your computer, are never logged, and
 a known voice is kept until you forget it in Settings → Meetings (deleting
 a meeting doesn't). Your own microphone track is never remembered.
 Search (Ctrl+K / ⌘K) keeps a word index in `quill.sqlite` holding a copy
-of each meeting's title, latest notes (by section) and action items, and
+of each meeting's title, latest notes (point by point) and action items, and
 of each dictation in the history. Search by meaning (Settings → Meetings,
 on by default, but only once its model is downloaded) stores an embedding
-of each half minute or so of every transcript, and of each notes section,
+of each half minute or so of every transcript, and of each notes point,
 action item and dictation. Both are computed on your computer, and each
 entry is deleted with what it came from: the meeting, the dictation, or
 the whole dictation history when you clear it. Embeddings are kept

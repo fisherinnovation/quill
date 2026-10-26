@@ -96,7 +96,7 @@ Closing the window doesn't quit Quill: it keeps running from the ${TRAY}, so a r
         body: `**Search** at the top of the sidebar, or \`key:${MOD}\` \`key:K\` from anywhere, looks through everything at once:
 
 - **Meetings**: their titles, and what was said in every transcript. A moment opens the meeting there.
-- **Notes**: each meeting's latest notes, section by section (TL;DR, decisions, topics, open questions).
+- **Notes**: each meeting's latest notes, point by point (the TL;DR, each decision, topic and open question).
 - **Action items**: by task or by who owns them.
 - **Dictations**: what you've dictated, as corrected, while **Settings → Dictation** keeps a history.
 
