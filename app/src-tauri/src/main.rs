@@ -163,7 +163,9 @@ fn main() {
             Ok(())
         })
         // Closing the window keeps Quill running in the menu bar, so a
-        // recording in progress isn't cut off. Quit from the tray menu.
+        // recording in progress isn't cut off. Quit from the tray menu. It
+        // comes back from the tray's Open Quill, and on macOS from the Dock
+        // (`RunEvent::Reopen`, below) and Window → Quill (⌘0).
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -279,6 +281,16 @@ fn main() {
                 let loaded =
                     std::mem::take(&mut *commands::lock(&app.state::<AppState>().transcriber));
                 drop(loaded);
+            }
+            // macOS: Quill's Dock icon was clicked, or Quill was opened again
+            // (Finder, Spotlight, Launchpad) while running. After the window
+            // was closed (hidden), nothing else brought it back. Shown
+            // whatever `has_visible_windows` says: the dictation pill or the
+            // call prompt may count as visible windows, and showing a window
+            // that's already up just brings it forward.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_window(app);
             }
         });
 }

@@ -87,7 +87,7 @@ Choose models in **Settings → Models**. See [Summary and clean-up models](#llm
 
 Collapse the sidebar to icons with the button at its foot or \`key:${MOD}\` \`key:\\\`; hover an icon to see its name. **Record meeting** stays at the top either way.
 
-Closing the window doesn't quit Quill: it keeps running from the ${TRAY}, so a recording is never cut off and the dictation shortcut keeps working. Quit from that icon's menu.`,
+Closing the window doesn't quit Quill: it keeps running from the ${TRAY}, so a recording is never cut off and the dictation shortcut keeps working. To bring the window back, ${isMac ? "click Quill in the Dock, press `key:⌘` `key:0`, or choose" : "choose"} **Open Quill** from that icon's menu. Quit from the same menu.`,
       },
       {
         id: "search",
@@ -624,7 +624,7 @@ Your own voice missing? Check **Microphone** permission the same way, and that t
 | \`key:Esc\` | Cancel dictation |
 | \`key:${MOD}\` \`key:K\` | Search everything (\`key:Esc\` closes it) |
 | \`key:${MOD}\` \`key:\\\` | Collapse or expand the sidebar |
-${isMac ? "| \`key:⌘\` \`key:,\` | Open Settings |\n" : ""}| \`key:${MOD}\` \`key:Enter\` | Save a corrected dictation |
+${isMac ? "| \`key:⌘\` \`key:,\` | Open Settings |\n| \`key:⌘\` \`key:0\` | Bring back Quill's window after closing it |\n" : ""}| \`key:${MOD}\` \`key:Enter\` | Save a corrected dictation |
 | \`key:${MOD}\` \`key:F\` or \`key:/\` | Search Help (on this page) |`,
       },
     ],

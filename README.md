@@ -167,7 +167,7 @@ The **Stats** tab shows how the conversation went: who talked and for how long, 
 
 If a recording turns out to have nothing said in it, it's marked **Nothing said** in the list of meetings, and opening it offers **Delete recording** or **Keep**. **Settings → Storage** lists how many such recordings there are and deletes them all at once, after you confirm. Quill never deletes them on its own.
 
-Closing the window keeps Quill running in the menu bar, so a recording isn't cut off. Quit from the menu-bar icon.
+Closing the window keeps Quill running in the menu bar, so a recording isn't cut off. Bring it back by clicking Quill in the Dock, with **Window → Quill** (<kbd>⌘</kbd> <kbd>0</kbd>), or from the menu-bar icon's **Open Quill** (on Windows, the tray icon's). Quit from the menu-bar icon.
 
 **About Quill** (in the Quill menu on macOS, or the menu-bar icon's menu) shows the version and build, the models in use, links, and credits. **Copy diagnostic info** there copies what a bug report needs (no keys or text). On macOS, **Help → Report a Problem…** opens a new issue.
 
