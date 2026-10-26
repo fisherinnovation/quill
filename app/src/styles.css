@@ -4439,6 +4439,12 @@ html.indicator-window #root {
   margin: 4px 0 0;
 }
 
+/* No meetings yet: the same gap below the page's header as the hero gets
+   when there are some (Home and Dictations place theirs themselves). */
+.meetings > .home-empty {
+  margin-top: 20px;
+}
+
 @media (max-width: 900px) {
   .home-actions {
     grid-template-columns: 1fr;
