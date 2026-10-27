@@ -75,7 +75,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | **API keys** | Stored in the macOS Keychain or Windows Credential Manager, never in config files or logs. |
 | **Logs** | Local files with events, timings and errors. Never transcripts, notes, dictated text or keys. |
 | **Voice fingerprints** | Never leave your computer. Telling speakers apart and recognizing known voices use numeric voice embeddings, stored locally (see [Where your data lives](#where-your-data-lives)). |
-| **AI assistants** | Off unless you turn on **Settings → Meetings → Let AI assistants read your meetings**. Then an assistant you connect (Claude Desktop, Claude Code or another MCP client) can search and read your meetings, notes, transcripts and action items, and what it reads goes to that assistant's provider. Read-only; dictations are never shared. See [Asking Claude about your meetings](#asking-claude-about-your-meetings). |
+| **AI assistants** | Off unless you turn on **Settings → Meetings → Let AI assistants read your meetings**. Then, while Quill is open, it serves an assistant you connect (Claude Code, or another MCP client) at an address only this computer can reach, to those with its token. The assistant can search and read your meetings, notes, transcripts and action items, and what it reads goes to that assistant's provider. Read-only; dictations are never shared. See [Asking Claude about your meetings](#asking-claude-about-your-meetings). |
 | **Search** | Local. Search by meaning runs its model on your computer; transcripts, notes, dictations and what you search for are never sent anywhere. |
 | **Telemetry** | None. Quill makes no network requests other than the model calls above, downloading the speech and search models, and a daily check on GitHub for a new version (which can be turned off). |
 
@@ -182,20 +182,19 @@ Closing the window keeps Quill running in the menu bar, so a recording isn't cut
 
 ### Asking Claude about your meetings
 
-Quill can answer an AI assistant's questions about your meetings, so you can ask Claude "what did we decide about pricing last week?" or "what do I owe Priya?". It's off by default: turn on **Settings → Meetings → Let AI assistants read your meetings**. Assistants connect over the [Model Context Protocol](https://modelcontextprotocol.io) through `quill-cli mcp` (for now, build the CLI from source: `cargo build --release -p quill-cli`):
+Quill can answer an AI assistant's questions about your meetings, so you can ask Claude "what did we decide about pricing last week?" or "what do I owe Priya?". It's off by default. Turn on **Settings → Meetings → Let AI assistants read your meetings**, confirm, and Quill serves assistants over the [Model Context Protocol](https://modelcontextprotocol.io) at `http://127.0.0.1:47321/mcp` while it's open, until you turn it off. No restart is needed. The same section shows the address and a token, and copies the command that connects Claude Code:
 
 ```sh
-# Claude Code
-claude mcp add quill -- /path/to/quill-cli mcp
+claude mcp add --transport http --scope user quill http://127.0.0.1:47321/mcp --header "Authorization: Bearer <token>"
 ```
 
-For Claude Desktop, add it to `claude_desktop_config.json` (**Settings → Developer → Edit Config**) and restart Claude:
+Other MCP clients that connect by URL take the same address and an `Authorization: Bearer <token>` header. Claude Desktop's own connectors are reached from Anthropic's servers, so they can't see an address on your computer. Bridge it with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) in `claude_desktop_config.json` (needs Node.js):
 
 ```json
-{ "mcpServers": { "quill": { "command": "/path/to/quill-cli", "args": ["mcp"] } } }
+{ "mcpServers": { "quill": { "command": "npx", "args": ["mcp-remote", "http://127.0.0.1:47321/mcp", "--header", "Authorization: Bearer <token>"] } } }
 ```
 
-The assistant gets five read-only tools: `search` (titles, moments in transcripts, notes and action items, by words and by meaning), `list_meetings` (by day), `get_meeting` (notes, and the transcript in pages when asked), `action_items` and `daily_summary`. Dictations are never shared, even in search. Quill checks the setting on every request, so turning it off stops a connected assistant at once. What the assistant reads is sent to its provider, like anything else you show it.
+The assistant gets five read-only tools: `search` (titles, moments in transcripts, notes and action items, by words and by meaning), `list_meetings` (by day), `get_meeting` (notes, and the transcript in pages when asked), `action_items` and `daily_summary`. Dictations are never shared, even in search. The address answers only this computer, only requests with the token, and never web pages. **New token…** locks out everything set up with the old one, and the port can be changed if another app uses it. What the assistant reads is sent to its provider, like anything else you show it.
 
 ### Dictating
 
@@ -280,7 +279,7 @@ cargo run --release -p quill-cli -- --help
 | `voices match <a> <b>` / `voices eval <wavs…>` | Known voices: compare the people in two recordings by voice and show who in the second would be recognized, or measure recognition and false matches on audio with reference RTTMs (see [`eval/diarization`](eval/diarization)). Neither writes to the library. |
 | `mic-users [--watch]` | List the apps using a microphone (macOS), e.g. to see how a call shows up: Zoom as `us.zoom.xos`, a Meet tab as `com.google.Chrome.helper`. Reads only which apps, never audio. |
 | `search <query>` | Search the library by words and meaning, as the app does: transcripts, or with `--everything` titles, notes, action items and dictations too (`--words-only` for words alone; `--index` first indexes what isn't indexed yet, writing to the library). `--eval eval/search/queries.json` measures search quality and speed on labelled transcripts in a scratch library, `--scale-hours N` also times it on a bigger one, and `--scale-dictations N` times searching everything with a long dictation history. |
-| `mcp` | Let AI assistants such as Claude read the library: a [Model Context Protocol](https://modelcontextprotocol.io) server on stdin/stdout, for the assistant to start. Serves only while **Settings → Meetings → Let AI assistants read your meetings** is on (see [Asking Claude about your meetings](#asking-claude-about-your-meetings)). |
+| `mcp` | The same tools for AI assistants as the app serves, over stdin/stdout instead, for an assistant that starts the server itself (`claude mcp add quill -- quill-cli mcp`). Serves only while **Settings → Meetings → Let AI assistants read your meetings** is on (see [Asking Claude about your meetings](#asking-claude-about-your-meetings)). |
 | `live-notes <recording or audio file>` | Replay a recording through live notes (the panel during meetings) and print the notes at each update (every minute, as in the app), with timings and cost. |
 
 The CLI and the app share one library, so meetings recorded or imported in either appear in both.

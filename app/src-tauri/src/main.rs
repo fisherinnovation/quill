@@ -9,6 +9,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod about;
+mod assistants;
 mod calls;
 mod commands;
 mod daily;
@@ -105,6 +106,7 @@ fn main() {
         .manage(llm_models::CatalogCache::default())
         .manage(updates::Updates::default())
         .manage(semantic::Semantic::default())
+        .manage(assistants::Assistants::default())
         .manage(AppState {
             data_dir,
             library,
@@ -161,6 +163,8 @@ fn main() {
                 semantic::spawn(handle);
             });
             updates::spawn_checks(app.handle().clone());
+            // Serves AI assistants if the user has let them read the library.
+            assistants::apply(app.handle());
             Ok(())
         })
         // Closing the window keeps Quill running in the menu bar, so a
@@ -177,6 +181,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             about::about_info,
             about::open_link,
+            assistants::assistant_server,
+            assistants::renew_assistant_token,
             commands::list_meetings,
             commands::pause_recording,
             commands::resume_recording,

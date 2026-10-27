@@ -1815,6 +1815,30 @@ mark {
   width: 260px;
 }
 
+/* Settings → Meetings → AI assistants */
+.card > .banner {
+  margin: 4px 12px 12px;
+}
+
+.assistant-confirm {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+
+.assistant-value {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.row-control input.assistant-port {
+  width: 72px;
+}
+
 .row textarea {
   width: 100%;
 }

@@ -138,6 +138,8 @@ pub fn save_settings(
     }
     // Search by meaning may have been turned on or off.
     crate::semantic::wake(&app);
+    // So may access for AI assistants, or its port changed.
+    crate::assistants::apply(&app);
     Ok(())
 }
 
