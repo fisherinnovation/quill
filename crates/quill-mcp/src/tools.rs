@@ -1,0 +1,356 @@
+//! The tools an assistant can call: thin wrappers over
+//! `quill_core::assistants`, which decides what they return.
+
+use std::fmt::Display;
+use std::sync::Arc;
+use std::time::Instant;
+
+use jiff::civil::Date;
+use quill_core::assistants;
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::{ServerHandler, tool, tool_handler, tool_router};
+use serde::Deserialize;
+
+use crate::{Context, TURNED_OFF};
+
+/// Most results of each kind a search returns, and meetings a list does.
+const MAX_SEARCH: usize = 50;
+const MAX_LIST: usize = 500;
+
+/// The MCP server. Cloning shares the context (rmcp clones the handler).
+#[derive(Clone)]
+pub struct Server {
+    context: Arc<dyn Context>,
+}
+
+impl Server {
+    pub fn new(context: Arc<dyn Context>) -> Self {
+        Self { context }
+    }
+
+    /// Runs one tool's work off the async threads (SQLite and the search
+    /// model block), if access is still on. An `Err` reaches the assistant
+    /// as a failed tool call with the message, which it can act on. Logs
+    /// the tool and timing only, never what was asked or found.
+    async fn answer(
+        &self,
+        tool: &'static str,
+        work: impl FnOnce(&dyn Context) -> Result<String, String> + Send + 'static,
+    ) -> Result<String, String> {
+        let context = Arc::clone(&self.context);
+        let started = Instant::now();
+        let result = tokio::task::spawn_blocking(move || {
+            if !context.allowed() {
+                return Err(TURNED_OFF.to_string());
+            }
+            work(context.as_ref())
+        })
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
+        tracing::info!(
+            tool,
+            ok = result.is_ok(),
+            ms = started.elapsed().as_millis(),
+            "assistant request"
+        );
+        result
+    }
+}
+
+/// An error as the message an assistant sees.
+fn message(e: impl Display) -> String {
+    e.to_string()
+}
+
+/// Turns a value into the JSON text a tool returns.
+fn json(value: &impl serde::Serialize) -> Result<String, String> {
+    serde_json::to_string_pretty(value).map_err(message)
+}
+
+/// A `YYYY-MM-DD` date from a tool's arguments.
+fn day(text: &str) -> Result<Date, String> {
+    text.parse()
+        .map_err(|_| format!("{text:?} isn't a date like 2026-10-27"))
+}
+
+// Each tool's arguments. The doc comments become the descriptions in the
+// JSON Schema the assistant is shown; `crate = …` because schemars comes
+// through rmcp rather than as a dependency of our own.
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct SearchArgs {
+    /// Words or a question, e.g. "pricing decision" or "who owns the launch".
+    query: String,
+    /// Most results of each kind (meetings, moments, notes, action items).
+    /// Default 10.
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct ListArgs {
+    /// Only meetings on or after this local day, `YYYY-MM-DD`.
+    from: Option<String>,
+    /// Only meetings on or before this local day, `YYYY-MM-DD`.
+    to: Option<String>,
+    /// Most meetings to list, newest first. Default 50.
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct MeetingArgs {
+    /// The meeting's id, from search or list_meetings.
+    id: String,
+    /// Include the transcript, from this line (0 for the start). Leave it out
+    /// for just the notes. Long transcripts come in pages; the reply says
+    /// where the next one starts.
+    transcript_from: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct ActionArgs {
+    /// Include items already ticked off. Default false.
+    include_done: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct DayArgs {
+    /// The local day, `YYYY-MM-DD`.
+    date: String,
+}
+
+// `#[tool_router]` collects the `#[tool]` methods below into the list the
+// assistant sees; `#[tool_handler]` (further down) answers its requests
+// with them. Each method's doc comment is its description.
+#[tool_router]
+impl Server {
+    /// Search the user's meetings by words and by meaning: meeting titles,
+    /// moments in transcripts, points in meeting notes, and action items.
+    /// Start here to find which meetings are about something, then read
+    /// them with get_meeting. Matching words are wrapped in [ ]. Times are
+    /// UTC (RFC 3339); start_ms is milliseconds into the recording.
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn search(&self, Parameters(args): Parameters<SearchArgs>) -> Result<String, String> {
+        self.answer("search", move |context| {
+            let limit = args.limit.unwrap_or(10).clamp(1, MAX_SEARCH);
+            let embedder = context.embedder();
+            let found =
+                assistants::search(context.library(), &args.query, embedder.as_deref(), limit)
+                    .map_err(message)?;
+            json(&found)
+        })
+        .await
+    }
+
+    /// List the user's meetings, newest first, optionally between two local
+    /// days: id, title, local start time, length in minutes, and whether it
+    /// has notes.
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn list_meetings(
+        &self,
+        Parameters(args): Parameters<ListArgs>,
+    ) -> Result<String, String> {
+        self.answer("list_meetings", move |context| {
+            let from = args.from.as_deref().map(day).transpose()?;
+            let to = args.to.as_deref().map(day).transpose()?;
+            let limit = args.limit.unwrap_or(50).clamp(1, MAX_LIST);
+            json(&assistants::meetings(context.library(), from, to, limit).map_err(message)?)
+        })
+        .await
+    }
+
+    /// Read one meeting: when it was and its notes (summary, decisions,
+    /// action items, discussion by topic, open questions, quotes), and,
+    /// if asked, its transcript with speakers and times. The notes answer
+    /// most questions; read the transcript for exact wording or detail.
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn get_meeting(
+        &self,
+        Parameters(args): Parameters<MeetingArgs>,
+    ) -> Result<String, String> {
+        self.answer("get_meeting", move |context| {
+            assistants::meeting_markdown(context.library(), &args.id, args.transcript_from)
+                .map_err(message)
+        })
+        .await
+    }
+
+    /// The action items from every meeting's notes, newest meeting first:
+    /// the task, who owns it ("mine" is the user), when it's due, and the
+    /// meeting it came from. Open ones only unless include_done.
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn action_items(
+        &self,
+        Parameters(args): Parameters<ActionArgs>,
+    ) -> Result<String, String> {
+        self.answer("action_items", move |context| {
+            let include_done = args.include_done.unwrap_or(false);
+            json(&assistants::action_items(context.library(), include_done).map_err(message)?)
+        })
+        .await
+    }
+
+    /// The summary of one day's meetings, if the user has had Quill write
+    /// one. Otherwise, list that day's meetings and read their notes.
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn daily_summary(&self, Parameters(args): Parameters<DayArgs>) -> Result<String, String> {
+        self.answer("daily_summary", move |context| {
+            let day = day(&args.date)?;
+            let summary = assistants::daily_markdown(context.library(), day).map_err(message)?;
+            Ok(summary.unwrap_or_else(|| format!("No daily summary has been written for {day}.")))
+        })
+        .await
+    }
+}
+
+#[tool_handler(
+    name = "quill",
+    instructions = "Quill holds the user's meeting notes and transcripts, recorded and \
+        transcribed on their computer. Use it to answer questions about what was said or \
+        decided in meetings: search first, then read the meetings that match. Quote the \
+        notes or transcript and name the meeting and its date when you rely on them."
+)]
+impl ServerHandler for Server {}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::Ordering;
+
+    use rmcp::ServiceExt;
+    use serde_json::{Value, json};
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    use super::*;
+    use crate::testing;
+
+    /// Talks to the server the way an assistant does over stdio: one
+    /// JSON-RPC message per line, over an in-memory pipe.
+    struct Client {
+        reader: BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+        writer: tokio::io::WriteHalf<tokio::io::DuplexStream>,
+        next_id: u64,
+    }
+
+    impl Client {
+        async fn send(&mut self, message: Value) {
+            let mut line = message.to_string();
+            line.push('\n');
+            self.writer.write_all(line.as_bytes()).await.unwrap();
+        }
+
+        /// Sends a request and waits for its response's `result`.
+        async fn call(&mut self, method: &str, params: Value) -> Value {
+            self.next_id += 1;
+            let id = self.next_id;
+            self.send(json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}))
+                .await;
+            loop {
+                let mut line = String::new();
+                assert!(
+                    self.reader.read_line(&mut line).await.unwrap() > 0,
+                    "server hung up"
+                );
+                let message: Value = serde_json::from_str(&line).unwrap();
+                if message["id"] == id {
+                    return message["result"].clone();
+                }
+            }
+        }
+
+        /// Calls a tool; its text, and whether it failed.
+        async fn tool(&mut self, name: &str, arguments: Value) -> (String, bool) {
+            let result = self
+                .call("tools/call", json!({"name": name, "arguments": arguments}))
+                .await;
+            let text = result["content"][0]["text"].as_str().unwrap_or_default();
+            (text.to_string(), result["isError"] == true)
+        }
+    }
+
+    #[tokio::test]
+    async fn serves_the_library_while_access_is_on() {
+        let (context, id) = testing::context();
+        let server = Server::new(context.clone());
+        let (ours, theirs) = tokio::io::duplex(1 << 16);
+        tokio::spawn(async move { server.serve(theirs).await.unwrap().waiting().await });
+        let (reader, writer) = tokio::io::split(ours);
+        let mut client = Client {
+            reader: BufReader::new(reader),
+            writer,
+            next_id: 0,
+        };
+
+        let init = client
+            .call(
+                "initialize",
+                json!({
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1"},
+                }),
+            )
+            .await;
+        assert_eq!(init["serverInfo"]["name"], "quill");
+        client
+            .send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+            .await;
+
+        let tools = client.call("tools/list", json!({})).await;
+        let mut names: Vec<_> = tools["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            [
+                "action_items",
+                "daily_summary",
+                "get_meeting",
+                "list_meetings",
+                "search"
+            ]
+        );
+
+        let (found, failed) = client.tool("search", json!({"query": "prices"})).await;
+        assert!(!failed, "{found}");
+        assert!(found.contains(&id) && found.contains("[prices]"), "{found}");
+
+        let (meeting, _) = client
+            .tool("get_meeting", json!({"id": id, "transcript_from": 0}))
+            .await;
+        assert!(
+            meeting.contains("## Decisions\n- Raise prices in March."),
+            "{meeting}"
+        );
+        assert!(
+            meeting.contains("[0:00:00] Priya: We should raise prices"),
+            "{meeting}"
+        );
+
+        let (missing, failed) = client.tool("get_meeting", json!({"id": "nope"})).await;
+        assert!(
+            failed && missing.contains("no meeting with id nope"),
+            "{missing}"
+        );
+
+        let (bad, failed) = client
+            .tool("daily_summary", json!({"date": "tomorrow"}))
+            .await;
+        assert!(failed && bad.contains("isn't a date"), "{bad}");
+
+        // Turned off in Settings while connected: nothing more is served.
+        context.allowed.store(false, Ordering::SeqCst);
+        let (refused, failed) = client.tool("list_meetings", json!({})).await;
+        assert!(
+            failed && refused.contains("Let AI assistants read"),
+            "{refused}"
+        );
+    }
+}

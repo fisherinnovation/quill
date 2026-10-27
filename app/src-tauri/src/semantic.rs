@@ -284,22 +284,24 @@ fn update_status(app: &AppHandle, change: impl FnOnce(&mut IndexStatus)) {
     }
 }
 
+/// The model for a search, if search by meaning is on and the model is
+/// downloaded (loading it the first time); `None` searches by words only.
+/// AI assistants' searches use it too.
+pub fn embedder(app: &AppHandle) -> Option<Arc<E5Embedder>> {
+    if !enabled(app) || !model_ready() {
+        return None;
+    }
+    load(app)
+        .inspect_err(|e| tracing::warn!("searching by words only: {e}"))
+        .ok()
+}
+
 /// Searches what `scope` covers by words, and by meaning too when it's on
 /// and the model is downloaded: a few results of each kind across
 /// everything, more when narrowed to one. Blocking: the first search loads
 /// the model.
 pub fn search(app: &AppHandle, query: &str, scope: Scope) -> CommandResult<Results> {
-    let embedder = if enabled(app) && model_ready() {
-        match load(app) {
-            Ok(e) => Some(e),
-            Err(e) => {
-                tracing::warn!("searching by words only: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let embedder = embedder(app);
     let limit = if scope == Scope::All {
         ALL_LIMIT
     } else {

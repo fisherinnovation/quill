@@ -16,6 +16,10 @@ pub const DEFAULT_SUMMARY_MODEL: &str = "anthropic/claude-haiku-5.5";
 /// eval/dictation/README.md (median 0.66 s).
 pub const DEFAULT_POLISH_MODEL: &str = "google/gemini-3.5-flash-lite";
 
+/// The localhost port the app serves AI assistants on, unless the user
+/// picks another (`Settings::assistant_port`).
+pub const DEFAULT_ASSISTANT_PORT: u16 = 47321;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -62,10 +66,13 @@ pub struct Settings {
     /// `quill_core::search`), once the search model is downloaded.
     pub semantic_search: bool,
     /// Let AI assistants such as Claude read meetings, notes and action
-    /// items through `quill-cli mcp` (`quill_core::assistants`). Off unless
-    /// the user turns it on; checked on every request, so turning it off
-    /// takes effect at once.
+    /// items (`quill_core::assistants`): the app serves them on
+    /// `http://127.0.0.1:<assistant_port>/mcp` while it's on, and
+    /// `quill-cli mcp` over stdio. Off unless the user turns it on; checked
+    /// on every request, so turning it off takes effect at once.
     pub assistant_access: bool,
+    /// The localhost port the app serves assistants on.
+    pub assistant_port: u16,
     // Tables must come after plain values in TOML, so keep these last.
     /// Which graphics card transcribes, where there's a choice (Windows).
     pub gpu: GpuChoice,
@@ -197,6 +204,7 @@ impl Default for Settings {
             recognize_voices: true,
             semantic_search: true,
             assistant_access: false,
+            assistant_port: DEFAULT_ASSISTANT_PORT,
             gpu: GpuChoice::Automatic,
             dictation: DictationSettings::default(),
         }

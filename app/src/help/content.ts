@@ -299,12 +299,16 @@ Voices are stored as fingerprints (lists of numbers, not audio) in your library 
       {
         id: "ai-assistants",
         title: "Asking Claude about your meetings",
-        keywords: "mcp model context protocol claude desktop claude code chatgpt assistant ai agent connector integration",
-        body: `Turn on **Settings → Meetings → Let AI assistants read your meetings**, and an AI assistant such as Claude Desktop or Claude Code can look through your meetings to answer what you ask it: "what did we decide about pricing last week?", "what do I owe Priya?". It can search your meetings, list them by day, read their notes and transcripts, see your action items and read daily summaries. It can't change anything, and it never sees your dictations.
+        keywords: "mcp model context protocol claude desktop claude code chatgpt assistant ai agent connector integration localhost url address token port mcp-remote",
+        body: `Turn on **Settings → Meetings → Let AI assistants read your meetings**, confirm, and an AI assistant such as Claude Code can look through your meetings to answer what you ask it: "what did we decide about pricing last week?", "what do I owe Priya?". It can search your meetings, list them by day, read their notes and transcripts, see your action items and read daily summaries. It can't change anything, and it never sees your dictations.
 
-**What's shared.** Whatever the assistant reads goes to that assistant's provider (for Claude, Anthropic), like anything else you show it, so turn this on only if you're happy for your meetings to go there. It reads only when you ask it something; turning the setting off stops it at once, even mid-conversation.
+**What's shared.** Whatever the assistant reads goes to that assistant's provider (for Claude, Anthropic), like anything else you show it, so turn this on only if you're happy for your meetings to go there. It reads only when you ask it something. Turning the setting off stops it at once, even mid-conversation.
 
-**Connecting.** Assistants talk to Quill through the Model Context Protocol (MCP), using \`quill-cli mcp\` from Quill's command-line tool, which for now comes from building Quill from source (see the README). For Claude Code, run \`claude mcp add quill -- <path to quill-cli> mcp\`. For Claude Desktop, add Quill under \`mcpServers\` in its configuration file (**Settings → Developer → Edit Config**), with \`command\` the path to quill-cli and \`args\` set to \`["mcp"]\`, then restart it.`,
+**Connecting Claude Code.** While the setting is on and Quill is open, Quill serves assistants at an address on this computer, shown in Settings with a token. **Copy command** there copies what to run once in a terminal; Claude Code then connects whenever it starts. No restart of Quill is needed.
+
+**Other assistants.** Ones that connect by URL take the address and the token, sent as an \`Authorization: Bearer <token>\` header. Claude Desktop can't reach an address on your computer through its own connectors; bridge it with \`mcp-remote\` in its configuration file (**Settings → Developer → Edit Config**; needs Node.js): \`command\` \`npx\`, \`args\` \`["mcp-remote", "<address>", "--header", "Authorization: Bearer <token>"]\`.
+
+**Keeping it private.** Only this computer can reach the address, only with the token, and web pages can't use it. If the token gets out, **New token…** locks out everything set up with the old one. If another app uses the port, change it in the same section; assistants then need the new address.`,
       },
     ],
   },

@@ -49,10 +49,10 @@ where reality differs.
   Quill's update key (the public half is built into the app) for the version
   it claims to be. Debug builds never check on their own.
 
-Quill opens no network ports. With **Settings → Meetings → Let AI assistants
-read your meetings** on (off by default), an AI assistant can read the
-library through `quill-cli mcp`, which the assistant starts and talks to
-over stdin/stdout (see below).
+Quill opens a network port only while **Settings → Meetings → Let AI
+assistants read your meetings** is on (off by default): a server for AI
+assistants on `127.0.0.1` (port 47321 unless changed), which other computers
+can't reach (see below).
 
 There's no telemetry, analytics or crash reporting.
 
@@ -77,20 +77,36 @@ meetings' notes (not their transcripts) to the summary model. OpenRouter
 requests ask for providers that don't collect data (`data_collection:
 deny`), and optionally for zero data retention.
 
-**AI assistants.** Off by default. With **Let AI assistants read your
-meetings** on, an MCP client the user has configured (Claude Desktop, Claude
-Code, others) can start `quill-cli mcp` and call its read-only tools:
-search, listing meetings, reading a meeting's notes and transcript, action
-items and daily summaries. What the assistant reads is sent to its provider
-under that provider's terms, not Quill's. Dictations are never served, even
-in search results. The server re-reads the setting on every request, so
-turning it off stops a connected assistant at once; with it off,
-`quill-cli mcp` refuses to start. It can't write to the library, start
-recordings or downloads, or read audio. It logs which tool was called, how
-long it took and whether it worked, never what was asked or returned. Any
-program running as you could already read the library's files; the setting
-is about consent to send meetings to an assistant, not a security boundary
-against local software.
+**AI assistants.** Off by default, and turned on only after a confirmation
+that says what's shared. With **Let AI assistants read your meetings** on,
+the app serves read-only MCP tools while it's open, at
+`http://127.0.0.1:<port>/mcp`: search, listing meetings, reading a
+meeting's notes and transcript, action items and daily summaries. It stops
+the moment the setting is turned off, and every request re-checks the
+setting too. What an assistant reads is sent to its provider under that
+provider's terms, not Quill's. Dictations are never served, even in search
+results.
+
+- It listens on IPv4 loopback only, so nothing off the computer can connect.
+- Every request needs a bearer token: 256 random bits, made on first use,
+  kept in the macOS Keychain or Windows Credential Manager (account
+  `assistant-token`), shown in Settings while the server runs, never logged,
+  and compared in constant time. **New token…** replaces it, locking out
+  every assistant set up with the old one.
+- Requests from web pages are turned away (any `Origin` header), as are
+  ones whose `Host` isn't a loopback name, which blocks DNS rebinding. Only
+  the `/mcp` path is served.
+- The server can't write to the library, start recordings or downloads, or
+  read audio. It logs which tool was called, how long it took and whether
+  it worked, and that a request without a valid token was turned away;
+  never what was asked or returned.
+
+`quill-cli mcp` serves the same tools over stdin/stdout for an assistant
+that starts it itself, with no port or token. It refuses to start while the
+setting is off and re-reads it on every request. Any program running as you
+could already read the library's files; the setting and the token are about
+consent to send meetings to an assistant and keeping web pages and other
+users out, not a boundary against software you run.
 
 **Secrets.** API keys are stored in the macOS Keychain or Windows Credential
 Manager, never written to configuration files, and never logged. For

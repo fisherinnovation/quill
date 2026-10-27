@@ -120,8 +120,18 @@ tokenizers = { version = "0.23.2", default-features = false, features = ["unstab
 # A thread pool of its own for embedding, so indexing never takes every core.
 rayon = "1"
 # The Model Context Protocol (MCP), so assistants like Claude can search the
-# library (`quill-cli mcp`): a server over stdin/stdout, with tool macros.
-rmcp = { version = "3.5.1", default-features = false, features = ["server", "macros", "transport-io"] }
+# library (quill-mcp): a server with tool macros, over stdin/stdout
+# (`quill-cli mcp`) or Streamable HTTP on localhost (the app).
+rmcp = { version = "3.5.1", default-features = false, features = ["server", "macros", "transport-io", "transport-streamable-http-server"] }
+# The HTTP server under it (quill-mcp's `http`), bound to 127.0.0.1 only.
+# The versions reqwest already uses.
+hyper = { version = "1.12", features = ["server", "http1"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
+http-body-util = "0.1.5"
+bytes = "1.12"
+tokio-util = "0.7.20"
+# The assistant server's access token. Already in the tree.
+getrandom = "0.4.3"
 
 # Our own crates, so members depend on each other with `x.workspace = true`.
 quill-audio = { path = "crates/quill-audio" }
@@ -132,6 +142,7 @@ quill-eval = { path = "crates/quill-eval" }
 quill-llm = { path = "crates/quill-llm" }
 quill-stt = { path = "crates/quill-stt" }
 quill-embed = { path = "crates/quill-embed" }
+quill-mcp = { path = "crates/quill-mcp" }
 
 # Lints shared by every crate (each opts in with `[lints] workspace = true`).
 # CI runs clippy with `-D warnings`, so every "warn" below fails the build.

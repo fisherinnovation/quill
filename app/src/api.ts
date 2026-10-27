@@ -191,8 +191,10 @@ export interface Settings {
   recognize_voices: boolean;
   /** Search by meaning as well as words, once the model is downloaded. */
   semantic_search: boolean;
-  /** Let AI assistants such as Claude read meetings through `quill-cli mcp`. Off unless turned on. */
+  /** Let AI assistants such as Claude read meetings: served on a localhost URL while on. Off unless turned on. */
   assistant_access: boolean;
+  /** The localhost port assistants connect to. */
+  assistant_port: number;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
   gpu: GpuChoice;
   dictation: DictationSettings;
@@ -681,6 +683,17 @@ export interface SemanticStatus {
   error: string | null;
 }
 
+/** The localhost server for AI assistants (`assistant-server` events). */
+export interface AssistantServer {
+  running: boolean;
+  /** Where assistants connect, while running. */
+  url: string | null;
+  /** The bearer token they must send, while running. */
+  token: string | null;
+  /** Why it isn't running although it's on (the port is taken, the keychain refused). */
+  error: string | null;
+}
+
 /** A `model-download` event. */
 export interface DownloadProgress {
   name: string;
@@ -710,6 +723,9 @@ export const api = {
   /** Searches meetings, notes, action items and dictations: a few of each, or more of one `scope`. */
   search: (query: string, scope: SearchScope = "all") => invoke<SearchResults>("search_library", { query, scope }),
   semanticStatus: () => invoke<SemanticStatus>("semantic_status"),
+  assistantServer: () => invoke<AssistantServer>("assistant_server"),
+  /** A new token: assistants set up with the old one stop working until given this one. */
+  renewAssistantToken: () => invoke<AssistantServer>("renew_assistant_token"),
   /** Every stored daily summary, marked outdated where the day's notes changed. */
   dailySummaries: () => invoke<DailySummary[]>("daily_summaries"),
   /** Writes a day's summary (YYYY-MM-DD, local) from its meetings' notes; takes a few seconds. */
@@ -870,6 +886,9 @@ export const events = {
   /** Search by meaning's status changed (indexing progress, the model, the setting). */
   onSemanticIndex: (cb: (s: SemanticStatus) => void): Promise<UnlistenFn> =>
     listen<SemanticStatus>("semantic-index", (e) => cb(e.payload)),
+  /** The server for AI assistants started, stopped or failed. */
+  onAssistantServer: (cb: (s: AssistantServer) => void): Promise<UnlistenFn> =>
+    listen<AssistantServer>("assistant-server", (e) => cb(e.payload)),
   /** The meeting list changed outside the meeting view. */
   onLibraryChanged: (cb: () => void): Promise<UnlistenFn> => listen<null>("library-changed", () => cb()),
   /** The backend asks to show a view, e.g. "dictation". */

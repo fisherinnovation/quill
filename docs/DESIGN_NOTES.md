@@ -1152,25 +1152,48 @@ the transcript-only search box on the Meetings page.
 
 ## AI assistants (MCP)
 
-`quill-cli mcp` lets an AI assistant (Claude Desktop, Claude Code, any MCP
-client) read the meeting library, so it can answer questions from meeting
-notes. What it sees is decided in `quill_core::assistants`; the CLI's
-`mcp.rs` only maps that onto MCP tools with the official Rust SDK, `rmcp`.
+Quill lets an AI assistant (Claude Code, any MCP client) read the meeting
+library, so it can answer questions from meeting notes. What it sees is
+decided in `quill_core::assistants`. `quill-mcp` maps that onto MCP tools
+with the official Rust SDK, `rmcp`, and serves them two ways: Streamable
+HTTP on localhost, run by the app, and stdio, for `quill-cli mcp`. Each host
+gives it the library, the search model and the setting through
+`quill_mcp::Context`, so the app shares its own.
 
-- **stdio, not a port.** The assistant starts `quill-cli mcp` and talks
-  over stdin/stdout. Nothing listens on the network, there's no token to
-  leak, and it works whether or not the app is running. A Streamable HTTP
-  server inside the app was the alternative. It would mean a port, a token,
-  checks against DNS rebinding, and it would only work while the app was
-  open. Shipping a server binary in the app bundle (a Tauri sidecar) is
-  left for later; for now it's the CLI.
+- **A localhost URL, served by the app.** 0.7.0 shipped stdio only, through
+  `quill-cli mcp`. The installers don't include the CLI, so nobody but
+  developers could use it, and even they had to find the binary's path. Now
+  the app serves `http://127.0.0.1:<port>/mcp` while the setting is on, and
+  Settings shows the address, the token and the `claude mcp add` command.
+  It starts and stops with the switch, with no restart. A restart was
+  considered, to make turning it on feel deliberate, but it would cut off a
+  recording or dictation in progress; a confirmation does that job instead.
+- **Claude Desktop can't use the URL directly.** Its custom connectors are
+  reached from Anthropic's cloud, not from the user's computer, and its
+  config file takes only stdio servers. The docs point to the `mcp-remote`
+  bridge. Starting the app's own binary as a stdio server (`quill-app mcp`,
+  at a fixed path in the bundle) would serve Desktop without Node, if that
+  proves to be needed.
+- **Securing a localhost port.** Anything on the computer can reach it, web
+  pages included, so:
+  - It binds IPv4 loopback only.
+  - Every request needs a bearer token: 256 random bits in the keychain
+    (`assistant-token`, read once per launch), compared in constant time.
+    Settings can renew it; the running server picks up the new one without
+    restarting.
+  - rmcp rejects any `Origin` (only browsers send one) and any `Host` that
+    isn't a loopback name, which blocks DNS rebinding. Only `/mcp` is
+    served.
+  - It's stateless with JSON responses (`NeverSessionManager`): no sessions
+    to keep, expire or hijack.
+  - It's served with `hyper` directly rather than axum. hyper was already in
+    the tree through reqwest, and one route needs no router.
 - **Off unless the user turns it on, in the app.** `assistant_access` is
-  switched in Settings → Meetings, not by the CLI. The app keeps settings
+  switched in Settings → Meetings, never by the CLI. The app keeps settings
   in memory and writes the whole file when anything changes, so a flag set
-  from the CLI would be turned off again by the app's next save. The
-  server re-reads `settings.toml` on every tool call, so turning it off
-  stops a connected assistant at once. With it off, `quill-cli mcp`
-  refuses to start.
+  from the CLI would be undone by the app's next save. Each request
+  re-checks the setting as well as the server stopping, so nothing is
+  served after it's off.
 - **Read-only, meetings only.** Tools: `search`, `list_meetings`,
   `get_meeting`, `action_items`, `daily_summary`. Dictations are left out,
   even from search (`assistants::search` drops them from
@@ -1183,12 +1206,13 @@ notes. What it sees is decided in `quill_core::assistants`; the CLI's
   transcript is 30–40k tokens, and the notes answer most questions.
   Results are Markdown or JSON text rather than MCP structured content:
   the library's types don't derive JSON Schema, and models read text well.
-- **Search by meaning, if it's ready.** The search model loads on the first
-  search, and only if search by meaning is on and the model is downloaded.
-  This never starts a download, and otherwise it searches by words. The
-  server never indexes; the app does that.
-- **Sharing the database with the app.** rusqlite sets a 5 s busy timeout
-  on every connection, and Quill's queries are short, so the two processes
+- **Search by meaning, if it's ready.** In the app, assistants' searches
+  use the app's search model (`semantic::embedder`), loaded and unloaded as
+  for its own search. The CLI loads one on its first search. Neither
+  downloads the model or indexes.
+- **Sharing the database (CLI).** rusqlite sets a 5 s busy timeout on every
+  connection, and Quill's queries are short, so `quill-cli mcp` and the app
   share `quill.sqlite` in its rollback-journal mode without WAL.
-- **Logs.** The tool name, time taken and whether it worked are logged.
-  What was asked or returned never is.
+- **Logs.** The tool name, time taken and whether it worked are logged, as
+  is a request turned away for its token. What was asked or returned never
+  is.

@@ -315,7 +315,8 @@ const settings = {
   notify_notes_ready: true,
   recognize_voices: true,
   semantic_search: true,
-  assistant_access: false,
+  assistant_access: flags.has("assistants"),
+  assistant_port: 47321,
   gpu: { kind: "automatic" },
   dictation: {
     enabled: true,
@@ -562,6 +563,27 @@ async function fakeDownload(names: string[]) {
     await emit("model-download", { name, done: model.size_bytes, total: model.size_bytes, finished: true, error: null });
   }
   if (names.some((n) => n.startsWith("search")) && semanticReady()) void fakeIndexing(0);
+}
+
+/** The server for AI assistants: on with ?assistants, failing to start with ?assistants=busy. */
+let assistantToken = "8c1f4e2a9b7d6035e4f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7";
+
+function assistantServer() {
+  if (!settings.assistant_access) return { running: false, url: null, token: null, error: null };
+  if (flags.get("assistants") === "busy") {
+    return {
+      running: false,
+      url: null,
+      token: null,
+      error: `Port ${settings.assistant_port} is in use by another app. Choose another port.`,
+    };
+  }
+  return {
+    running: true,
+    url: `http://127.0.0.1:${settings.assistant_port}/mcp`,
+    token: assistantToken,
+    error: null,
+  };
 }
 
 /** Search by meaning: meetings indexed so far (all, unless ?indexing). */
@@ -868,9 +890,22 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   get_settings: () => settings,
   save_settings: ({ settings: next }) => {
-    // Kept for what depends on it here (search by meaning's status).
-    settings.semantic_search = (next as typeof settings).semantic_search;
+    // Kept for what depends on it here (search by meaning's and the
+    // assistant server's status).
+    const saved = next as typeof settings;
+    settings.semantic_search = saved.semantic_search;
     void emit("semantic-index", semanticStatus());
+    if (saved.assistant_access !== settings.assistant_access || saved.assistant_port !== settings.assistant_port) {
+      settings.assistant_access = saved.assistant_access;
+      settings.assistant_port = saved.assistant_port;
+      void emit("assistant-server", assistantServer());
+    }
+  },
+  assistant_server: () => assistantServer(),
+  renew_assistant_token: () => {
+    assistantToken = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
+    void emit("assistant-server", assistantServer());
+    return assistantServer();
   },
   recording_state: () => recording ?? { recording: false, paused: false, meeting_id: null, elapsed_ms: 0 },
   pause_recording: () => {

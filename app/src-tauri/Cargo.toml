@@ -28,6 +28,7 @@ quill-embed.workspace = true
 quill-insert.workspace = true
 base64.workspace = true
 quill-llm.workspace = true
+quill-mcp.workspace = true
 quill-stt.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -37,6 +38,8 @@ tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-opener.workspace = true
 tauri-plugin-updater.workspace = true
 thiserror.workspace = true
+# The assistant server's lock (`assistants`); the runtime Tauri runs on.
+tokio.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true

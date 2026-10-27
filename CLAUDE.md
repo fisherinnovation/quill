@@ -71,8 +71,9 @@ results.
 | `crates/quill-stt` | Whisper (whisper-rs) behind `Transcriber`, Silero VAD, the model catalog and SHA-256-checked downloads (all models, diarization ones included) |
 | `crates/quill-diarize` | Telling speakers apart: sherpa-onnx segmentation and embeddings, Quill's own clustering, DER scoring, RTTM |
 | `crates/quill-embed` | Text embeddings for search by meaning behind `Embedder`: multilingual-e5-small on candle (CPU) |
+| `crates/quill-mcp` | Lets AI assistants read the library over MCP: tools over `quill_core::assistants`, served on localhost HTTP (the app) or stdio (`quill-cli mcp`), and the access token |
 | `crates/quill-llm` | OpenRouter and Ollama behind `LlmProvider`, keychain, versioned prompts |
-| `crates/quill-core` | Meeting pipeline (`meeting`, `speakers`), summaries, daily summaries (`daily`), action items read from notes (`action_items`), dictation pipeline, SQLite library and migrations, settings, insights, per-meeting and per-dictation stats (`stats`), search by meaning (`semantic`) and across everything (`search`) |
+| `crates/quill-core` | Meeting pipeline (`meeting`, `speakers`), summaries, daily summaries (`daily`), action items read from notes (`action_items`), dictation pipeline, SQLite library and migrations, settings, insights, per-meeting and per-dictation stats (`stats`), search by meaning (`semantic`) and across everything (`search`), what AI assistants may read (`assistants`) |
 | `crates/quill-insert` | Pasting into the focused app, the frontmost app, and the macOS fn-key watcher (`fn_key`) |
 | `crates/quill-eval`, `crates/quill-cli` | Summary-model evaluation; the CLI over everything |
 | `app/src-tauri` | Tauri shell: commands, pipeline orchestration, dictation controller, models, storage, tray, indicator window, updates |
@@ -132,7 +133,7 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   ?nopaste ?empty ?light ?dark ?indicator ?prompt ?prompt=stop
   ?live ?live=empty ?about ?others ?nomodels ?noollama
   ?nokey ?fn ?update ?backlog ?gpus ?voices ?nosearch ?indexing
-  ?daily`.
+  ?daily ?assistants ?assistants=busy`.
 - **Themes:** check light (`?light`) and dark (`?dark`).
 - **Clicking in the preview:** the first click after a page load is often
   lost. Use `find` refs, or click twice.
