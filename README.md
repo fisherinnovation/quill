@@ -75,6 +75,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | **API keys** | Stored in the macOS Keychain or Windows Credential Manager, never in config files or logs. |
 | **Logs** | Local files with events, timings and errors. Never transcripts, notes, dictated text or keys. |
 | **Voice fingerprints** | Never leave your computer. Telling speakers apart and recognizing known voices use numeric voice embeddings, stored locally (see [Where your data lives](#where-your-data-lives)). |
+| **AI assistants** | Off unless you turn on **Settings → Meetings → Let AI assistants read your meetings**. Then an assistant you connect (Claude Desktop, Claude Code or another MCP client) can search and read your meetings, notes, transcripts and action items, and what it reads goes to that assistant's provider. Read-only; dictations are never shared. See [Asking Claude about your meetings](#asking-claude-about-your-meetings). |
 | **Search** | Local. Search by meaning runs its model on your computer; transcripts, notes, dictations and what you search for are never sent anywhere. |
 | **Telemetry** | None. Quill makes no network requests other than the model calls above, downloading the speech and search models, and a daily check on GitHub for a new version (which can be turned off). |
 
@@ -179,6 +180,23 @@ Closing the window keeps Quill running in the menu bar, so a recording isn't cut
 
 **Action items** in the sidebar gathers what your meetings agreed needs doing, from every meeting's notes, so it doesn't stay buried in them. Yours come first, most pressing at the top (overdue, then due soonest, then undated); then **Waiting on others**, by person, for following up. The number beside **Action items** in the sidebar is how many of yours are open. Tick an item off there, in the meeting's notes or on Home: it's the same item everywhere. Due dates are worked out from the day of the meeting ("by Thursday" said on a Tuesday is that Thursday; "end of next week" the Friday after), and anything that isn't a date shows as written. Items are read from the notes when they're written; re-summarizing keeps the ticks on items that are still there, even reworded.
 
+### Asking Claude about your meetings
+
+Quill can answer an AI assistant's questions about your meetings, so you can ask Claude "what did we decide about pricing last week?" or "what do I owe Priya?". It's off by default: turn on **Settings → Meetings → Let AI assistants read your meetings**. Assistants connect over the [Model Context Protocol](https://modelcontextprotocol.io) through `quill-cli mcp` (for now, build the CLI from source: `cargo build --release -p quill-cli`):
+
+```sh
+# Claude Code
+claude mcp add quill -- /path/to/quill-cli mcp
+```
+
+For Claude Desktop, add it to `claude_desktop_config.json` (**Settings → Developer → Edit Config**) and restart Claude:
+
+```json
+{ "mcpServers": { "quill": { "command": "/path/to/quill-cli", "args": ["mcp"] } } }
+```
+
+The assistant gets five read-only tools: `search` (titles, moments in transcripts, notes and action items, by words and by meaning), `list_meetings` (by day), `get_meeting` (notes, and the transcript in pages when asked), `action_items` and `daily_summary`. Dictations are never shared, even in search. Quill checks the setting on every request, so turning it off stops a connected assistant at once. What the assistant reads is sent to its provider, like anything else you show it.
+
 ### Dictating
 
 Put your cursor in any text field, then:
@@ -262,6 +280,7 @@ cargo run --release -p quill-cli -- --help
 | `voices match <a> <b>` / `voices eval <wavs…>` | Known voices: compare the people in two recordings by voice and show who in the second would be recognized, or measure recognition and false matches on audio with reference RTTMs (see [`eval/diarization`](eval/diarization)). Neither writes to the library. |
 | `mic-users [--watch]` | List the apps using a microphone (macOS), e.g. to see how a call shows up: Zoom as `us.zoom.xos`, a Meet tab as `com.google.Chrome.helper`. Reads only which apps, never audio. |
 | `search <query>` | Search the library by words and meaning, as the app does: transcripts, or with `--everything` titles, notes, action items and dictations too (`--words-only` for words alone; `--index` first indexes what isn't indexed yet, writing to the library). `--eval eval/search/queries.json` measures search quality and speed on labelled transcripts in a scratch library, `--scale-hours N` also times it on a bigger one, and `--scale-dictations N` times searching everything with a long dictation history. |
+| `mcp` | Let AI assistants such as Claude read the library: a [Model Context Protocol](https://modelcontextprotocol.io) server on stdin/stdout, for the assistant to start. Serves only while **Settings → Meetings → Let AI assistants read your meetings** is on (see [Asking Claude about your meetings](#asking-claude-about-your-meetings)). |
 | `live-notes <recording or audio file>` | Replay a recording through live notes (the panel during meetings) and print the notes at each update (every minute, as in the app), with timings and cost. |
 
 The CLI and the app share one library, so meetings recorded or imported in either appear in both.

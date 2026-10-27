@@ -315,6 +315,7 @@ const settings = {
   notify_notes_ready: true,
   recognize_voices: true,
   semantic_search: true,
+  assistant_access: false,
   gpu: { kind: "automatic" },
   dictation: {
     enabled: true,

@@ -191,6 +191,8 @@ export interface Settings {
   recognize_voices: boolean;
   /** Search by meaning as well as words, once the model is downloaded. */
   semantic_search: boolean;
+  /** Let AI assistants such as Claude read meetings through `quill-cli mcp`. Off unless turned on. */
+  assistant_access: boolean;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
   gpu: GpuChoice;
   dictation: DictationSettings;

@@ -61,6 +61,11 @@ pub struct Settings {
     /// Search by meaning as well as by words (`quill_core::semantic` and
     /// `quill_core::search`), once the search model is downloaded.
     pub semantic_search: bool,
+    /// Let AI assistants such as Claude read meetings, notes and action
+    /// items through `quill-cli mcp` (`quill_core::assistants`). Off unless
+    /// the user turns it on; checked on every request, so turning it off
+    /// takes effect at once.
+    pub assistant_access: bool,
     // Tables must come after plain values in TOML, so keep these last.
     /// Which graphics card transcribes, where there's a choice (Windows).
     pub gpu: GpuChoice,
@@ -191,6 +196,7 @@ impl Default for Settings {
             notify_notes_ready: true,
             recognize_voices: true,
             semantic_search: true,
+            assistant_access: false,
             gpu: GpuChoice::Automatic,
             dictation: DictationSettings::default(),
         }

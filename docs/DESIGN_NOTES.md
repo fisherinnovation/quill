@@ -1149,3 +1149,46 @@ the transcript-only search box on the Meetings page.
   CPU, against Whisper on Metal), real voices, v3 in other languages, a PC
   with no GPU at all. Worth deciding with those numbers: defaulting
   dictation to Parakeet when no GPU is found.
+
+## AI assistants (MCP)
+
+`quill-cli mcp` lets an AI assistant (Claude Desktop, Claude Code, any MCP
+client) read the meeting library, so it can answer questions from meeting
+notes. What it sees is decided in `quill_core::assistants`; the CLI's
+`mcp.rs` only maps that onto MCP tools with the official Rust SDK, `rmcp`.
+
+- **stdio, not a port.** The assistant starts `quill-cli mcp` and talks
+  over stdin/stdout. Nothing listens on the network, there's no token to
+  leak, and it works whether or not the app is running. A Streamable HTTP
+  server inside the app was the alternative. It would mean a port, a token,
+  checks against DNS rebinding, and it would only work while the app was
+  open. Shipping a server binary in the app bundle (a Tauri sidecar) is
+  left for later; for now it's the CLI.
+- **Off unless the user turns it on, in the app.** `assistant_access` is
+  switched in Settings → Meetings, not by the CLI. The app keeps settings
+  in memory and writes the whole file when anything changes, so a flag set
+  from the CLI would be turned off again by the app's next save. The
+  server re-reads `settings.toml` on every tool call, so turning it off
+  stops a connected assistant at once. With it off, `quill-cli mcp`
+  refuses to start.
+- **Read-only, meetings only.** Tools: `search`, `list_meetings`,
+  `get_meeting`, `action_items`, `daily_summary`. Dictations are left out,
+  even from search (`assistants::search` drops them from
+  `search_everything`'s results): they're often private messages typed into
+  other apps, not meeting content. Writes, such as ticking off an action
+  item, would need consent of their own.
+- **Notes first, transcripts in pages.** `get_meeting` returns the notes
+  and a line count. The transcript comes only when asked for, 300 lines at
+  a time (about 10k tokens), with where the next page starts. An hour's
+  transcript is 30–40k tokens, and the notes answer most questions.
+  Results are Markdown or JSON text rather than MCP structured content:
+  the library's types don't derive JSON Schema, and models read text well.
+- **Search by meaning, if it's ready.** The search model loads on the first
+  search, and only if search by meaning is on and the model is downloaded.
+  This never starts a download, and otherwise it searches by words. The
+  server never indexes; the app does that.
+- **Sharing the database with the app.** rusqlite sets a 5 s busy timeout
+  on every connection, and Quill's queries are short, so the two processes
+  share `quill.sqlite` in its rollback-journal mode without WAL.
+- **Logs.** The tool name, time taken and whether it worked are logged.
+  What was asked or returned never is.
