@@ -5,6 +5,7 @@
 //! Tauri app) call into this crate rather than into the pieces directly.
 
 pub mod action_items;
+pub mod assistants;
 pub mod calls;
 pub mod corrections;
 pub mod daily;

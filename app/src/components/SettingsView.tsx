@@ -263,6 +263,19 @@ export function SettingsView({
         </Row>
       </Group>
 
+      <Group title="AI assistants">
+        <Row
+          label="Let AI assistants read your meetings"
+          hint="An assistant such as Claude Desktop or Claude Code can search your meetings, read their notes and transcripts and see your action items, to answer what you ask it. What it reads is sent to that assistant's provider. Dictations are never shared. Assistants connect through quill-cli mcp (see Help). Turning this off stops them at once."
+        >
+          <Switch
+            label="Let AI assistants read your meetings"
+            checked={settings.assistant_access}
+            onChange={(assistant_access) => update({ assistant_access })}
+          />
+        </Row>
+      </Group>
+
         </>
       )}
 

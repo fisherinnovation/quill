@@ -13,6 +13,7 @@ mod import;
 mod keys;
 mod library;
 mod live_notes;
+mod mcp;
 mod mic_users;
 mod models;
 mod record;
@@ -82,6 +83,10 @@ enum Command {
     Voices(voices::Command),
     /// Search the meeting library by words and meaning, or measure search
     Search(search::Args),
+    /// Let AI assistants such as Claude read the meeting library: an MCP
+    /// server on stdin/stdout, for the assistant to start. Serves only while
+    /// Settings → Meetings → Let AI assistants read your meetings is on
+    Mcp,
 }
 
 // Returning `anyhow::Result` from `main` lets us use `?` on any error type;
@@ -114,6 +119,7 @@ fn main() -> anyhow::Result<()> {
         Command::Gpus => gpus::run(),
         Command::Voices(cmd) => voices::run(cmd, &models_dir),
         Command::Search(args) => search::run(args, &models_dir),
+        Command::Mcp => mcp::run(&models_dir),
     }
 }
 
