@@ -221,6 +221,9 @@ struct Listening {
     toggled: bool,
     /// The app in front when dictation started: where the text will go.
     app: Option<quill_insert::FrontApp>,
+    /// The kind of text box it'll go into, read off this thread since a
+    /// hung app can take a moment to answer.
+    field: std::thread::JoinHandle<Option<quill_insert::FieldKind>>,
 }
 
 impl Controller {
@@ -396,6 +399,7 @@ impl Controller {
             since,
             toggled: false,
             app: quill_insert::frontmost_app(),
+            field: std::thread::spawn(quill_insert::focused_field),
         });
         self.shared.listening.store(true, Ordering::SeqCst);
         // Esc cancels, but only while listening: a global Esc would steal it
@@ -472,9 +476,19 @@ impl Controller {
         let app = self.app.clone();
         let shared = Arc::clone(&self.shared);
         let target = listening.app;
+        // Long since answered, unless the app is hung (then a short timeout).
+        let field = listening
+            .field
+            .join()
+            .ok()
+            .flatten()
+            .map(|field| match field {
+                quill_insert::FieldKind::SingleLine => dictation::Field::SingleLine,
+                quill_insert::FieldKind::MultiLine => dictation::Field::MultiLine,
+            });
         tauri::async_runtime::spawn(async move {
             let stopped = Instant::now();
-            let result = process(&app, pcm, audio, stopped, target, live).await;
+            let result = process(&app, pcm, audio, stopped, target, field, live).await;
             shared.pending.fetch_sub(1, Ordering::SeqCst);
             if let Err(e) = result {
                 tracing::error!("dictation failed: {e}");
@@ -606,6 +620,7 @@ async fn process(
     audio: Duration,
     stopped: Instant,
     target: Option<quill_insert::FrontApp>,
+    field: Option<dictation::Field>,
     live: Option<LiveWorker>,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
@@ -683,7 +698,8 @@ async fn process(
             Err(e) => tracing::warn!("polish failed; typing the transcript: {e}"),
         }
     }
-    let text = dictation::apply_style(&text, style);
+    tracing::debug!(?style, ?field, "dictation destination");
+    let text = dictation::apply_style(&text, style, field);
 
     let (inserted, latency) = {
         let app = app.clone();

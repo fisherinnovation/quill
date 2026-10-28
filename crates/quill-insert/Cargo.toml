@@ -1,6 +1,6 @@
 [package]
 name = "quill-insert"
-description = "Types text into the focused app (clipboard + simulated paste), identifies that app, and watches the macOS fn key"
+description = "Types text into the focused app (clipboard + simulated paste), identifies that app and the kind of text box in focus, and watches the macOS fn key"
 version.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -22,11 +22,13 @@ objc2 = { workspace = true }
 # NSImage, NSBitmapImageRep and the CoreGraphics bridge are for app icons.
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSGraphicsContext", "objc2-core-graphics"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSData", "NSDictionary", "NSGeometry"] }
-# The fn key: a keyboard event tap on its own run loop.
-objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFMachPort", "CFRunLoop"] }
+# The fn key: a keyboard event tap on its own run loop. CFString is for
+# reading the focused text box's role.
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFMachPort", "CFRunLoop", "CFString"] }
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes", "CGImage"] }
 
 [target.'cfg(windows)'.dependencies]
-# Shell, GDI and COM are for app icons.
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Graphics_Gdi", "Win32_System_Com"] }
+# Shell, GDI and COM are for app icons; Accessibility (UI Automation) is for
+# the kind of text box in focus.
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Accessibility"] }
 png = { workspace = true }
