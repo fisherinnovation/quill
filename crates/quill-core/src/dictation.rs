@@ -245,10 +245,37 @@ pub fn built_in_style(app_id: &str) -> Style {
     }
 }
 
-/// Style rules that don't need a model: in casual apps, a one-sentence
-/// message loses its final period, the way people type in chat.
-pub fn apply_style(text: &str, style: Style) -> String {
-    if style == Style::Casual
+/// The kind of text box dictated into, when the app says
+/// (`quill_insert::focused_field`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Field {
+    /// A search box, address bar, form field or title.
+    SingleLine,
+    /// A message, document or email.
+    MultiLine,
+}
+
+/// When the field is unknown, text this short is more likely a search or a
+/// label than a sentence.
+pub const FRAGMENT_MAX_WORDS: usize = 4;
+
+/// Style rules that don't need a model. Whisper punctuates everything as a
+/// sentence ("Best pizza in Toronto."), so a one-sentence text loses its
+/// final period:
+/// - in a single-line field, whatever the app: searches, addresses, titles;
+/// - in casual apps, the way people type in chat;
+/// - in a field that can't be told, when it's at most
+///   [`FRAGMENT_MAX_WORDS`] words, unless the app is formal.
+pub fn apply_style(text: &str, style: Style, field: Option<Field>) -> String {
+    let drop_period = match field {
+        Some(Field::SingleLine) => true,
+        Some(Field::MultiLine) => style == Style::Casual,
+        None => {
+            style == Style::Casual
+                || (style != Style::Formal && word_count(text) <= FRAGMENT_MAX_WORDS)
+        }
+    };
+    if drop_period
         && !text.contains('\n')
         && text.ends_with('.')
         && !text.ends_with("..")
@@ -630,18 +657,74 @@ mod tests {
 
     #[test]
     fn casual_drops_the_period_of_a_one_line_message_only() {
+        let casual = |text| apply_style(text, Style::Casual, Some(Field::MultiLine));
         assert_eq!(
-            apply_style("Sounds good, see you then.", Style::Casual),
+            casual("Sounds good, see you then."),
             "Sounds good, see you then"
         );
+        assert_eq!(casual("Done. Shipping now."), "Done. Shipping now.");
+        assert_eq!(casual("Wait..."), "Wait...");
+        assert_eq!(casual("Really?"), "Really?");
+        assert_eq!(casual("List:\n- a."), "List:\n- a.");
         assert_eq!(
-            apply_style("Done. Shipping now.", Style::Casual),
+            apply_style("Sounds good.", Style::Formal, Some(Field::MultiLine)),
+            "Sounds good."
+        );
+    }
+
+    #[test]
+    fn single_line_fields_drop_the_period_in_any_app() {
+        let single = Some(Field::SingleLine);
+        for style in [Style::Default, Style::Formal, Style::Technical] {
+            assert_eq!(
+                apply_style("Best pizza in Toronto near the waterfront.", style, single),
+                "Best pizza in Toronto near the waterfront"
+            );
+        }
+        assert_eq!(
+            apply_style("What time is it in Tokyo?", Style::Default, single),
+            "What time is it in Tokyo?"
+        );
+        assert_eq!(
+            apply_style("Done. Shipping now.", Style::Default, single),
             "Done. Shipping now."
         );
-        assert_eq!(apply_style("Wait...", Style::Casual), "Wait...");
-        assert_eq!(apply_style("Really?", Style::Casual), "Really?");
-        assert_eq!(apply_style("List:\n- a.", Style::Casual), "List:\n- a.");
-        assert_eq!(apply_style("Sounds good.", Style::Formal), "Sounds good.");
+    }
+
+    #[test]
+    fn multi_line_fields_keep_sentences_outside_chat() {
+        let multi = Some(Field::MultiLine);
+        assert_eq!(apply_style("Thanks.", Style::Default, multi), "Thanks.");
+        assert_eq!(
+            apply_style("Pizza in Toronto.", Style::Technical, multi),
+            "Pizza in Toronto."
+        );
+    }
+
+    #[test]
+    fn an_unknown_field_drops_the_period_of_a_short_fragment() {
+        assert_eq!(
+            apply_style("Best pizza in Toronto.", Style::Default, None),
+            "Best pizza in Toronto"
+        );
+        assert_eq!(
+            apply_style("Git status.", Style::Technical, None),
+            "Git status"
+        );
+        // Longer is more likely a sentence; formal apps want sentences.
+        assert_eq!(
+            apply_style("Best pizza in downtown Toronto.", Style::Default, None),
+            "Best pizza in downtown Toronto."
+        );
+        assert_eq!(
+            apply_style("Sounds good.", Style::Formal, None),
+            "Sounds good."
+        );
+        // Chat drops it at any length, as before.
+        assert_eq!(
+            apply_style("Sounds good, see you then.", Style::Casual, None),
+            "Sounds good, see you then"
+        );
     }
 
     #[test]

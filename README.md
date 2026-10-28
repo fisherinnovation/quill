@@ -79,7 +79,7 @@ Quill is built so that the sensitive parts stay on your computer.
 | **Search** | Local. Search by meaning runs its model on your computer; transcripts, notes, dictations and what you search for are never sent anywhere. |
 | **Telemetry** | None. Quill makes no network requests other than the model calls above, downloading the speech and search models, and a daily check on GitHub for a new version (which can be turned off). |
 
-For dictation, Quill reads the *name* of the frontmost app (for per-app style and insights), never its windows or contents, and shows the installed app's icon beside your dictations. To offer to record calls (macOS), it checks twice a second which apps are using a microphone (their identifiers only), never their audio, windows or contents.
+For dictation, Quill reads the *name* of the frontmost app (for per-app style and insights) and whether the text box you're in is one line or several (to leave periods off searches), never its windows or contents, and shows the installed app's icon beside your dictations. To offer to record calls (macOS), it checks twice a second which apps are using a microphone (their identifiers only), never their audio, windows or contents.
 
 ## Platform support
 
@@ -231,7 +231,9 @@ Nothing is learned until you click **Add**, and learned rules can be removed und
 | Technical | VS Code, Cursor, Zed, Xcode, JetBrains IDEs, Terminal, iTerm, Warp, Ghostty | Code names, file names, commands and flags kept exactly as spoken. |
 | Default | Everything else | Your words, tidied up. |
 
-The Casual period rule is applied locally, with no model call. The other styles shape the clean-up step when it runs. A style never makes clean-up run more often, so it adds no delay.
+**Searches and other one-line boxes.** Whisper writes everything as a sentence, so "best pizza in Toronto" would come out as "Best pizza in Toronto." In a one-line text box (a search box, the address bar, a form field or a title), a single sentence loses its final period in any app; question marks stay. Quill asks the app what kind of box has focus when you start dictating: only its kind, never what's in it. When the app doesn't say (terminals, editors that draw their own text), four words or fewer lose the period, except in Formal apps.
+
+The period rules are applied locally, with no model call. The other styles shape the clean-up step when it runs. A style never makes clean-up run more often, so it adds no delay.
 
 ## Summary and clean-up models
 

@@ -130,6 +130,8 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
             style: dictation::style_for(id, &settings),
         });
         let style = destination.map_or(Style::Default, |d| d.style);
+        // Clips don't record the kind of text box they went into.
+        let field = None;
 
         let secs = pcm.len() as f64 / f64::from(STT_SAMPLE_RATE);
         let started = Instant::now();
@@ -147,7 +149,8 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
             println!("- (nothing to polish)");
             // What's typed is Whisper's text, for every model.
             if let Some(reference) = &reference {
-                let tally = wer::align(reference, &dictation::apply_style(&raw, style)).tally();
+                let tally =
+                    wer::align(reference, &dictation::apply_style(&raw, style, field)).tally();
                 for total in &mut typed_totals {
                     *total += tally;
                 }
@@ -166,7 +169,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
             // The app types the transcript when polishing fails.
             let typed = match result {
                 Ok(p) => {
-                    let text = dictation::apply_style(&p.text, style);
+                    let text = dictation::apply_style(&p.text, style, field);
                     let cost = p.cost_usd.map_or(String::new(), |c| format!(", ${c:.5}"));
                     let rejected = p
                         .rejected
@@ -180,7 +183,7 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
                 }
                 Err(e) => {
                     println!("- {model}: error: {e}");
-                    dictation::apply_style(&raw, style)
+                    dictation::apply_style(&raw, style, field)
                 }
             };
             if let Some(reference) = &reference {

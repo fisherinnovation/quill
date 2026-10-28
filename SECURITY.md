@@ -151,7 +151,13 @@ never transcripts, notes, dictated text or keys.
 | Accessibility (macOS) | Simulating ⌘V to paste dictated text. Without it, text is left on the clipboard. With fn as the dictation key, also watching for fn being pressed: Quill looks only at whether fn is down and whether another key was pressed with it, never at which keys or what's typed. |
 
 For dictation, Quill reads the frontmost app's identifier and name, never its
-windows or contents. To show apps' icons beside your dictations, it reads the
+windows or contents. When dictation starts, it also asks what kind of element
+has keyboard focus (macOS Accessibility; Windows UI Automation), to leave the
+final period off text going into a one-line box such as a search field. It
+reads only the element's role (a text field, a text area, a search box) and
+whether it's one line, never its text, and keeps nothing. Chromium-based apps
+(Chrome, Edge, Electron) turn on their accessibility support when asked, as
+they do for password managers and screen readers. To show apps' icons beside your dictations, it reads the
 icon of the installed app (on Windows, of the executable it saw in front, whose
 path is kept in memory only, never on disk). To offer to record calls (macOS, on by default, Settings →
 Meetings), it checks twice a second which apps are using a microphone: their

@@ -368,7 +368,7 @@ It runs only when there's something to fix, so plain sentences are typed straigh
       {
         id: "styles",
         title: "Styles per app",
-        keywords: "per-app style casual formal technical chat email code",
+        keywords: "per-app style casual formal technical chat email code search period punctuation",
         body: `Quill adjusts to the app you're typing into:
 
 | Style | Built in for | What it does |
@@ -378,7 +378,9 @@ It runs only when there's something to fix, so plain sentences are typed straigh
 | Technical | VS Code, Cursor, Zed, Xcode, JetBrains IDEs, Terminal, iTerm, Warp, Ghostty | Code names, file names, commands and flags kept exactly as spoken. |
 | Default | Everything else | Your words, tidied up. |
 
-Change any app's style in **Settings → Dictation → Style per app**; apps appear there once you've dictated into them. A style never adds delay.`,
+Change any app's style in **Settings → Dictation → Style per app**; apps appear there once you've dictated into them. A style never adds delay.
+
+In any app, a one-line text box (a search box, the address bar, a form field) gets no final period, so a search comes out as \`best pizza in Toronto\`, not a sentence. When the app doesn't say what kind of box it is, four words or fewer lose the period, except in Formal apps.`,
       },
       {
         id: "words",
@@ -529,7 +531,7 @@ Transcription and search already run locally. With both models in Ollama, Quill'
 
 Through OpenRouter, requests go only to providers that don't keep or train on your data. **Zero data retention only** (**Settings → General → OpenRouter**) is stricter and supported by fewer models. With Ollama, nothing leaves at all.
 
-For dictation, Quill reads the *name* of the app you're typing into (for its style and your top apps) and shows its icon, never its windows or contents.${isMac ? " To offer to record calls, it checks which apps are using a microphone, never their audio." : ""}`,
+For dictation, Quill reads the *name* of the app you're typing into (for its style and your top apps) and whether the text box is one line or several (to leave periods off searches), and shows its icon, never its windows or contents.${isMac ? " To offer to record calls, it checks which apps are using a microphone, never their audio." : ""}`,
       },
       {
         id: "data-location",

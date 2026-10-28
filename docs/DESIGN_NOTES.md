@@ -356,6 +356,30 @@ On the Meetings page, a day with two or more meetings that have notes gets
   windows or contents. The Casual rule (drop a one-sentence message's final
   period) is applied locally; the other styles go into the clean-up prompt
   and never make clean-up run more often.
+- **Searches and one-line boxes:** Whisper punctuates everything as a
+  sentence, and short dictations (under 6 words) skip clean-up, so a
+  spoken search was typed as "Best pizza in Toronto." The app is the wrong
+  signal (a browser holds both searches and emails); the focused text box
+  is the right one. When dictation starts, a thread asks for its kind
+  (`quill_insert::focused_field`): macOS Accessibility's role
+  (`AXTextField`, `AXSearchField`, `AXComboBox` → one line; `AXTextArea` →
+  several), Windows UI Automation's control type plus, for web pages,
+  Chromium's ARIA properties (`multiline=true|false`: UI Automation alone
+  reports `<input>` and `<textarea>` both as Edit) and, for classic Win32
+  edits, `ES_MULTILINE`. In a one-line box a single sentence loses its
+  final period in any style; unknown, it does when it's at most 4 words
+  (`FRAGMENT_MAX_WORDS`), unless the app is Formal. The capital stays:
+  searches ignore it, and lowercasing would need to spare names.
+  Measured on Windows 11 (2026-10-28), Chrome and Edge, local pages:
+  `type=search`, `<input>`, Google-style `<textarea role=combobox>` and the
+  address bar → one line; `<textarea>` and `contenteditable` → several;
+  Notepad and VS Code → several. 2–15 ms a question. Chromium builds its
+  accessibility tree on the first question and answers with the read-only
+  page until then, so an unknown answer is asked again after 300 ms; that
+  made every first question right. Each question times out at 250 ms (a
+  hung app would otherwise hold it for seconds, 6 s on macOS). The thread
+  is joined when dictation stops, long after it's answered, so it adds
+  nothing to time to insert.
 - **Learning from corrections:** `quill_core::corrections::learn` aligns
   the typed and corrected words (LCS) and suggests only safe kinds of fix:
   a term spelled differently → vocabulary; several words typed as one term
@@ -384,7 +408,8 @@ On the Meetings page, a day with two or more meetings that have notes gets
   now in `quill_core::wer` so the app can use it), and lists the
   commonest mistakes, the candidates for vocabulary and replacements.
 - **Planned:** opt-in learning by watching the inserted text through
-  Accessibility for about a minute. First check which apps expose it.
+  Accessibility for about a minute. First check which apps expose it
+  (`quill_insert::field` already reads the focused element's role).
 
 - **Sounds are synthesized**, not files (`quill_audio::cue`): each cue is a
   few notes with an attack, an exponential decay and a fade to zero at the
