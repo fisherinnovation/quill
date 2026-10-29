@@ -24,7 +24,7 @@ use quill_audio::live::{MicStream, MicTap};
 use quill_core::library::{DictationEntry, DictationStat, Suggestion, SuggestionStatus};
 use quill_core::live::{Caption, LiveTranscript};
 use quill_core::settings::Settings;
-use quill_core::settings::{DictationSettings, FN_HOTKEY, Style};
+use quill_core::settings::{DictationSettings, FN_HOTKEY, RIGHT_CTRL_HOTKEY, Style};
 use quill_core::{dictation, samples};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -47,10 +47,11 @@ const MAX_LISTEN: Duration = Duration::from_secs(5 * 60);
 const KEEP_WARM: Duration = Duration::from_secs(30);
 /// Clips shorter than this are accidental taps.
 const MIN_AUDIO: Duration = Duration::from_millis(400);
-/// fn waits this long before listening, so fn+Delete, fn+arrows and the
-/// like (a key within this time) don't start and cancel a dictation each
-/// time. The microphone's pre-roll covers the delay when it's warm.
-const FN_GRACE: Duration = Duration::from_millis(150);
+/// A key on its own (fn on macOS, right Ctrl on Windows) waits this long
+/// before listening, so fn+Delete, Ctrl+C and the like (a key within this
+/// time) don't start and cancel a dictation each time. The microphone's
+/// pre-roll covers the delay when it's warm.
+const KEY_GRACE: Duration = Duration::from_millis(150);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -71,17 +72,21 @@ enum Msg {
     Pressed,
     Released,
     Cancel,
-    /// The fn key (macOS), with its grace period: see [`FN_GRACE`]. Only
-    /// the macOS fn-key watcher sends these.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-    FnDown,
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-    FnUp,
-    /// A key pressed while fn was held: a shortcut, not dictation.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-    FnCombo,
+    /// A key on its own (fn on macOS, right Ctrl on Windows), with its grace
+    /// period: see [`KEY_GRACE`]. Only the key watchers send these.
+    #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+    KeyDown,
+    #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+    KeyUp,
+    /// Another key pressed while that key was held: a shortcut, not
+    /// dictation.
+    #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+    KeyCombo,
     /// (Re)register the hotkey from settings; replies with the outcome.
     Register(mpsc::Sender<Result<(), String>>),
+    /// Unbind the hotkey while a new one is being recorded; replies when
+    /// done.
+    Pause(mpsc::Sender<()>),
 }
 
 /// Handle kept in `AppState`.
@@ -134,6 +139,17 @@ impl Dictation {
         result
             .recv()
             .map_err(|_| "dictation isn't running".to_string())?
+    }
+
+    /// Unbinds the hotkey until the next [`Dictation::register`]. Blocks
+    /// until done, so don't call it on the main thread.
+    pub fn pause(&self) -> Result<(), String> {
+        let (reply, done) = mpsc::channel();
+        self.tx
+            .send(Msg::Pause(reply))
+            .map_err(|_| "dictation isn't running".to_string())?;
+        done.recv()
+            .map_err(|_| "dictation isn't running".to_string())
     }
 
     pub fn state(&self) -> DictationState {
@@ -201,18 +217,20 @@ fn escape() -> Shortcut {
 struct Controller {
     app: AppHandle,
     shared: Arc<Shared>,
-    /// For the fn-key watcher (macOS) to send to.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    /// For the key watchers (fn on macOS, right Ctrl on Windows) to send to.
+    #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
     tx: mpsc::Sender<Msg>,
     mic: Option<MicStream>,
     last_used: Instant,
     listening: Option<Listening>,
     /// Transcribing as the user speaks, for captions, while listening.
     live: Option<LiveWorker>,
-    /// When fn went down, while waiting out [`FN_GRACE`].
-    fn_pending: Option<Instant>,
+    /// When fn or right Ctrl went down, while waiting out [`KEY_GRACE`].
+    key_pending: Option<Instant>,
     #[cfg(target_os = "macos")]
     fn_key: Option<quill_insert::fn_key::FnKey>,
+    #[cfg(windows)]
+    right_ctrl: Option<quill_insert::right_ctrl::RightCtrl>,
 }
 
 struct Listening {
@@ -236,17 +254,19 @@ impl Controller {
             last_used: Instant::now(),
             listening: None,
             live: None,
-            fn_pending: None,
+            key_pending: None,
             #[cfg(target_os = "macos")]
             fn_key: None,
+            #[cfg(windows)]
+            right_ctrl: None,
         }
     }
 
     fn run(mut self, rx: &mpsc::Receiver<Msg>) {
         loop {
             // While listening, wake often to feed the indicator's meter (and
-            // while fn's grace period runs).
-            let tick = if self.listening.is_some() || self.fn_pending.is_some() {
+            // while a key's grace period runs).
+            let tick = if self.listening.is_some() || self.key_pending.is_some() {
                 Duration::from_millis(50)
             } else {
                 Duration::from_millis(250)
@@ -270,14 +290,14 @@ impl Controller {
                     }
                 }
                 Ok(Msg::Cancel) => self.cancel(),
-                Ok(Msg::FnDown) => match &self.listening {
+                Ok(Msg::KeyDown) => match &self.listening {
                     // A tap started it: this press stops it.
                     Some(l) if l.toggled => self.stop(),
                     Some(_) => {}
-                    None => self.fn_pending = Some(Instant::now()),
+                    None => self.key_pending = Some(Instant::now()),
                 },
-                Ok(Msg::FnUp) => {
-                    if let Some(since) = self.fn_pending.take() {
+                Ok(Msg::KeyUp) => {
+                    if let Some(since) = self.key_pending.take() {
                         // Released within the grace period: a tap, which
                         // starts hands-free listening.
                         self.start(since);
@@ -294,10 +314,10 @@ impl Controller {
                         }
                     }
                 }
-                Ok(Msg::FnCombo) => {
+                Ok(Msg::KeyCombo) => {
                     // Within the grace period nothing started; after it,
                     // drop the dictation this press began.
-                    if self.fn_pending.take().is_none()
+                    if self.key_pending.take().is_none()
                         && self.listening.as_ref().is_some_and(|l| !l.toggled)
                     {
                         self.cancel();
@@ -306,11 +326,15 @@ impl Controller {
                 Ok(Msg::Register(reply)) => {
                     let _ = reply.send(self.register());
                 }
-                Err(RecvTimeoutError::Timeout) if self.fn_pending.is_some() => {
-                    if let Some(since) = self.fn_pending
-                        && since.elapsed() >= FN_GRACE
+                Ok(Msg::Pause(reply)) => {
+                    self.unregister();
+                    let _ = reply.send(());
+                }
+                Err(RecvTimeoutError::Timeout) if self.key_pending.is_some() => {
+                    if let Some(since) = self.key_pending
+                        && since.elapsed() >= KEY_GRACE
                     {
-                        self.fn_pending = None;
+                        self.key_pending = None;
                         self.start(since);
                     }
                 }
@@ -329,21 +353,30 @@ impl Controller {
         }
     }
 
+    /// Unbinds the hotkey and stops the key watchers delivering.
+    fn unregister(&mut self) {
+        self.set_fn_key(false);
+        self.set_right_ctrl(false);
+        if let Some(old) = lock(&self.shared.hotkey).take() {
+            let _ = self.app.global_shortcut().unregister(old);
+        }
+    }
+
     fn register(&mut self) -> Result<(), String> {
         let settings = lock(&self.app.state::<AppState>().settings)
             .dictation
             .clone();
-        self.set_fn_key(false);
+        self.unregister();
         let shortcuts = self.app.global_shortcut();
-        if let Some(old) = lock(&self.shared.hotkey).take() {
-            let _ = shortcuts.unregister(old);
-        }
         if !settings.enabled {
             self.mic = None;
             return Ok(());
         }
         if settings.hotkey == FN_HOTKEY {
             return self.use_fn_key();
+        }
+        if settings.hotkey == RIGHT_CTRL_HOTKEY {
+            return self.use_right_ctrl();
         }
         let hotkey: Shortcut = settings
             .hotkey
@@ -418,9 +451,9 @@ impl Controller {
             let key = quill_insert::fn_key::FnKey::watch(move |event| {
                 use quill_insert::fn_key::FnEvent;
                 let _ = tx.send(match event {
-                    FnEvent::Down => Msg::FnDown,
-                    FnEvent::Up => Msg::FnUp,
-                    FnEvent::Combo => Msg::FnCombo,
+                    FnEvent::Down => Msg::KeyDown,
+                    FnEvent::Up => Msg::KeyUp,
+                    FnEvent::Combo => Msg::KeyCombo,
                 });
             })
             .map_err(|e| e.to_string())?;
@@ -441,10 +474,48 @@ impl Controller {
         if let Some(key) = &self.fn_key {
             key.set_active(on);
         }
-        self.fn_pending = None;
+        self.key_pending = None;
         self.shared
             .fn_watching
             .store(on && cfg!(target_os = "macos"), Ordering::SeqCst);
+    }
+
+    /// Watches right Ctrl (starting the watcher the first time).
+    #[cfg(windows)]
+    fn use_right_ctrl(&mut self) -> Result<(), String> {
+        match &self.right_ctrl {
+            Some(key) => key.set_active(true),
+            None => {
+                let tx = self.tx.clone();
+                let key = quill_insert::right_ctrl::RightCtrl::watch(move |event| {
+                    use quill_insert::right_ctrl::KeyEvent;
+                    let _ = tx.send(match event {
+                        KeyEvent::Down => Msg::KeyDown,
+                        KeyEvent::Up => Msg::KeyUp,
+                        KeyEvent::Combo => Msg::KeyCombo,
+                    });
+                })
+                .map_err(|e| e.to_string())?;
+                self.right_ctrl = Some(key);
+            }
+        }
+        tracing::info!("dictation uses the right Ctrl key");
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    fn use_right_ctrl(&mut self) -> Result<(), String> {
+        Err("right Ctrl on its own can only be the dictation shortcut on Windows".into())
+    }
+
+    fn set_right_ctrl(&mut self, on: bool) {
+        #[cfg(windows)]
+        if let Some(key) = &self.right_ctrl {
+            key.set_active(on);
+        }
+        #[cfg(not(windows))]
+        let _ = on;
+        self.key_pending = None;
     }
 
     fn stop(&mut self) {
@@ -868,6 +939,23 @@ pub async fn save_dictation_settings(
             return Err(e.into());
         }
         Ok(())
+    })
+    .await
+}
+
+/// Turns the dictation shortcut off while the user records a new one, so
+/// pressing the current one (or right Ctrl, if that's it) is recorded
+/// instead of starting a dictation; `paused: false` turns it back on.
+#[tauri::command]
+pub async fn pause_dictation_shortcut(app: AppHandle, paused: bool) -> CommandResult<()> {
+    blocking(move || {
+        let dictation = app.state::<Dictation>();
+        let done = if paused {
+            dictation.pause()
+        } else {
+            dictation.register()
+        };
+        done.map_err(CommandError::Other)
     })
     .await
 }

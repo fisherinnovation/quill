@@ -799,6 +799,8 @@ export const api = {
   dictationState: () => invoke<DictationState>("dictation_state"),
   /** Saves and rebinds the hotkey; rejects (keeping the old settings) if it can't be bound. */
   saveDictationSettings: (dictation: DictationSettings) => invoke<void>("save_dictation_settings", { dictation }),
+  /** Turns the dictation shortcut off while a new one is recorded (`true`), and back on. */
+  pauseDictationShortcut: (paused: boolean) => invoke<void>("pause_dictation_shortcut", { paused }),
   /** Plays a set of dictation sounds, start then stop. */
   previewDictationSound: (sound: Sounds) => invoke<void>("preview_dictation_sound", { sound }),
   /** Newest first: up to `limit` entries older than `before` (an id), or the newest. */
@@ -904,12 +906,28 @@ export const events = {
     listen<number>("dictation-level", (e) => cb(e.payload)),
 };
 
-/** "Alt+Space" → "⌥ Space" on macOS; unchanged elsewhere. */
 /** `DictationSettings.hotkey` for the fn (🌐) key on its own (macOS). */
 export const FN_HOTKEY = "Fn";
+/** `DictationSettings.hotkey` for the right Ctrl key on its own (Windows). */
+export const RIGHT_CTRL_HOTKEY = "RightCtrl";
 
+/**
+ * "Alt+Space" → "⌥ Space" on macOS, "Alt + Space" elsewhere. Names of more
+ * than one word keep a non-breaking space, so `Keys` shows them as one key.
+ */
 export function hotkeyLabel(hotkey: string): string {
-  if (!isMac) return hotkey.replace(/\+/g, " + ");
+  if (!isMac) {
+    const names: Record<string, string> = {
+      RightCtrl: "Right Ctrl",
+      ScrollLock: "Scroll Lock",
+      PageUp: "Page Up",
+      PageDown: "Page Down",
+    };
+    return hotkey
+      .split("+")
+      .map((part) => names[part] ?? part)
+      .join(" + ");
+  }
   const symbols: Record<string, string> = {
     alt: "⌥",
     option: "⌥",

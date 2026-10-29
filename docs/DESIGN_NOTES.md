@@ -333,6 +333,19 @@ On the Meetings page, a day with two or more meetings that have notes gets
   shortcut blocks on the main thread, so it's only done from the dictation
   controller's thread. The paste keystroke must run on the main thread on
   macOS 26 (`on_main_thread`), or the app crashes.
+- **One key on its own** (Windows): Alt+Space typed a space whenever Space
+  landed a moment before Alt, so a key that types nothing is better.
+  `RegisterHotKey` takes F1–F24, Insert, Pause and Scroll Lock with no
+  modifier, so the recorder accepts those alone. It can't take a modifier
+  alone, so right Ctrl is watched with a low-level keyboard hook
+  (`quill_insert::right_ctrl`), which feeds the same down / up / combo
+  messages and 150 ms grace as fn on macOS: Ctrl+C within the grace never
+  starts a dictation. The hook skips simulated keys, so Quill's own Ctrl+V
+  can't trigger it. Left Ctrl, Alt and Shift aren't offered: they start
+  most shortcuts, and Alt released alone opens apps' menus. While the recorder waits for keys the
+  shortcut is unbound (`pause_dictation_shortcut`): otherwise pressing the
+  current one started a dictation instead of being recorded, and the
+  recorder looked broken.
 - **Warm mic:** the mic stays open for 30 s after each dictation, with a
   300 ms pre-roll, so back-to-back dictations start instantly. macOS shows
   the orange mic indicator meanwhile.
