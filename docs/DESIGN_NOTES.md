@@ -393,6 +393,17 @@ On the Meetings page, a day with two or more meetings that have notes gets
   hung app would otherwise hold it for seconds, 6 s on macOS). The thread
   is joined when dictation stops, long after it's answered, so it adds
   nothing to time to insert.
+- **Dictating in pieces:** a paragraph dictated a sentence at a time came
+  out as "…was done.Then…": Whisper's text ends at the period. Text that
+  ends a sentence (`.`, `?`, `!`, `…`, before any closing quote or
+  bracket) is typed with a trailing space (`dictation::spaced`), except in
+  a one-line box, where it's usually the whole text. A leading space on
+  the next dictation would match what's there only if Quill knew the
+  character before the cursor, which means reading the box's text, and
+  the cursor may have moved to a new line since; a trailing space at the
+  end of a paragraph or message is invisible, and chat apps trim it.
+  History and samples keep the text without it. Chinese and Japanese full
+  stops (。) get none.
 - **Learning from corrections:** `quill_core::corrections::learn` aligns
   the typed and corrected words (LCS) and suggests only safe kinds of fix:
   a term spelled differently → vocabulary; several words typed as one term
