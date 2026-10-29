@@ -159,7 +159,7 @@ fn show(app: &AppHandle, prompt: Prompt) {
     let state = app.state::<CallPrompt>();
     *lock(&state.shown) = Some(prompt.clone());
     let _ = app.emit_to(LABEL, EVENT, Some(prompt));
-    crate::floating::show(&window, (WIDTH, HEIGHT), Place::BottomCentre);
+    crate::floating::show(&window, (WIDTH, HEIGHT), Place::BottomCentre, None);
 }
 
 fn hide(app: &AppHandle) {

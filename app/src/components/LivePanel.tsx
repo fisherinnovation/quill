@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import {
   api,
   clock,
@@ -31,12 +31,74 @@ const EMPTY: LiveState = {
   wrapping: null,
 };
 
+/** A press that moves this far (CSS pixels) is a drag, not a click. */
+const DRAG_AFTER = 4;
+
+/**
+ * Drags the window by an element (the header, the tab, the card): the
+ * window follows the pointer and goes there from now on. A press that
+ * doesn't move is still a click, so buttons inside work; double-clicking
+ * outside them puts the panel and the tab back at the right edge.
+ */
+function useWindowDrag() {
+  const drag = useRef<{ x: number; y: number; dx: number; dy: number; moved: boolean; frame: number } | null>(null);
+  // The click that ends a drag isn't one.
+  const dragged = useRef(false);
+
+  function end() {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.moved) return;
+    cancelAnimationFrame(d.frame);
+    void api.liveNotesDrag(d.dx, d.dy);
+    void api.liveNotesDragEnd();
+    dragged.current = true;
+  }
+
+  return {
+    onPointerDown(e: PointerEvent<HTMLElement>) {
+      if (e.button !== 0) return;
+      drag.current = { x: e.screenX, y: e.screenY, dx: 0, dy: 0, moved: false, frame: 0 };
+    },
+    onPointerMove(e: PointerEvent<HTMLElement>) {
+      const d = drag.current;
+      if (!d) return;
+      d.dx = e.screenX - d.x;
+      d.dy = e.screenY - d.y;
+      if (!d.moved) {
+        if (Math.hypot(d.dx, d.dy) < DRAG_AFTER) return;
+        d.moved = true;
+        // Only now: capturing on the press would take clicks from buttons.
+        e.currentTarget.setPointerCapture(e.pointerId);
+        void api.liveNotesDragStart();
+      }
+      // One move a frame: the window moves in Rust.
+      d.frame ||= requestAnimationFrame(() => {
+        d.frame = 0;
+        void api.liveNotesDrag(d.dx, d.dy);
+      });
+    },
+    onPointerUp: end,
+    onPointerCancel: end,
+    onClickCapture(e: MouseEvent<HTMLElement>) {
+      if (!dragged.current) return;
+      dragged.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    onDoubleClick(e: MouseEvent<HTMLElement>) {
+      if (!(e.target as Element).closest("button, a")) void api.liveNotesResetPlace();
+    },
+  };
+}
+
 /**
  * Live notes during a recording (its own window at the right edge of the
  * screen, hidden from screen sharing; see src-tauri/src/live_notes.rs):
  * what to ask before the end, follow-ups and decisions, updated every
  * minute, with the recording's timer and Pause and Stop. Collapses to a
- * tab showing how many questions are open.
+ * tab showing how many questions are open. Dragged by its header, the
+ * tab or the card, it stays where it's put.
  */
 export function LivePanel() {
   const [state, setState] = useState<LiveState>(EMPTY);
@@ -55,6 +117,7 @@ export function LivePanel() {
   const anchor = useRef<{ at: number; ms: number } | null>(null);
   // Items already shown don't animate in again.
   const seen = useRef(new Set<string>());
+  const dragHandle = useWindowDrag();
 
   useEffect(() => {
     document.documentElement.classList.add("live-window");
@@ -100,6 +163,7 @@ export function LivePanel() {
     return (
       <button
         className="live-tab"
+        {...dragHandle}
         onClick={() => void api.liveNotesCollapse(false)}
         title="Show live notes"
       >
@@ -121,7 +185,7 @@ export function LivePanel() {
   return (
     <div className="live-stage">
       <section className="live-panel" aria-label="Live notes">
-        <header className="live-head">
+        <header className="live-head" {...dragHandle}>
           {recording.paused ? (
             <Icon name="pause" size={12} />
           ) : (
@@ -249,6 +313,7 @@ function WrapUp({ wrapping }: { wrapping: NonNullable<LiveState["wrapping"]> }) 
   const [progress, setProgress] = useState<Progress | null>(null);
   const [pointed, setPointed] = useState(false);
   const card = useRef<HTMLDivElement>(null);
+  const dragHandle = useWindowDrag();
 
   useEffect(() => {
     const unlisten = events.onProgress((p) => {
@@ -292,7 +357,7 @@ function WrapUp({ wrapping }: { wrapping: NonNullable<LiveState["wrapping"]> }) 
   const open = () => void api.liveNotesOpenMeeting();
   return (
     <div className="live-stage wrapup-stage" onMouseEnter={() => setPointed(true)} onMouseLeave={() => setPointed(false)}>
-      <div ref={card}>
+      <div ref={card} className="live-drag" {...dragHandle}>
         <WriteUpCard
           compact
           title={wrapping.title}

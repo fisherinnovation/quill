@@ -830,6 +830,10 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     void emit("live-notes", live);
   },
   live_notes_fit: () => {},
+  live_notes_drag_start: () => {},
+  live_notes_drag: () => {},
+  live_notes_drag_end: () => {},
+  live_notes_reset_place: () => {},
   live_notes_close: () => {
     live = { ...live, wrapping: null };
     void emit("live-notes", live);

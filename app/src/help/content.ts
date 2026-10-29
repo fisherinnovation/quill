@@ -141,7 +141,7 @@ Clicking the prompt doesn't pull you out of your call. Unanswered, it goes away 
       {
         id: "live-notes",
         title: "Live notes during a meeting",
-        keywords: "live panel side panel realtime real-time notes questions follow-ups decisions",
+        keywords: "live panel side panel realtime real-time notes questions follow-ups decisions move drag position",
         body: `While you record, a panel at the right edge of your screen keeps notes as the meeting goes:
 
 - **Ask before the end**: questions left open, and decisions without an owner or a date.
@@ -154,6 +154,7 @@ A line at the top says where the conversation is. Every minute Quill updates the
 - **Update now** refreshes the notes straight away.
 - **Collapse** the panel to a small tab on the screen edge; the tab shows how many questions are still open.
 - **Pause** and **Stop** are in its header. Stop asks once, so a stray click doesn't end your meeting.
+- **Drag** the panel by its header to move it out of the way, say off the camera views of your call. The tab and the card after the recording can be dragged too. Each stays where you put it for later meetings; double-click the header to put the panel and the tab back at the right edge.
 
 The panel is hidden from screen sharing and recordings, so others on the call don't see it, and clicking it doesn't bring Quill's window over your call.
 

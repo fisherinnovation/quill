@@ -76,7 +76,29 @@ pub struct Settings {
     // Tables must come after plain values in TOML, so keep these last.
     /// Which graphics card transcribes, where there's a choice (Windows).
     pub gpu: GpuChoice,
+    /// Where the user dragged the live notes panel and its tab to.
+    pub live_notes_place: LiveNotesPlace,
     pub dictation: DictationSettings,
+}
+
+/// A floating window's top-left corner, in the desktop's own coordinates:
+/// points up from the bottom of the main screen on macOS, pixels down from
+/// the top of the main screen on Windows.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Spot {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Where the live notes panel goes, once the user has dragged it: `None`
+/// is its usual place at the right edge. The card that follows the
+/// write-up takes the panel's place.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LiveNotesPlace {
+    pub panel: Option<Spot>,
+    /// The tab it collapses to.
+    pub tab: Option<Spot>,
 }
 
 /// The app's colours.
@@ -211,6 +233,7 @@ impl Default for Settings {
             assistant_access: false,
             assistant_port: DEFAULT_ASSISTANT_PORT,
             gpu: GpuChoice::Automatic,
+            live_notes_place: LiveNotesPlace::default(),
             dictation: DictationSettings::default(),
         }
     }
@@ -277,6 +300,10 @@ mod tests {
             recordings_dir: Some("/Volumes/Archive/Quill".into()),
             theme: Theme::Dark,
             gpu: GpuChoice::Named("NVIDIA GeForce RTX 4070".into()),
+            live_notes_place: LiveNotesPlace {
+                panel: Some(Spot { x: 40.0, y: 1080.5 }),
+                tab: None,
+            },
             dictation: DictationSettings {
                 stt_model: Some("parakeet-v2".into()),
                 sound: Sounds::Marimba,
