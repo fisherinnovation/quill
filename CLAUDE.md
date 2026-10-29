@@ -74,7 +74,7 @@ results.
 | `crates/quill-mcp` | Lets AI assistants read the library over MCP: tools over `quill_core::assistants`, served on localhost HTTP (the app) or stdio (`quill-cli mcp`), and the access token |
 | `crates/quill-llm` | OpenRouter and Ollama behind `LlmProvider`, keychain, versioned prompts |
 | `crates/quill-core` | Meeting pipeline (`meeting`, `speakers`), summaries, daily summaries (`daily`), action items read from notes (`action_items`), dictation pipeline, SQLite library and migrations, settings, insights, per-meeting and per-dictation stats (`stats`), search by meaning (`semantic`) and across everything (`search`), what AI assistants may read (`assistants`) |
-| `crates/quill-insert` | Pasting into the focused app, the frontmost app, the kind of text box in focus (`field`), and the macOS fn-key watcher (`fn_key`) |
+| `crates/quill-insert` | Pasting into the focused app, the frontmost app, the kind of text box in focus (`field`), the macOS fn-key watcher (`fn_key`) and the Windows right-Ctrl one (`right_ctrl`) |
 | `crates/quill-eval`, `crates/quill-cli` | Summary-model evaluation; the CLI over everything |
 | `app/src-tauri` | Tauri shell: commands, pipeline orchestration, dictation controller, models, storage, tray, indicator window, updates |
 | `app/src` | React UI. `api.ts` holds every command and event type. `dev/mock.ts` is the browser mock |

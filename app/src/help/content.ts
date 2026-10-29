@@ -332,7 +332,7 @@ Quill types by pasting. Whatever was on your clipboard is put back afterwards, a
 
 A short sound plays as Quill starts and stops listening, and another if it cancels. Pick a different one (Classic, Soft, Bubble, Wood, Glass, Marimba, Chirp or Digital), or none, under **Settings → Dictation → Sound**; choosing one plays it.
 
-Change the shortcut in **Settings → Dictation → Shortcut**.${isMac ? " You can also use the fn key on its own; see [Dictating with fn](#fn-key)." : ""}`,
+Change the shortcut in **Settings → Dictation → Shortcut**.${isMac ? " You can also use the fn key on its own; see [Dictating with fn](#fn-key)." : " You can also use a single key; see [Dictating with one key](#one-key)."}`,
       },
       {
         id: "fn-key",
@@ -342,6 +342,15 @@ Change the shortcut in **Settings → Dictation → Shortcut**.${isMac ? " You c
         body: `Choose **fn** under **Settings → Dictation → Shortcut** to dictate by holding \`key:fn\` (🌐) on its own. fn with another key (fn+Delete, fn+arrows, fn+F-keys) keeps working as usual. It needs the same Accessibility permission as typing.
 
 If pressing fn also opens the emoji picker or switches keyboard input source, set macOS's **Press 🌐 key to** to **Do Nothing**. The Dictations page links to that setting.`,
+      },
+      {
+        id: "one-key",
+        title: "Dictating with one key",
+        keywords: "single key right ctrl control f key insert pause scroll lock hotkey",
+        only: "windows",
+        body: `Click the shortcut under **Settings → Dictation → Shortcut** and press a key that doesn't type text: \`key:Right Ctrl\`, an F key, \`key:Insert\`, \`key:Pause\` or \`key:Scroll Lock\`. Then dictate by holding just that key. Right Ctrl with another key (Ctrl+C and the like) keeps working as usual.
+
+Any other key needs \`key:Ctrl\`, \`key:Alt\` or \`key:Shift\` with it, so it doesn't fire while you type. While you choose, the current shortcut is off, so you can press it again to keep it.`,
       },
       {
         id: "captions",

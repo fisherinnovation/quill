@@ -94,13 +94,18 @@ pub enum Theme {
 /// (macOS only).
 pub const FN_HOTKEY: &str = "Fn";
 
+/// `DictationSettings::hotkey` value meaning the right Ctrl key on its own
+/// (Windows only).
+pub const RIGHT_CTRL_HOTKEY: &str = "RightCtrl";
+
 /// Global-hotkey dictation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DictationSettings {
     pub enabled: bool,
-    /// Global shortcut, e.g. "Alt+Space", or [`FN_HOTKEY`] for the fn key on
-    /// macOS. Hold it to talk, or tap it to start and tap again to stop.
+    /// Global shortcut, e.g. "Alt+Space" or "F9", [`FN_HOTKEY`] for the fn
+    /// key on macOS, or [`RIGHT_CTRL_HOTKEY`] for right Ctrl on Windows.
+    /// Hold it to talk, or tap it to start and tap again to stop.
     pub hotkey: String,
     /// Spoken language: a code like "en", "auto" to detect it each time
     /// (adds ~0.5 s), or `None` for the system language.

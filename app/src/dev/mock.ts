@@ -932,6 +932,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   action_items: () => actionItems,
   // The sounds are made by the app itself; a browser has nothing to play.
   preview_dictation_sound: () => undefined,
+  pause_dictation_shortcut: () => undefined,
   set_action_item_done: ({ id, done }) => {
     actionItems = actionItems.map((i) => (i.id === id ? { ...i, done_at: done ? new Date().toISOString() : null } : i));
     return actionItems.find((i) => i.id === id);

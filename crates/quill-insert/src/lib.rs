@@ -20,6 +20,8 @@ mod field;
 #[cfg(target_os = "macos")]
 pub mod fn_key;
 pub mod icon;
+#[cfg(windows)]
+pub mod right_ctrl;
 
 pub use app::{FrontApp, frontmost_app};
 pub use field::{FieldKind, focused_field};

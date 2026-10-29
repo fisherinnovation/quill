@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   api,
   events,
@@ -7,6 +7,7 @@ import {
   FN_HOTKEY,
   hotkeyLabel,
   isMac,
+  RIGHT_CTRL_HOTKEY,
   type AppStyleInfo,
   type DictationSettings,
   type Style,
@@ -86,7 +87,11 @@ export function DictationSettingsTab({
           hint={
             settings.hotkey === FN_HOTKEY
               ? "Hold fn while you speak, or tap it to start and tap again to stop. fn with another key still works as usual."
-              : "Hold it while you speak, or tap it to start and tap again to stop."
+              : settings.hotkey === RIGHT_CTRL_HOTKEY
+                ? "Hold right Ctrl while you speak, or tap it to start and tap again to stop. Ctrl with another key still works as usual."
+                : isMac
+                  ? "Hold it while you speak, or tap it to start and tap again to stop."
+                  : "Hold it while you speak, or tap it to start and tap again to stop. Right Ctrl, an F key, Insert, Pause or Scroll Lock work on their own."
           }
         >
           {isMac ? (
@@ -565,7 +570,11 @@ function GlobeKeyHint() {
   );
 }
 
-/** Click, then press the new shortcut. Esc cancels. */
+/**
+ * Click, then press the new shortcut. Esc cancels. A key that doesn't type
+ * text works on its own: F1–F24 anywhere, and on Windows right Ctrl,
+ * Insert, Pause and Scroll Lock too. Anything else needs a modifier.
+ */
 function HotkeyInput({
   value,
   onChange,
@@ -579,6 +588,30 @@ function HotkeyInput({
   onStart?: () => void;
 }) {
   const [capturing, setCapturing] = useState(false);
+  // Why the last key pressed wasn't taken, shown until the next one.
+  const [refused, setRefused] = useState<string | null>(null);
+  // Right Ctrl is down with nothing else yet: let go like that, it's the
+  // shortcut on its own (Windows).
+  const rightCtrlAlone = useRef(false);
+
+  // The current shortcut would start a dictation instead of being recorded.
+  useEffect(() => {
+    if (!capturing) return;
+    void api.pauseDictationShortcut(true);
+    return () => void api.pauseDictationShortcut(false);
+  }, [capturing]);
+
+  function start() {
+    onStart?.();
+    setRefused(null);
+    rightCtrlAlone.current = false;
+    setCapturing(true);
+  }
+
+  function take(hotkey: string) {
+    onChange(hotkey);
+    setCapturing(false);
+  }
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (!capturing) return;
@@ -587,15 +620,26 @@ function HotkeyInput({
       setCapturing(false);
       return;
     }
+    rightCtrlAlone.current = !isMac && e.code === "ControlRight" && !e.altKey && !e.shiftKey && !e.metaKey;
+    if (MODIFIERS.test(e.code)) return; // wait for the main key
     const key = keyName(e.code);
-    if (!key) return; // a modifier on its own: wait for the main key
+    if (!key) {
+      setRefused("Quill can't use that key");
+      return;
+    }
     const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(
       Boolean,
     );
-    // Plain keys would fire while typing; require a modifier unless it's F1–F24.
-    if (mods.length === 0 && !/^F\d+$/.test(key)) return;
-    onChange([...mods, key].join("+"));
-    setCapturing(false);
+    // Keys that type text would fire while typing.
+    if (mods.length === 0 && !worksAlone(key)) {
+      setRefused(`Add Ctrl, Alt or Shift to ${hotkeyLabel(key)}`);
+      return;
+    }
+    take([...mods, key].join("+"));
+  }
+
+  function onKeyUp(e: KeyboardEvent<HTMLButtonElement>) {
+    if (capturing && e.code === "ControlRight" && rightCtrlAlone.current) take(RIGHT_CTRL_HOTKEY);
   }
 
   return (
@@ -604,16 +648,22 @@ function HotkeyInput({
       className={`hotkey${capturing ? " capturing" : ""}${selected ? " selected" : ""}`}
       aria-pressed={selected}
       title={capturing ? undefined : `${hotkeyLabel(value)}: click to change`}
-      onClick={() => {
-        onStart?.();
-        setCapturing(true);
-      }}
+      onClick={start}
       onBlur={() => setCapturing(false)}
       onKeyDown={onKeyDown}
+      onKeyUp={onKeyUp}
     >
-      {capturing ? "Press a shortcut…" : <Keys hotkey={value} />}
+      {capturing ? (refused ?? "Press a shortcut…") : <Keys hotkey={value} />}
     </button>
   );
+}
+
+/** KeyboardEvent.code values for modifier keys. */
+const MODIFIERS = /^(Control|Alt|Shift|Meta|OS)(Left|Right)$/;
+
+/** Keys that don't type text, so they can be the shortcut with no modifier. */
+function worksAlone(key: string): boolean {
+  return /^F\d+$/.test(key) || (!isMac && ["Insert", "Pause", "ScrollLock"].includes(key));
 }
 
 /** KeyboardEvent.code → the key name the global-shortcut parser expects. */
@@ -625,6 +675,7 @@ function keyName(code: string): string | null {
     "Space",
     "Enter",
     "Tab",
+    "Backspace",
     "Backquote",
     "Minus",
     "Equal",
@@ -640,6 +691,14 @@ function keyName(code: string): string | null {
     "ArrowDown",
     "ArrowLeft",
     "ArrowRight",
+    "Insert",
+    "Delete",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+    "Pause",
+    "ScrollLock",
   ];
   return named.includes(code) ? code : null;
 }

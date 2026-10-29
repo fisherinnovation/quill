@@ -88,7 +88,7 @@ For dictation, Quill reads the *name* of the frontmost app (for per-app style an
 | Minimum OS | macOS 14.6 (system-audio capture uses Core Audio process taps) | Windows 10 / 11 |
 | Transcription | Metal GPU on Apple Silicon | Vulkan GPU (Nvidia, AMD, Intel), or the CPU without one; CUDA in the CLI with a build flag |
 | Meeting notes | ✅ | ✅ |
-| Dictation | ✅ (<kbd>fn</kbd> key or a shortcut) | ✅ (a shortcut) |
+| Dictation | ✅ (<kbd>fn</kbd> key or a shortcut) | ✅ (right <kbd>Ctrl</kbd> or a shortcut) |
 | Installers | `.dmg`, Apple Silicon, not yet notarized | `.exe` / `.msi`, not yet signed |
 
 Apple Silicon is strongly recommended on macOS: Whisper runs several times faster on its GPU. Linux isn't supported.
@@ -204,6 +204,8 @@ Put your cursor in any text field, then:
 - **Tap** it, speak, and tap again.
 
 On macOS you can use <kbd>fn</kbd> (🌐) on its own instead: choose **fn** under **Settings → Dictation → Shortcut**. fn with another key (fn+Delete, fn+arrows, fn+F-keys) keeps working as usual. If macOS's own **Press 🌐 key to** setting isn't **Do Nothing**, pressing fn also opens the emoji picker or switches the input source; the Dictation page links to that setting. Using fn needs the same Accessibility permission as pasting.
+
+On Windows you can use a key that doesn't type text on its own: <kbd>Right Ctrl</kbd>, an F key, <kbd>Insert</kbd>, <kbd>Pause</kbd> or <kbd>Scroll Lock</kbd>. Click the shortcut under **Settings → Dictation → Shortcut** and press it. Right Ctrl with another key (Ctrl+C and the like) keeps working as usual. Any other key needs Ctrl, Alt or Shift with it. While you're choosing, the current shortcut is off, so pressing it records it instead of starting a dictation.
 
 Press <kbd>Esc</kbd> to cancel. A pill near the bottom of the screen shows the mic level while listening and "Typing…" while processing.
 
@@ -341,7 +343,7 @@ The Rust workspace is split so that the app and the CLI are thin layers over lib
 | [`quill-llm`](crates/quill-llm) | LLM providers behind an `LlmProvider` trait (OpenRouter, Ollama), keychain access, versioned prompt templates. |
 | [`quill-diarize`](crates/quill-diarize) | Telling speakers apart: sherpa-onnx segmentation and voice embeddings, Quill's own clustering, DER scoring. |
 | [`quill-core`](crates/quill-core) | Meeting pipeline, track merging, speaker labelling, summaries, the dictation pipeline, the SQLite library, settings, insights. |
-| [`quill-insert`](crates/quill-insert) | Typing text into the focused app (clipboard + simulated paste), identifying that app, and watching the fn key on macOS. |
+| [`quill-insert`](crates/quill-insert) | Typing text into the focused app (clipboard + simulated paste), identifying that app, and watching the fn key on macOS and right Ctrl on Windows. |
 | [`quill-embed`](crates/quill-embed) | Text embeddings for search by meaning behind an `Embedder` trait: multilingual-e5-small run with [candle](https://github.com/huggingface/candle) on the CPU. |
 | [`quill-eval`](crates/quill-eval) | The evaluation harness for summary models. |
 | [`quill-cli`](crates/quill-cli) | The `quill-cli` command-line tool. |
