@@ -2692,6 +2692,16 @@ html.live-window #root {
   font-size: 13px;
 }
 
+/* What the window is dragged by (useWindowDrag): the header, the tab and
+   the wrap-up card. */
+.live-head,
+.live-tab,
+.live-drag {
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .live-clock {
   font-variant-numeric: tabular-nums;
 }

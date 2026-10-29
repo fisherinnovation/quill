@@ -14,7 +14,11 @@
 //! in Quill's indicator instead, often enough to notice. So on Windows
 //! these windows, and the indicator, are shown and hidden without
 //! activating them ([`show_unfocused`]).
+//!
+//! They're dragged by the page, not the OS ([`drag_start`]): on macOS the
+//! window Tauri would drag is the hidden one, not the panel.
 
+pub use quill_core::settings::Spot;
 use tauri::WebviewWindow;
 
 /// Where a floating window goes, on the screen the mouse is on.
@@ -31,12 +35,55 @@ pub enum Place {
 /// Gap from the screen's usable edges.
 const MARGIN: f64 = 12.0;
 
-/// Shows `window` at `size` (logical points) in `place`.
-pub fn show(window: &WebviewWindow, size: (f64, f64), place: Place) {
+/// Shows `window` at `size` (logical points): with its top-left corner at
+/// `spot`, where the user dragged it, if that's still on a screen (moved
+/// in to fit on it), else in `place` on the screen the mouse is on.
+pub fn show(window: &WebviewWindow, size: (f64, f64), place: Place, spot: Option<Spot>) {
     #[cfg(target_os = "macos")]
-    mac::show(window, size, place);
+    mac::show(window, size, place, spot);
     #[cfg(not(target_os = "macos"))]
-    other::show(window, size, place);
+    other::show(window, size, place, spot);
+}
+
+/// Resizes a window that's showing, keeping its top-left corner where it is.
+pub fn resize(window: &WebviewWindow, size: (f64, f64)) {
+    #[cfg(target_os = "macos")]
+    mac::resize(window, size);
+    #[cfg(not(target_os = "macos"))]
+    other::resize(window, size);
+}
+
+/// The pointer went down on the window's drag handle.
+pub fn drag_start(window: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    mac::drag_start(window);
+    #[cfg(not(target_os = "macos"))]
+    other::drag_start(window);
+}
+
+/// The pointer has moved `(dx, dy)` logical points (y down) since
+/// [`drag_start`]: the window follows it.
+pub fn drag_by(window: &WebviewWindow, (dx, dy): (f64, f64)) {
+    #[cfg(target_os = "macos")]
+    mac::drag_by(window, (dx, dy));
+    #[cfg(not(target_os = "macos"))]
+    other::drag_by(window, (dx, dy));
+}
+
+/// The pointer went up: `done` gets where the window's top-left corner
+/// ended up, on the main thread on macOS.
+pub fn drag_end(window: &WebviewWindow, done: impl FnOnce(Spot) + Send + 'static) {
+    #[cfg(target_os = "macos")]
+    mac::drag_end(window, done);
+    #[cfg(not(target_os = "macos"))]
+    other::drag_end(window, done);
+}
+
+/// Where a span of `len` starting at `start` goes to fit in the area's
+/// span (`area_start`, `area_len`): moved in as little as it can be, and
+/// to the area's start if it can't fit.
+fn fit(start: f64, len: f64, (area_start, area_len): (f64, f64)) -> f64 {
+    start.min(area_start + area_len - len).max(area_start)
 }
 
 pub fn hide(window: &WebviewWindow) {
@@ -114,11 +161,29 @@ mod mac {
     use objc2_foundation::{NSPoint, NSRect, NSSize};
     use tauri::WebviewWindow;
 
-    use super::{MARGIN, Place};
+    use super::{MARGIN, Place, Spot, fit};
 
-    // AppKit objects live on the main thread, so the panels do too.
+    // AppKit objects live on the main thread, so the panels do too, and
+    // where each was when a drag started (its top-left corner).
     thread_local! {
         static PANELS: RefCell<HashMap<String, Retained<NSPanel>>> = RefCell::new(HashMap::new());
+        static DRAGS: RefCell<HashMap<String, NSPoint>> = RefCell::new(HashMap::new());
+    }
+
+    /// Runs `f` on the main thread with `window`'s panel, if it has one.
+    fn with_panel(window: &WebviewWindow, f: impl FnOnce(&NSPanel, &str) + Send + 'static) {
+        let label = window.label().to_string();
+        let _ = window.run_on_main_thread(move || {
+            PANELS.with(|panels| {
+                if let Some(panel) = panels.borrow().get(&label) {
+                    f(panel, &label);
+                }
+            });
+        });
+    }
+
+    fn top_left(frame: NSRect) -> NSPoint {
+        NSPoint::new(frame.origin.x, frame.origin.y + frame.size.height)
     }
 
     pub fn adopt(window: &WebviewWindow, private: bool) {
@@ -176,80 +241,173 @@ mod mac {
         }
     }
 
-    pub fn show(window: &WebviewWindow, (width, height): (f64, f64), place: Place) {
-        let label = window.label().to_string();
-        let _ = window.run_on_main_thread(move || {
+    pub fn show(
+        window: &WebviewWindow,
+        (width, height): (f64, f64),
+        place: Place,
+        spot: Option<Spot>,
+    ) {
+        with_panel(window, move |panel, _| {
             let Some(mtm) = MainThreadMarker::new() else {
                 return;
             };
-            PANELS.with(|panels| {
-                let panels = panels.borrow();
-                let Some(panel) = panels.get(&label) else {
-                    return;
-                };
-                let Some(area) = screen_under_mouse(mtm).map(|s| s.visibleFrame()) else {
-                    return;
-                };
-                // AppKit's y runs up from the bottom of the screen.
-                let height = height.min(area.size.height - 2.0 * MARGIN);
-                let right = area.origin.x + area.size.width - width - MARGIN;
-                let top = area.origin.y + area.size.height;
-                let origin = match place {
-                    Place::BottomCentre => NSPoint::new(
-                        area.origin.x + (area.size.width - width) / 2.0,
-                        area.origin.y + MARGIN,
-                    ),
-                    Place::RightTop => NSPoint::new(right, top - height - MARGIN),
-                    Place::RightThird => NSPoint::new(right, top - area.size.height / 3.0 - height),
-                };
-                panel.setFrame_display(NSRect::new(origin, NSSize::new(width, height)), true);
-                // Shown without activating Quill.
-                panel.orderFrontRegardless();
-            });
+            // AppKit's y runs up from the bottom of the main screen.
+            let frame = spot
+                .and_then(|spot| {
+                    // The middle of its top edge, a point inside it.
+                    let inside = NSPoint::new(spot.x + width / 2.0, spot.y - 1.0);
+                    let area = screen_at(mtm, inside)?.visibleFrame();
+                    let height = height.min(area.size.height);
+                    let x = fit(spot.x, width, (area.origin.x, area.size.width));
+                    let y = fit(spot.y - height, height, (area.origin.y, area.size.height));
+                    Some(NSRect::new(NSPoint::new(x, y), NSSize::new(width, height)))
+                })
+                .or_else(|| {
+                    let area = screen_at(mtm, NSEvent::mouseLocation())
+                        .or_else(|| NSScreen::mainScreen(mtm))?
+                        .visibleFrame();
+                    let height = height.min(area.size.height - 2.0 * MARGIN);
+                    let right = area.origin.x + area.size.width - width - MARGIN;
+                    let top = area.origin.y + area.size.height;
+                    let origin = match place {
+                        Place::BottomCentre => NSPoint::new(
+                            area.origin.x + (area.size.width - width) / 2.0,
+                            area.origin.y + MARGIN,
+                        ),
+                        Place::RightTop => NSPoint::new(right, top - height - MARGIN),
+                        Place::RightThird => {
+                            NSPoint::new(right, top - area.size.height / 3.0 - height)
+                        }
+                    };
+                    Some(NSRect::new(origin, NSSize::new(width, height)))
+                });
+            let Some(frame) = frame else {
+                return;
+            };
+            panel.setFrame_display(frame, true);
+            // Shown without activating Quill.
+            panel.orderFrontRegardless();
+        });
+    }
+
+    pub fn resize(window: &WebviewWindow, (width, height): (f64, f64)) {
+        with_panel(window, move |panel, _| {
+            let top = top_left(panel.frame());
+            let origin = NSPoint::new(top.x, top.y - height);
+            panel.setFrame_display(NSRect::new(origin, NSSize::new(width, height)), true);
+        });
+    }
+
+    pub fn drag_start(window: &WebviewWindow) {
+        with_panel(window, |panel, label| {
+            let from = top_left(panel.frame());
+            DRAGS.with(|drags| drags.borrow_mut().insert(label.to_string(), from));
+        });
+    }
+
+    pub fn drag_by(window: &WebviewWindow, (dx, dy): (f64, f64)) {
+        with_panel(window, move |panel, label| {
+            if let Some(from) = DRAGS.with(|drags| drags.borrow().get(label).copied()) {
+                panel.setFrameTopLeftPoint(NSPoint::new(from.x + dx, from.y - dy));
+            }
+        });
+    }
+
+    pub fn drag_end(window: &WebviewWindow, done: impl FnOnce(Spot) + Send + 'static) {
+        with_panel(window, move |panel, label| {
+            if DRAGS
+                .with(|drags| drags.borrow_mut().remove(label))
+                .is_some()
+            {
+                let at = top_left(panel.frame());
+                done(Spot { x: at.x, y: at.y });
+            }
         });
     }
 
     pub fn hide(window: &WebviewWindow) {
-        let label = window.label().to_string();
-        let _ = window.run_on_main_thread(move || {
-            PANELS.with(|panels| {
-                if let Some(panel) = panels.borrow().get(&label) {
-                    panel.orderOut(None);
-                }
-            });
-        });
+        with_panel(window, |panel, _| panel.orderOut(None));
     }
 
-    fn screen_under_mouse(mtm: MainThreadMarker) -> Option<Retained<NSScreen>> {
-        let mouse = NSEvent::mouseLocation();
-        let screens = NSScreen::screens(mtm);
-        screens
-            .iter()
-            .find(|s| {
-                let f = s.frame();
-                mouse.x >= f.origin.x
-                    && mouse.x < f.origin.x + f.size.width
-                    && mouse.y >= f.origin.y
-                    && mouse.y < f.origin.y + f.size.height
-            })
-            .or_else(|| NSScreen::mainScreen(mtm))
+    fn screen_at(mtm: MainThreadMarker, point: NSPoint) -> Option<Retained<NSScreen>> {
+        NSScreen::screens(mtm).iter().find(|s| {
+            let f = s.frame();
+            point.x >= f.origin.x
+                && point.x < f.origin.x + f.size.width
+                && point.y >= f.origin.y
+                && point.y < f.origin.y + f.size.height
+        })
     }
 }
 
 #[cfg(not(target_os = "macos"))]
 mod other {
-    use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
+    use std::collections::HashMap;
+    use std::sync::{Mutex, PoisonError};
 
-    use super::{MARGIN, Place};
+    use tauri::{Manager, Monitor, PhysicalPosition, PhysicalSize, WebviewWindow};
 
-    pub fn show(window: &WebviewWindow, (width, height): (f64, f64), place: Place) {
+    use super::{MARGIN, Place, Spot, fit};
+
+    /// Where each window being dragged was when its drag started, and its
+    /// scale then (the page measures in logical points), by label.
+    type Drags = HashMap<String, (PhysicalPosition<i32>, f64)>;
+    static DRAGS: Mutex<Option<Drags>> = Mutex::new(None);
+
+    fn drags<T>(f: impl FnOnce(&mut Drags) -> T) -> T {
+        let mut drags = DRAGS.lock().unwrap_or_else(PoisonError::into_inner);
+        f(drags.get_or_insert_with(HashMap::new))
+    }
+
+    pub fn show(
+        window: &WebviewWindow,
+        (width, height): (f64, f64),
+        place: Place,
+        spot: Option<Spot>,
+    ) {
         let app = window.app_handle();
-        let monitor = app
-            .cursor_position()
-            .ok()
-            .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
-            .or_else(|| app.primary_monitor().ok().flatten());
-        if let Some(monitor) = monitor {
+        let saved = spot.and_then(|spot| {
+            let monitors = app.available_monitors().ok()?;
+            // The middle of its top edge, a point inside it.
+            let inside = |m: &&Monitor| {
+                let a = m.work_area();
+                let x = spot.x + width * m.scale_factor() / 2.0;
+                let y = spot.y + 1.0;
+                x >= f64::from(a.position.x)
+                    && x < f64::from(a.position.x) + f64::from(a.size.width)
+                    && y >= f64::from(a.position.y)
+                    && y < f64::from(a.position.y) + f64::from(a.size.height)
+            };
+            let monitor = monitors.iter().find(inside)?;
+            let scale = monitor.scale_factor();
+            let area = monitor.work_area();
+            let (w, h) = (
+                width * scale,
+                (height * scale).min(f64::from(area.size.height)),
+            );
+            let x = fit(
+                spot.x,
+                w,
+                (f64::from(area.position.x), f64::from(area.size.width)),
+            );
+            let y = fit(
+                spot.y,
+                h,
+                (f64::from(area.position.y), f64::from(area.size.height)),
+            );
+            Some((
+                x.round() as i32,
+                y.round() as i32,
+                w.round() as i32,
+                h.round() as i32,
+            ))
+        });
+        let frame = saved.or_else(|| {
+            let monitor = app
+                .cursor_position()
+                .ok()
+                .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
+                .or_else(|| app.primary_monitor().ok().flatten())?;
             let scale = monitor.scale_factor();
             let area = monitor.work_area();
             let px = |v: f64| (v * scale).round() as i32;
@@ -267,11 +425,61 @@ mod other {
                 Place::RightTop => (right, area.position.y + px(MARGIN)),
                 Place::RightThird => (right, area.position.y + area_h / 3),
             };
+            Some((x, y, w, h))
+        });
+        if let Some((x, y, w, h)) = frame {
             let _ = window.set_size(PhysicalSize::new(w.max(1) as u32, h.max(1) as u32));
             let _ = window.set_position(PhysicalPosition::new(x, y));
         }
         if let Err(e) = super::show_unfocused(window) {
             tracing::warn!("couldn't show a floating window: {e}");
         }
+    }
+
+    pub fn resize(window: &WebviewWindow, (width, height): (f64, f64)) {
+        // Windows keeps the top-left corner when the size changes.
+        let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    }
+
+    pub fn drag_start(window: &WebviewWindow) {
+        let (Ok(at), Ok(scale)) = (window.outer_position(), window.scale_factor()) else {
+            return;
+        };
+        drags(|d| d.insert(window.label().to_string(), (at, scale)));
+    }
+
+    pub fn drag_by(window: &WebviewWindow, (dx, dy): (f64, f64)) {
+        if let Some((from, scale)) = drags(|d| d.get(window.label()).copied()) {
+            let x = from.x + (dx * scale).round() as i32;
+            let y = from.y + (dy * scale).round() as i32;
+            let _ = window.set_position(PhysicalPosition::new(x, y));
+        }
+    }
+
+    pub fn drag_end(window: &WebviewWindow, done: impl FnOnce(Spot) + Send + 'static) {
+        if drags(|d| d.remove(window.label())).is_some()
+            && let Ok(at) = window.outer_position()
+        {
+            done(Spot {
+                x: f64::from(at.x),
+                y: f64::from(at.y),
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fit;
+
+    #[test]
+    fn a_window_is_moved_in_just_enough_to_fit() {
+        let area = (100.0, 1000.0);
+        assert_eq!(fit(300.0, 200.0, area), 300.0);
+        // Hanging off the end, or before the start.
+        assert_eq!(fit(1000.0, 200.0, area), 900.0);
+        assert_eq!(fit(50.0, 200.0, area), 100.0);
+        // Too big to fit: at the start.
+        assert_eq!(fit(400.0, 1200.0, area), 100.0);
     }
 }

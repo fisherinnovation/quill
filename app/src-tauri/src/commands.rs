@@ -114,9 +114,9 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
     lock(&state.settings).clone()
 }
 
-/// Saves the settings form. The recordings folder, onboarding flag and
-/// dictation settings have their own commands, so the stored values win over
-/// whatever the form sent.
+/// Saves the settings form. The recordings folder, onboarding flag,
+/// dictation settings and where the live notes panel was dragged are set
+/// elsewhere, so the stored values win over whatever the form sent.
 #[tauri::command]
 pub fn save_settings(
     app: AppHandle,
@@ -128,6 +128,9 @@ pub fn save_settings(
         settings.recordings_dir.clone_from(&current.recordings_dir);
         settings.onboarded = current.onboarded;
         settings.dictation.clone_from(&current.dictation);
+        settings
+            .live_notes_place
+            .clone_from(&current.live_notes_place);
         current.theme
     };
     settings.save(&state.data_dir)?;

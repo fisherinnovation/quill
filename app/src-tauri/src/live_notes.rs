@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 use quill_audio::growing::GrowingWav;
 use quill_core::live_meeting::{self, Item, LiveTranscript, Notes};
 use quill_core::meeting::{MIC_FILE, SYSTEM_FILE};
+use quill_core::settings::LiveNotesPlace;
 use quill_stt::TranscribeOptions;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -76,6 +77,8 @@ pub struct LiveNotes {
     ticked: Mutex<Vec<String>>,
     refresh: AtomicBool,
     stop: Mutex<Option<Arc<AtomicBool>>>,
+    /// The wrap-up card's height, as the page last measured it.
+    wrap_height: Mutex<f64>,
 }
 
 impl LiveNotes {
@@ -181,12 +184,17 @@ pub fn wrapping(app: &AppHandle) -> Option<String> {
 /// The wrap-up card's height before the page has measured it.
 const WRAP_HEIGHT: f64 = 330.0;
 
+/// Shows the wrap-up card where the panel was dragged to, else at the
+/// top right.
 fn show_wrap_up(app: &AppHandle, height: f64) {
     if let Some(window) = app.get_webview_window(LABEL) {
+        let height = height.clamp(120.0, MAX_HEIGHT);
+        *lock(&app.state::<LiveNotes>().wrap_height) = height;
         crate::floating::show(
             &window,
-            (WIDTH, height.clamp(120.0, MAX_HEIGHT)),
+            (WIDTH, height),
             Place::RightTop,
+            saved_place(app).panel,
         );
     }
 }
@@ -204,8 +212,13 @@ fn close(app: &AppHandle) {
 /// The wrap-up card's height changed: fit the panel to it.
 #[tauri::command]
 pub fn live_notes_fit(app: AppHandle, live: tauri::State<'_, LiveNotes>, height: f64) {
-    if lock(&live.state).wrapping.is_some() {
-        show_wrap_up(&app, height);
+    if lock(&live.state).wrapping.is_some()
+        && let Some(window) = app.get_webview_window(LABEL)
+    {
+        // Where it is: it may have been dragged since it appeared.
+        let height = height.clamp(120.0, MAX_HEIGHT);
+        *lock(&live.wrap_height) = height;
+        crate::floating::resize(&window, (WIDTH, height));
     }
 }
 
@@ -361,16 +374,86 @@ fn elapsed_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-/// Shows the panel at the right edge of the screen the mouse is on, open or
-/// collapsed to a tab.
+/// Shows the panel, open or collapsed to a tab: where the user dragged it,
+/// else at the right edge of the screen the mouse is on.
 fn show(app: &AppHandle, collapsed: bool) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
+    let place = saved_place(app);
     if collapsed {
-        crate::floating::show(&window, TAB, Place::RightThird);
+        crate::floating::show(&window, TAB, Place::RightThird, place.tab);
     } else {
-        crate::floating::show(&window, (WIDTH, MAX_HEIGHT), Place::RightTop);
+        crate::floating::show(&window, (WIDTH, MAX_HEIGHT), Place::RightTop, place.panel);
+    }
+}
+
+fn saved_place(app: &AppHandle) -> LiveNotesPlace {
+    lock(&app.state::<AppState>().settings)
+        .live_notes_place
+        .clone()
+}
+
+/// Saves where the panel and the tab go.
+fn save_place(app: &AppHandle, change: impl FnOnce(&mut LiveNotesPlace)) {
+    let state = app.state::<AppState>();
+    let mut settings = lock(&state.settings).clone();
+    change(&mut settings.live_notes_place);
+    if let Err(e) = settings.save(&state.data_dir) {
+        tracing::warn!("couldn't save where the live notes panel goes: {e}");
+        return;
+    }
+    *lock(&state.settings) = settings;
+}
+
+/// The pointer went down on the panel's handle: its header, the tab, or
+/// the wrap-up card.
+#[tauri::command]
+pub fn live_notes_drag_start(app: AppHandle) {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        crate::floating::drag_start(&window);
+    }
+}
+
+/// The pointer has moved this far (logical points) since the drag started.
+#[tauri::command]
+pub fn live_notes_drag(app: AppHandle, dx: f64, dy: f64) {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        crate::floating::drag_by(&window, (dx, dy));
+    }
+}
+
+/// The drag ended: the panel (or the tab) goes there from now on.
+#[tauri::command]
+pub fn live_notes_drag_end(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return;
+    };
+    let tab = lock(&live.state).collapsed;
+    let handle = app.clone();
+    crate::floating::drag_end(&window, move |spot| {
+        save_place(&handle, |place| {
+            *(if tab {
+                &mut place.tab
+            } else {
+                &mut place.panel
+            }) = Some(spot);
+        });
+    });
+}
+
+/// Puts the panel and the tab back at the right edge.
+#[tauri::command]
+pub fn live_notes_reset_place(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
+    let (collapsed, wrapping) = {
+        let state = lock(&live.state);
+        (state.collapsed, state.wrapping.is_some())
+    };
+    save_place(&app, |place| *place = LiveNotesPlace::default());
+    if wrapping {
+        show_wrap_up(&app, *lock(&live.wrap_height));
+    } else {
+        show(&app, collapsed);
     }
 }
 

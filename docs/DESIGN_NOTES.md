@@ -567,6 +567,24 @@ On the Meetings page, a day with two or more meetings that have notes gets
   full-screen apps, and placed in points on the screen under the mouse. The
   Tauri window is never shown. Windows shows the window as is: an
   unfocusable window there doesn't activate the app.
+- **Dragging the live notes panel** (it sat over the call's camera views):
+  the page drags it, not the OS. Tauri's `startDragging()` would move the
+  hidden Tauri window on macOS, not the panel, and on Windows a native
+  caption drag risks activating an unfocusable window. A press that moves
+  4 px on the header, the tab or the wrap-up card becomes a drag: the page
+  sends the pointer's offset since the press once a frame and Rust moves
+  the window to where it started plus that (`floating::drag_by`), so
+  nothing drifts and a lost or reordered message corrects itself on the
+  next one. The pointer is captured only then, so the header's buttons
+  still click. Where it ends up is saved in `settings.toml`
+  (`live_notes_place`), in the desktop's own units (points with y up on
+  macOS, pixels on Windows): one spot for the panel, which the wrap-up card
+  shares since it takes the panel's place, and one for the tab. Shown
+  again, a saved spot is used if the middle of the window's top edge is on
+  a screen, moved in to fit that screen's usable area; otherwise (a screen
+  unplugged) it goes to the usual place. The wrap-up card fitting itself to
+  its content keeps its top-left corner, so a dragged card stays put.
+  Double-clicking the header resets both.
 
 ## Live notes
 

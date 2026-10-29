@@ -715,6 +715,12 @@ export const api = {
   liveNotesCollapse: (collapsed: boolean) => invoke<void>("live_notes_collapse", { collapsed }),
   /** The wrap-up card's height: the panel fits itself to it. */
   liveNotesFit: (height: number) => invoke<void>("live_notes_fit", { height }),
+  /** Dragging the panel, the tab or the card: down, moved (logical points since down), up. */
+  liveNotesDragStart: () => invoke<void>("live_notes_drag_start"),
+  liveNotesDrag: (dx: number, dy: number) => invoke<void>("live_notes_drag", { dx, dy }),
+  liveNotesDragEnd: () => invoke<void>("live_notes_drag_end"),
+  /** Puts the panel and the tab back at the right edge. */
+  liveNotesResetPlace: () => invoke<void>("live_notes_reset_place"),
   liveNotesClose: () => invoke<void>("live_notes_close"),
   /** Opens the meeting being wrapped up in Quill's window. */
   liveNotesOpenMeeting: () => invoke<void>("live_notes_open_meeting"),
