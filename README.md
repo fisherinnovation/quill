@@ -235,7 +235,9 @@ Nothing is learned until you click **Add**, and learned rules can be removed und
 
 **Searches and other one-line boxes.** Whisper writes everything as a sentence, so "best pizza in Toronto" would come out as "Best pizza in Toronto." In a one-line text box (a search box, the address bar, a form field or a title), a single sentence loses its final period in any app; question marks stay. Quill asks the app what kind of box has focus when you start dictating: only its kind, never what's in it. When the app doesn't say (terminals, editors that draw their own text), four words or fewer lose the period, except in Formal apps.
 
-The period rules are applied locally, with no model call. The other styles shape the clean-up step when it runs. A style never makes clean-up run more often, so it adds no delay.
+**Dictating in pieces.** Text that ends a sentence (`.`, `?`, `!`) is typed with a space after it, so the next dictation into the same box starts a new sentence instead of running into the last one. One-line boxes get no space.
+
+The period and spacing rules are applied locally, with no model call. The other styles shape the clean-up step when it runs. A style never makes clean-up run more often, so it adds no delay.
 
 ## Summary and clean-up models
 

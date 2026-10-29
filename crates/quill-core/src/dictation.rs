@@ -286,6 +286,23 @@ pub fn apply_style(text: &str, style: Style, field: Option<Field>) -> String {
     text.to_string()
 }
 
+/// The text to type: a sentence gets a space after it, so the next
+/// dictation into the same box doesn't run into it ("…was done.Then").
+/// Not in a one-line box, where the text is usually all there is (a search,
+/// a title), or after text that lost its period to [`apply_style`]. Chinese
+/// and Japanese end sentences with their own full stops (。), which get no
+/// space.
+pub fn spaced(text: &str, field: Option<Field>) -> String {
+    let ends_sentence = text
+        .trim_end_matches(['"', '\'', '”', '’', ')', ']'])
+        .ends_with(['.', '?', '!', '…']);
+    if ends_sentence && field != Some(Field::SingleLine) {
+        format!("{text} ")
+    } else {
+        text.to_string()
+    }
+}
+
 /// The prompt's sentence about where the text is going.
 fn destination_text(destination: Option<Destination<'_>>) -> String {
     let Some(Destination { app, style }) = destination else {
@@ -725,6 +742,22 @@ mod tests {
             apply_style("Sounds good, see you then.", Style::Casual, None),
             "Sounds good, see you then"
         );
+    }
+
+    #[test]
+    fn sentences_get_a_space_for_the_next_dictation() {
+        let multi = Some(Field::MultiLine);
+        assert_eq!(spaced("It's done.", multi), "It's done. ");
+        assert_eq!(spaced("Is it done?", None), "Is it done? ");
+        assert_eq!(spaced("He said \"done.\"", multi), "He said \"done.\" ");
+        assert_eq!(spaced("Wait…", multi), "Wait… ");
+        // Searches and titles, and chat messages that lost their period.
+        assert_eq!(
+            spaced("Best pizza in Toronto?", Some(Field::SingleLine)),
+            "Best pizza in Toronto?"
+        );
+        assert_eq!(spaced("Sounds good", multi), "Sounds good");
+        assert_eq!(spaced("できました。", multi), "できました。");
     }
 
     #[test]

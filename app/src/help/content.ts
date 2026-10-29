@@ -389,7 +389,9 @@ It runs only when there's something to fix, so plain sentences are typed straigh
 
 Change any app's style in **Settings → Dictation → Style per app**; apps appear there once you've dictated into them. A style never adds delay.
 
-In any app, a one-line text box (a search box, the address bar, a form field) gets no final period, so a search comes out as \`best pizza in Toronto\`, not a sentence. When the app doesn't say what kind of box it is, four words or fewer lose the period, except in Formal apps.`,
+In any app, a one-line text box (a search box, the address bar, a form field) gets no final period, so a search comes out as \`best pizza in Toronto\`, not a sentence. When the app doesn't say what kind of box it is, four words or fewer lose the period, except in Formal apps.
+
+A sentence is typed with a space after it, so you can dictate a paragraph a sentence at a time and each one starts after the last. One-line boxes get no space.`,
       },
       {
         id: "words",

@@ -774,7 +774,8 @@ async fn process(
 
     let (inserted, latency) = {
         let app = app.clone();
-        let text = text.clone();
+        // History and samples keep the text without the space.
+        let text = dictation::spaced(&text, field);
         tauri::async_runtime::spawn_blocking(move || {
             let clipboard = quill_insert::Clipboard::put(&text).map_err(|e| e.to_string())?;
             // The keystroke must be simulated on the main thread (see
