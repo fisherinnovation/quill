@@ -91,6 +91,7 @@ async fn summarizes_a_day_that_changed_its_mind() {
                 completion_tokens: 0,
                 cost_usd: None,
                 latency_ms: 0,
+                complete: true,
             },
         )
         .unwrap();

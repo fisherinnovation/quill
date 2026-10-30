@@ -184,6 +184,7 @@ mod tests {
                 completion_tokens: 200,
                 cost_usd: Some(0.002),
                 latency_ms: 1500,
+                complete: true,
             }),
             scores: Some(Scores {
                 completeness: 8.0,

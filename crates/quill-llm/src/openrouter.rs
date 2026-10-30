@@ -112,6 +112,8 @@ struct ChatResponse {
 #[derive(Deserialize)]
 struct Choice {
     message: ResponseMessage,
+    /// "stop", or "length" when `max_tokens` cut the answer off.
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -198,22 +200,17 @@ impl OpenRouter {
                 provider: PROVIDER,
                 detail: e.to_string(),
             })?;
-        let text = parsed
-            .choices
-            .into_iter()
-            .next()
-            .ok_or(LlmError::Decode {
-                provider: PROVIDER,
-                detail: "no choices in response".into(),
-            })?
-            .message
-            .content
-            .ok_or(LlmError::Decode {
-                provider: PROVIDER,
-                detail: "the model returned no text (a reasoning model may have spent its \
+        let choice = parsed.choices.into_iter().next().ok_or(LlmError::Decode {
+            provider: PROVIDER,
+            detail: "no choices in response".into(),
+        })?;
+        let truncated = choice.finish_reason.as_deref() == Some("length");
+        let text = choice.message.content.ok_or(LlmError::Decode {
+            provider: PROVIDER,
+            detail: "the model returned no text (a reasoning model may have spent its \
                          token budget thinking)"
-                    .into(),
-            })?;
+                .into(),
+        })?;
         let usage = parsed.usage;
         Ok(CompletionResponse {
             text,
@@ -222,6 +219,7 @@ impl OpenRouter {
             completion_tokens: usage.as_ref().map_or(0, |u| u.completion_tokens),
             cost_usd: usage.and_then(|u| u.cost),
             latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            truncated,
         })
     }
 }
@@ -278,6 +276,27 @@ mod tests {
             (12, 3)
         );
         assert_eq!(response.cost_usd, Some(0.0000027));
+        assert!(!response.truncated);
+    }
+
+    #[tokio::test]
+    async fn reports_an_answer_cut_off_at_max_tokens() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "model": "m",
+                "choices": [{
+                    "message": {"role": "assistant", "content": "## Action items\n- **Dan** — send the"},
+                    "finish_reason": "length",
+                }],
+            })))
+            .mount(&server)
+            .await;
+        let provider =
+            OpenRouter::with_base_url("sk-test".into(), Privacy::default(), &server.uri());
+        let response = provider.complete(request()).await.unwrap();
+        assert!(response.truncated);
+        assert!(response.text.ends_with("send the"));
     }
 
     #[tokio::test]

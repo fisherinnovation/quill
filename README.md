@@ -273,7 +273,7 @@ cargo run --release -p quill-cli -- --help
 | `record` | Record the microphone and system audio into a new library meeting (or `--out <dir>`). |
 | `transcribe <file or dir>` | Transcribe a WAV/FLAC file or a recording folder (echo cancellation and VAD on by default; `--diarize [--speakers N]` tells the people on the call apart). |
 | `diarize <file or dir>` | Who spoke when, optionally scored against a reference RTTM (see [`eval/diarization`](eval/diarization)). |
-| `summarize <dir or transcript.json>` | Write meeting notes (`-m` picks the model, e.g. `-m ollama:qwen3:8b`). |
+| `summarize <dir or transcript.json>` | Write meeting notes (`-m` picks the model, e.g. `-m ollama:qwen3:8b`). `summarize --incomplete` writes again every meeting's notes that were cut off at the model's length limit. |
 | `dictate <clips…>` | Run the dictation pipeline on audio files and show each step's output and timing; `--polish-models a,b` compares clean-up models; `--stream` replays them through live captions and compares the text and the wait after release with a single pass. Clips with a reference (`clip.txt`, what should have been typed) are scored by word error rate. |
 | `models list` / `models download <name>` | Manage models: Whisper (`tiny`, `base`, `small`, `medium`, `turbo-q5`, `turbo`, `large-v3`), Parakeet (`parakeet-v2`, `parakeet-v3`), VAD and the diarization models. `transcribe -m` and `dictate --stt-model` take any of the speech models. |
 | `bench <file>` | Compare transcription speed across models (`--short-clip` for dictation settings). |

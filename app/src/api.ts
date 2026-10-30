@@ -49,6 +49,8 @@ export interface StoredSummary {
   cost_usd: number | null;
   latency_ms: number;
   created_at: string;
+  /** False if the model stopped at its length limit, so the notes end early. */
+  complete: boolean;
 }
 
 export interface MeetingDetail {

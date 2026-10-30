@@ -14,7 +14,12 @@ use quill_core::settings::DEFAULT_SUMMARY_MODEL;
 pub struct Args {
     /// Transcript JSON (`transcribe -f json`), or a recording directory
     /// containing transcript.json; summary.md is then saved next to it
-    input: PathBuf,
+    #[arg(required_unless_present = "incomplete")]
+    input: Option<PathBuf>,
+    /// Instead of one transcript, summarize again every meeting in the
+    /// library whose latest notes were cut off at the model's length limit
+    #[arg(long, conflicts_with_all = ["input", "date"])]
+    incomplete: bool,
     /// OpenRouter model id, or `ollama:<model>` for a local model
     #[arg(long, short, default_value = DEFAULT_SUMMARY_MODEL)]
     model: String,
@@ -30,10 +35,26 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> anyhow::Result<()> {
-    let (transcript_path, out_dir) = if args.input.is_dir() {
-        (args.input.join("transcript.json"), Some(args.input.clone()))
+    let privacy = Privacy {
+        deny_data_collection: !args.allow_data_collection,
+        zero_data_retention: args.zdr,
+    };
+    let (provider, model) = quill_llm::provider_for(&args.model, privacy)?;
+    if !args.model.starts_with("ollama:") {
+        // Make it obvious when the transcript leaves the machine.
+        eprintln!("Sending transcripts to OpenRouter ({model})…");
+    }
+    // The library is async (HTTP); the CLI is not, so run this one command
+    // on a Tokio runtime and wait for it here.
+    let runtime = tokio::runtime::Runtime::new()?;
+    let Some(input) = args.input else {
+        return again_where_incomplete(&runtime, provider.as_ref(), &model);
+    };
+
+    let (transcript_path, out_dir) = if input.is_dir() {
+        (input.join("transcript.json"), Some(input.clone()))
     } else {
-        (args.input.clone(), None)
+        (input.clone(), None)
     };
     let segments = read_transcript(&transcript_path)?;
     let date = match args.date {
@@ -43,19 +64,6 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         }
     };
 
-    let privacy = Privacy {
-        deny_data_collection: !args.allow_data_collection,
-        zero_data_retention: args.zdr,
-    };
-    let (provider, model) = quill_llm::provider_for(&args.model, privacy)?;
-    if !args.model.starts_with("ollama:") {
-        // Make it obvious when the transcript leaves the machine.
-        eprintln!("Sending transcript to OpenRouter ({model})…");
-    }
-
-    // The library is async (HTTP); the CLI is not, so run this one command
-    // on a Tokio runtime and wait for it here.
-    let runtime = tokio::runtime::Runtime::new()?;
     let summary = runtime.block_on(summary::summarize(
         provider.as_ref(),
         &model,
@@ -72,6 +80,54 @@ pub fn run(args: Args) -> anyhow::Result<()> {
             library.save_summary(&id, &summary)?;
         }
         eprintln!("Saved {}", dir.join("summary.md").display());
+    }
+    if !summary.complete {
+        eprintln!("The notes were cut off at the model's length limit.");
+    }
+    Ok(())
+}
+
+/// `--incomplete`: summarizes again, into the library, each meeting whose
+/// latest notes were cut off. Prints ids and outcomes, never the notes.
+fn again_where_incomplete(
+    runtime: &tokio::runtime::Runtime,
+    provider: &dyn quill_llm::LlmProvider,
+    model: &str,
+) -> anyhow::Result<()> {
+    let library = crate::library::open()?;
+    let ids = library.incomplete_notes()?;
+    if ids.is_empty() {
+        eprintln!("No meeting's notes are incomplete.");
+        return Ok(());
+    }
+    eprintln!("{} meeting(s) with incomplete notes.", ids.len());
+    let mut still = 0;
+    for id in &ids {
+        let detail = library.get(id)?;
+        let date = quill_core::daily::local_day(&detail.meeting.started_at)
+            .map_or_else(|| detail.meeting.started_at.clone(), |d| d.to_string());
+        let summary = runtime
+            .block_on(summary::summarize(
+                provider,
+                model,
+                &quill_llm::prompts::SUMMARY,
+                &detail.segments,
+                &date,
+            ))
+            .with_context(|| format!("summarizing {id}"))?;
+        library.save_summary(id, &summary)?;
+        still += usize::from(!summary.complete);
+        let outcome = if summary.complete {
+            "complete"
+        } else {
+            "still cut off"
+        };
+        eprintln!("{id}: {outcome} · {}", stats(&summary));
+    }
+    if still > 0 {
+        bail!(
+            "{still} meeting(s) still have incomplete notes; try a model with a larger output limit"
+        );
     }
     Ok(())
 }
@@ -125,6 +181,7 @@ fn save(dir: &Path, s: &Summary, requested_model: &str) -> anyhow::Result<()> {
         "completion_tokens": s.completion_tokens,
         "cost_usd": s.cost_usd,
         "latency_ms": s.latency_ms,
+        "complete": s.complete,
         "created_at": jiff::Timestamp::now().to_string(),
     });
     std::fs::write(

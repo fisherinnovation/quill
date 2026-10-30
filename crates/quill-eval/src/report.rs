@@ -195,6 +195,7 @@ mod tests {
                 completion_tokens: 5,
                 cost_usd: Some(cost),
                 latency_ms: 2000,
+                complete: true,
             }),
             scores: overall.map(|o| Scores {
                 completeness: o,

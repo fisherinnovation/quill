@@ -227,6 +227,7 @@ The search box opens [search](#search), narrowed to meetings: their titles and e
         body: `Open a meeting to see its notes: a TL;DR, decisions, action items with owners, the discussion by topic and open questions. Long meetings are summarized in parts and combined. Action items can be ticked off right in the notes; see [Action items](#action-items).
 
 - **Re-summarize** writes the notes again, for example after naming speakers or choosing another model.
+- If the model stops at its length limit before finishing, Quill asks it to carry on. If the notes still end early, a banner says so: re-summarize, or choose a model that writes longer answers.
 - **Copy** puts the notes on your clipboard as Markdown, ready for a doc or a message.
 - **Export** saves them as a \`.md\` file.
 - Click the title to rename the meeting.

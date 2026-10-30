@@ -24,6 +24,13 @@ use crate::semantic::SemanticError;
 /// long meeting doesn't fill an assistant's context in one call.
 pub const TRANSCRIPT_PAGE: usize = 300;
 
+/// Said before notes the model didn't finish ([`StoredSummary::complete`]).
+///
+/// [`StoredSummary::complete`]: crate::library::StoredSummary::complete
+pub const INCOMPLETE: &str = "Notes incomplete: the model stopped at its length limit, so \
+    these notes end early and later sections may be missing. Read the transcript for the \
+    rest, or summarize the meeting again in Quill.";
+
 /// What [`search`] found: [`crate::search::Results`] without dictations.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Found {
@@ -136,7 +143,13 @@ pub fn meeting_markdown(
         duration(m.duration_ms)
     );
     match detail.summaries.first() {
-        Some(notes) => out.push_str(notes.markdown.trim()),
+        Some(notes) => {
+            if !notes.complete {
+                out.push_str(INCOMPLETE);
+                out.push_str("\n\n");
+            }
+            out.push_str(notes.markdown.trim());
+        }
         None => out.push_str("No notes have been written for this meeting."),
     }
     out.push_str("\n\n## Transcript\n");
@@ -214,6 +227,7 @@ mod tests {
             completion_tokens: 0,
             cost_usd: None,
             latency_ms: 0,
+            complete: true,
         }
     }
 
@@ -369,6 +383,19 @@ mod tests {
 
         let past = meeting_markdown(&lib, &id, Some(10_000)).unwrap();
         assert!(past.contains("none from line 10000"), "{past}");
+        assert!(!past.contains(INCOMPLETE));
+
+        // Notes the model didn't finish say so before anything else.
+        let cut_off = Summary {
+            complete: false,
+            ..summary(NOTES)
+        };
+        lib.save_summary(&id, &cut_off).unwrap();
+        let text = meeting_markdown(&lib, &id, None).unwrap();
+        assert!(
+            text.contains(&format!("{INCOMPLETE}\n\n# Hiring plan")),
+            "{text}"
+        );
 
         assert!(matches!(
             meeting_markdown(&lib, "nope", None),

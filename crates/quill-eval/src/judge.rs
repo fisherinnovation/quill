@@ -216,6 +216,7 @@ mod tests {
             completion_tokens: 0,
             cost_usd: Some(0.0),
             latency_ms: 0,
+            complete: true,
         }
     }
 

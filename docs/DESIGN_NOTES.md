@@ -170,6 +170,20 @@ decision someone might otherwise undo.
   omissions. Use a strong judge from a different family, spot-check
   `review.md`, and evaluate on real meetings in
   `eval/transcripts/private/`, not only the synthetic one.
+- Notes that stop mid-sentence (#52): with a 4,096-token budget, 10 of one
+  user's 30 notes were cut off, 22-minute meetings included, and the last
+  sections (open questions, quotes) were lost without a word. Reasoning
+  is left on for notes, and a reasoning model's thinking counts against
+  the same budget (daily summaries turn it off for this reason). The
+  budget is now 8,192 tokens (4,096 per part). A request that still stops
+  at the limit (`finish_reason`/`done_reason` "length") is shown its
+  answer so far and asked to carry on, up to twice. Notes still cut off
+  are saved with `complete = 0`, minus the unfinished last line, so half
+  an action item never reaches the list. The app, `get_meeting` and
+  `quill-cli summarize --incomplete` (regenerates them all) use the flag.
+  The migration marks older notes that used exactly 4,096 tokens in one
+  request as incomplete; cut-off notes of long meetings (map-reduce) can't
+  be told from their token counts, so they stay marked complete.
 
 ## Daily summaries
 

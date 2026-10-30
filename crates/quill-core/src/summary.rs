@@ -9,14 +9,21 @@ use quill_llm::prompts::SummaryPrompts;
 use quill_llm::{CompletionRequest, CompletionResponse, LlmError, LlmProvider, Message};
 use quill_stt::Segment;
 
-/// Output budget for the final notes and for each part's notes.
-const SUMMARY_MAX_TOKENS: u32 = 4096;
-const PART_MAX_TOKENS: u32 = 2048;
+/// Output budget for the final notes and for each part's notes. Generous,
+/// because a reasoning model's thinking counts against it too: at 4,096,
+/// a third of one user's notes were cut off, 22-minute meetings included.
+const SUMMARY_MAX_TOKENS: u32 = 8192;
+const PART_MAX_TOKENS: u32 = 4096;
+/// How many times a model that stops at the budget is asked to carry on
+/// before its notes are saved as incomplete.
+const MAX_CONTINUATIONS: usize = 2;
+const CONTINUE: &str = "You reached the length limit. Continue exactly where you \
+    stopped, mid-sentence if need be. Don't repeat anything or start over.";
 /// Low but non-zero: factual and consistent, without the repetitiveness
 /// some models show at exactly 0.
 const TEMPERATURE: f32 = 0.2;
 /// Room for the system prompt, template text and the model's answer.
-const RESERVED_TOKENS: usize = 6_000;
+const RESERVED_TOKENS: usize = 10_000;
 /// Upper bound per part in map-reduce. Smaller parts get more detailed notes.
 const MAX_PART_TOKENS: usize = 15_000;
 
@@ -48,6 +55,15 @@ pub struct Summary {
     pub cost_usd: Option<f64>,
     /// Wall-clock time for the whole summary.
     pub latency_ms: u64,
+    /// False if the model still stopped at its length limit after being
+    /// asked to carry on, so the notes end early.
+    pub complete: bool,
+}
+
+/// A model's whole answer to one request, continued if it was cut off.
+struct Answer {
+    response: CompletionResponse,
+    requests: usize,
 }
 
 /// Summarizes `segments` with `model` on `provider`, using one version of
@@ -81,7 +97,7 @@ pub async fn summarize(
         no_reasoning: false,
     };
 
-    let mut responses = Vec::new();
+    let mut answers = Vec::new();
     if quill_llm::estimate_tokens(&transcript) <= budget {
         let prompt = quill_llm::prompts::render(
             prompts.single,
@@ -91,11 +107,7 @@ pub async fn summarize(
                 ("transcript", &transcript),
             ],
         )?;
-        responses.push(
-            provider
-                .complete(request(prompt, SUMMARY_MAX_TOKENS))
-                .await?,
-        );
+        answers.push(complete_in_full(provider, request(prompt, SUMMARY_MAX_TOKENS)).await?);
     } else {
         let parts = split_lines(&lines, budget.min(MAX_PART_TOKENS));
         let count = parts.len().to_string();
@@ -123,20 +135,19 @@ pub async fn summarize(
             parts = parts.len(),
             "transcript too long for one request; using map-reduce"
         );
-        let part_notes: Vec<(String, CompletionResponse)> =
-            stream::iter(part_requests)
-                .map(|(range, req)| async move {
-                    Ok::<_, LlmError>((range, provider.complete(req).await?))
-                })
-                .buffered(provider.max_concurrency())
-                .try_collect()
-                .await?;
+        let part_notes: Vec<(String, Answer)> = stream::iter(part_requests)
+            .map(|(range, req)| async move {
+                Ok::<_, LlmError>((range, complete_in_full(provider, req).await?))
+            })
+            .buffered(provider.max_concurrency())
+            .try_collect()
+            .await?;
 
         // "Reduce": combine the part notes into the final summary.
         let notes = part_notes
             .iter()
             .enumerate()
-            .map(|(i, (range, r))| format!("### Part {} ({range})\n\n{}", i + 1, clean(&r.text)))
+            .map(|(i, (range, a))| format!("### Part {} ({range})\n\n{}", i + 1, notes_of(a)))
             .collect::<Vec<_>>()
             .join("\n\n");
         let prompt = quill_llm::prompts::render(
@@ -148,33 +159,88 @@ pub async fn summarize(
                 ("notes", &notes),
             ],
         )?;
-        responses.extend(part_notes.into_iter().map(|(_, r)| r));
-        responses.push(
-            provider
-                .complete(request(prompt, SUMMARY_MAX_TOKENS))
-                .await?,
-        );
+        answers.extend(part_notes.into_iter().map(|(_, a)| a));
+        answers.push(complete_in_full(provider, request(prompt, SUMMARY_MAX_TOKENS)).await?);
     }
 
-    // The last response is always the final summary.
-    let last = responses
-        .last()
-        .cloned()
-        .ok_or(SummaryError::EmptyTranscript)?;
+    // The last answer is always the final summary. A part cut off short
+    // loses that part's notes, so the summary is incomplete too.
+    let last = answers.last().ok_or(SummaryError::EmptyTranscript)?;
+    let complete = answers.iter().all(|a| !a.response.truncated);
+    if !complete {
+        tracing::warn!(
+            requests = answers.iter().map(|a| a.requests).sum::<usize>(),
+            "notes still stopped at the length limit; saved as incomplete"
+        );
+    }
+    let responses = || answers.iter().map(|a| &a.response);
     Ok(Summary {
-        markdown: clean(&last.text),
-        model: last.model,
+        markdown: notes_of(last),
+        model: last.response.model.clone(),
         prompt_version: prompts.version,
-        requests: responses.len(),
-        prompt_tokens: responses.iter().map(|r| u64::from(r.prompt_tokens)).sum(),
-        completion_tokens: responses
-            .iter()
-            .map(|r| u64::from(r.completion_tokens))
-            .sum(),
+        requests: answers.iter().map(|a| a.requests).sum(),
+        prompt_tokens: responses().map(|r| u64::from(r.prompt_tokens)).sum(),
+        completion_tokens: responses().map(|r| u64::from(r.completion_tokens)).sum(),
         // `Option<f64>: Sum` — None if any request didn't report a cost.
-        cost_usd: responses.iter().map(|r| r.cost_usd).sum(),
+        cost_usd: responses().map(|r| r.cost_usd).sum(),
         latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        complete,
     })
+}
+
+/// Sends `req`, and while the model stops at `max_tokens`, asks it to carry
+/// on (up to [`MAX_CONTINUATIONS`] times), joining the pieces into one
+/// answer. Tokens and cost add up over every request; `truncated` says
+/// whether the last one was still cut off.
+async fn complete_in_full(
+    provider: &dyn LlmProvider,
+    mut req: CompletionRequest,
+) -> Result<Answer, LlmError> {
+    let asked = req.messages.len();
+    let mut response = provider.complete(req.clone()).await?;
+    let mut requests = 1;
+    while response.truncated && requests <= MAX_CONTINUATIONS {
+        tracing::info!(requests, "notes reached the length limit; continuing");
+        req.messages.truncate(asked);
+        req.messages.push(Message::assistant(clean(&response.text)));
+        req.messages.push(Message::user(CONTINUE));
+        let more = provider.complete(req.clone()).await?;
+        requests += 1;
+        response = CompletionResponse {
+            text: response.text + without_think(&more.text),
+            prompt_tokens: response.prompt_tokens + more.prompt_tokens,
+            completion_tokens: response.completion_tokens + more.completion_tokens,
+            cost_usd: response.cost_usd.zip(more.cost_usd).map(|(a, b)| a + b),
+            latency_ms: response.latency_ms + more.latency_ms,
+            ..more
+        };
+    }
+    Ok(Answer { response, requests })
+}
+
+/// An answer's notes, cleaned. Notes cut off at the length limit end
+/// mid-line; that line is dropped, so half an action item ("send the list
+/// of names for") never reaches the action items list.
+fn notes_of(answer: &Answer) -> String {
+    let notes = clean(&answer.response.text);
+    if !answer.response.truncated {
+        return notes;
+    }
+    match notes.rfind('\n') {
+        Some(at) => notes[..at].trim_end().to_string(),
+        None => notes,
+    }
+}
+
+/// A continuation's text without the empty `<think>` block some models
+/// start every answer with. Unlike [`clean`], it keeps leading spaces: a
+/// continuation may pick up mid-sentence.
+fn without_think(text: &str) -> &str {
+    let start = text.trim_start();
+    match (start.strip_prefix("<think>"), start.find("</think>")) {
+        (Some(_), Some(end)) => start[end + "</think>".len()..].trim_start_matches(['\r', '\n']),
+        _ => text,
+    }
 }
 
 /// `[mm:ss] Speaker: text`, the transcript format the prompts describe.
@@ -257,9 +323,11 @@ mod tests {
 
     use super::*;
 
-    /// Fake provider: records requests and answers "notes N" / "final".
+    /// Fake provider: records requests and answers "answer N", except that
+    /// its first `cut_off` answers stop at the length limit mid-line.
     struct FakeProvider {
         context: usize,
+        cut_off: usize,
         requests: Mutex<Vec<CompletionRequest>>,
     }
 
@@ -269,24 +337,36 @@ mod tests {
             let mut requests = self.requests.lock().unwrap();
             requests.push(req);
             let n = requests.len();
+            let truncated = n <= self.cut_off;
             Ok(CompletionResponse {
-                text: format!("<think>\n\n</think>\n\nanswer {n}"),
+                text: if truncated {
+                    format!("<think>\n\n</think>\n\n- item {n}\n- send the")
+                } else {
+                    format!("<think>\n\n</think>\n\nanswer {n}")
+                },
                 model: "fake-1".into(),
                 prompt_tokens: 100,
                 completion_tokens: 10,
                 cost_usd: Some(0.001),
                 latency_ms: 5,
+                truncated,
             })
         }
 
         fn context_tokens(&self) -> usize {
             self.context
         }
+
+        /// One at a time, so which request is "first" doesn't vary.
+        fn max_concurrency(&self) -> usize {
+            1
+        }
     }
 
     fn fake(context: usize) -> FakeProvider {
         FakeProvider {
             context,
+            cut_off: 0,
             requests: Mutex::new(Vec::new()),
         }
     }
@@ -311,6 +391,7 @@ mod tests {
 
         assert_eq!(summary.requests, 1);
         assert_eq!(summary.markdown, "answer 1");
+        assert!(summary.complete);
         assert_eq!(summary.prompt_version, SUMMARY.version);
         let requests = provider.requests.lock().unwrap();
         let user = &requests[0].messages[1].content;
@@ -339,6 +420,79 @@ mod tests {
         assert!((summary.cost_usd.unwrap() - 0.001 * (parts as f64 + 1.0)).abs() < 1e-9);
         // Part notes were cleaned of empty <think> blocks before reducing.
         assert!(!reduce.contains("<think>"));
+    }
+
+    #[tokio::test]
+    async fn notes_cut_off_at_the_limit_are_continued() {
+        let provider = FakeProvider {
+            cut_off: 1,
+            ..fake(100_000)
+        };
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11")
+            .await
+            .unwrap();
+
+        assert!(summary.complete);
+        assert_eq!(summary.requests, 2);
+        assert_eq!(summary.markdown, "- item 1\n- send theanswer 2");
+        assert_eq!(summary.completion_tokens, 20);
+        assert!((summary.cost_usd.unwrap() - 0.002).abs() < 1e-9);
+        // The model is shown what it wrote so far and asked to carry on.
+        let requests = provider.requests.lock().unwrap();
+        let again = &requests[1].messages;
+        assert_eq!(again.len(), 4);
+        assert_eq!(again[2], Message::assistant("- item 1\n- send the"));
+        assert_eq!(again[3], Message::user(CONTINUE));
+    }
+
+    #[tokio::test]
+    async fn notes_still_cut_off_are_incomplete_without_the_unfinished_line() {
+        let provider = FakeProvider {
+            cut_off: usize::MAX,
+            ..fake(100_000)
+        };
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11")
+            .await
+            .unwrap();
+
+        assert!(!summary.complete);
+        assert_eq!(summary.requests, 1 + MAX_CONTINUATIONS);
+        assert!(
+            summary.markdown.starts_with("- item 1\n"),
+            "{}",
+            summary.markdown
+        );
+        assert!(
+            summary.markdown.ends_with("- item 3"),
+            "the unfinished line is dropped: {}",
+            summary.markdown
+        );
+        // Each retry shows the whole answer so far, not a growing chat.
+        let requests = provider.requests.lock().unwrap();
+        assert_eq!(requests[2].messages.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn a_part_cut_off_makes_long_notes_incomplete() {
+        let provider = FakeProvider {
+            context: 7_000,
+            // Part 1, and both times it's asked to carry on.
+            cut_off: 1 + MAX_CONTINUATIONS,
+            requests: Mutex::new(Vec::new()),
+        };
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(400), "2026-10-11")
+            .await
+            .unwrap();
+        assert!(!summary.complete);
+    }
+
+    #[test]
+    fn continuations_keep_their_leading_space() {
+        assert_eq!(without_think(" of names"), " of names");
+        assert_eq!(
+            without_think("<think>\n\n</think>\n\n of names"),
+            " of names"
+        );
     }
 
     #[tokio::test]
