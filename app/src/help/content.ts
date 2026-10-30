@@ -251,8 +251,10 @@ Items are read from the notes when they're written. If you re-summarize, items s
       {
         id: "speakers",
         title: "Naming speakers: the Transcript tab",
-        keywords: "rename speaker merge split people on the call diarization who said",
-        body: `The **Transcript** tab shows the conversation turn by turn: **You**, and the people on the call as Speaker 1, Speaker 2 and so on.
+        keywords: "rename speaker merge split people on the call diarization who said interrupt overlap talking over timeline",
+        body: `The **Transcript** tab shows the conversation in the order it was said: **You**, and the people on the call as Speaker 1, Speaker 2 and so on.
+
+Beside it, each person has a lane, solid while they're talking. When someone starts while another person is still talking, their line branches off that person's lane and is marked **over** them, and the line they cut into goes on after them (a hollow dot). Where the cut falls inside a sentence is Quill's estimate.
 
 - **Click a speaker's name** to rename them. The notes use the names once you re-summarize.
 - **Type an existing name** to merge two speakers who are really the same person.

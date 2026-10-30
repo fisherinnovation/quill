@@ -642,6 +642,21 @@ On the Meetings page, a day with two or more meetings that have notes gets
   (speaker turns without text, latest summaries), cut into 96 slices; a
   bar per slice sized by speech looked like a barcode, because nearly
   every slice of a meeting has speech.
+- **The transcript** is lines of text beside a rail like a git graph
+  (`app/src/conversation.ts`, `Rail` in `MeetingView.tsx`): a lane per
+  person, solid while they talk, a node where each line starts. It used
+  to be turns placed at their start time, so when someone cut into a
+  15 s line, all of it came first, even the part that answered them: it
+  read as if people raised things before anyone had. Now a line someone
+  cuts into (starting over 1.5 s inside it and 1.5 s before its end) is
+  split there and goes on after them, with a hollow node; the line that
+  cut in branches off the other person's lane and is marked "over You".
+  Whisper gives no word timings, so the split is placed by time, in
+  proportion to the line's characters, at the nearest word; on the
+  sample meeting it landed on the sentence boundary. Cutting in with
+  three words or fewer ("Makes sense") doesn't split the line: it's
+  shown after it, still marked. Only the view changes; transcripts and
+  what the notes model reads stay as they were.
 - **Tray icon:** the logo's feather and pulse line, drawn by
   `app/scripts/tray_icon.py` from the same paths as the app's `Logo`. On
   macOS it's a template image (black on transparent; macOS tints it), with
