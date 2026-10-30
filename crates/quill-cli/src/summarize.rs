@@ -41,8 +41,10 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     };
     let (provider, model) = quill_llm::provider_for(&args.model, privacy)?;
     if !args.model.starts_with("ollama:") {
-        // Make it obvious when the transcript leaves the machine.
-        eprintln!("Sending transcripts to OpenRouter ({model})…");
+        // Make it obvious when the transcript leaves the machine. The name as
+        // given: CodeQL can't tell `model` apart from the key `provider_for`
+        // reads, and flags printing it.
+        eprintln!("Sending transcripts to OpenRouter ({})…", args.model);
     }
     // The library is async (HTTP); the CLI is not, so run this one command
     // on a Tokio runtime and wait for it here.
