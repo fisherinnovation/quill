@@ -11,8 +11,8 @@ import {
   type MeetingVoice,
   type Progress,
   type RecordingState,
-  turns,
 } from "../api";
+import { conversation, type Line, talksDuring } from "../conversation";
 import { useElapsed } from "./RecordButton";
 import { Icon } from "./Icon";
 import { WriteUpCard } from "./WriteUp";
@@ -262,7 +262,7 @@ export function MeetingView({
           </button>
           <button role="tab" aria-selected={tab === "transcript"} onClick={() => setTab("transcript")}>
             <Icon name="text" size={14} /> Transcript
-            {segments.length > 0 && <span className="tab-count">{turns(segments).length}</span>}
+            {segments.length > 0 && <span className="tab-count">{conversation(segments).length}</span>}
           </button>
           <button role="tab" aria-selected={tab === "stats"} onClick={() => setTab("stats")}>
             <Icon name="chart" size={14} /> Stats
@@ -485,15 +485,25 @@ function Transcript({
   empty: boolean;
 }) {
   const target = useRef<HTMLDivElement>(null);
-  const paragraphs = useMemo(() => turns(segments), [segments]);
+  const lines = useMemo(() => conversation(segments), [segments]);
   const colors = useMemo(() => speakerColors(segments), [segments]);
-  // The turn containing the search hit, if any.
+  // A lane per person: you first, then by first appearance.
+  const lanes = useMemo(() => {
+    const names = new Set(segments.map((s) => s.speaker ?? null));
+    return [...(names.has(ME) ? [ME] : []), ...callSpeakers(segments).map((p) => p.name), ...(names.has(null) ? [null] : [])];
+  }, [segments]);
+  // Who's talking during each line.
+  const talking = useMemo(
+    () => lines.map((line) => new Set(lanes.filter((lane) => talksDuring(line, lane, segments)))),
+    [lines, lanes, segments],
+  );
+  // The line containing the search hit, if any.
   const targetIndex =
     jumpTo === undefined
       ? -1
-      : // The turn containing that moment, or (in a pause) the next one.
-        ((i) => (i >= 0 ? i : paragraphs.findIndex((t) => t.start_ms >= jumpTo)))(
-          paragraphs.findIndex((t) => t.start_ms <= jumpTo && jumpTo <= t.end_ms),
+      : // The line containing that moment, or (in a pause) the next one.
+        ((i) => (i >= 0 ? i : lines.findIndex((t) => t.start_ms >= jumpTo)))(
+          lines.findIndex((t) => t.start_ms <= jumpTo && jumpTo <= t.end_ms),
         );
 
   useEffect(() => {
@@ -517,25 +527,105 @@ function Transcript({
   }
   return (
     <section className="transcript">
-      {paragraphs.map((t, i) => {
-        const me = t.speaker === ME;
-        return (
-          <div key={i} ref={i === targetIndex ? target : undefined} className={`turn${i === targetIndex ? " highlight" : ""}`}>
-            <div className={`avatar ${me ? "me" : "others"}`} style={colorStyle(colors, t.speaker)}>
-              {me ? "Me" : initial(t.speaker)}
+      {lines.map((t, i) => (
+        <div key={i} ref={i === targetIndex ? target : undefined} className={`line${i === targetIndex ? " highlight" : ""}`}>
+          <Rail
+            line={t}
+            lanes={lanes}
+            colors={colors}
+            talking={talking[i]}
+            before={talking[i - 1]}
+            after={talking[i + 1]}
+          />
+          <div className="line-body">
+            <div className="turn-head">
+              <span className="turn-speaker">{speakerName(t.speaker)}</span>
+              <span className="turn-time">{clock(t.start_ms)}</span>
+              {t.over.length > 0 && (
+                <span className="cut-in" title="Started while they were still talking">
+                  over {t.over.map(speakerName).join(", ")}
+                </span>
+              )}
             </div>
-            <div>
-              <div className="turn-head">
-                <span className="turn-speaker">{me ? "You" : (t.speaker ?? "Speaker")}</span>
-                <span className="turn-time">{clock(t.start_ms)}</span>
-              </div>
-              <p className="turn-text">{t.text}</p>
-            </div>
+            <p className="turn-text">{lineText(t)}</p>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </section>
   );
+}
+
+/** Lane spacing and where a line's node sits, in px (matches `.rail` in styles.css). */
+const LANE = 14;
+const NODE_Y = 19;
+
+/**
+ * The left of a line, like a git graph: a lane per person, solid while
+ * they talk, a node where the line starts (hollow where it picks up after
+ * someone cut in), and a branch off whoever was talking when it started.
+ */
+function Rail({
+  line,
+  lanes,
+  colors,
+  talking,
+  before,
+  after,
+}: {
+  line: Line;
+  lanes: (string | null)[];
+  colors: Map<string, number>;
+  talking: Set<string | null>;
+  before?: Set<string | null>;
+  after?: Set<string | null>;
+}) {
+  const x = (lane: string | null | undefined) => lanes.indexOf(lane ?? null) * LANE + LANE / 2;
+  const own = x(line.speaker);
+  return (
+    <div className="rail" style={{ width: lanes.length * LANE }} aria-hidden>
+      {lanes.map((lane) => {
+        const on = talking.has(lane);
+        // The speaker's bar starts at their node unless they were already talking.
+        const from = on && !before?.has(lane) ? (lane === (line.speaker ?? null) ? "from-node" : "from-top") : "";
+        return (
+          <span
+            key={lane ?? ""}
+            className={`lane${on ? " on" : ""} ${from}${on && !after?.has(lane) ? " end" : ""}`}
+            style={{ left: x(lane), ...laneColor(colors, lane) }}
+          />
+        );
+      })}
+      <svg width={lanes.length * LANE} height={NODE_Y + 6} style={laneColor(colors, line.speaker)}>
+        {line.over.map((name) => (
+          <path
+            key={name}
+            className="branch"
+            d={`M ${x(name)} 0 C ${x(name)} ${NODE_Y}, ${own} 0, ${own} ${NODE_Y}`}
+          />
+        ))}
+        <circle className={`node${line.resumed ? " resumed" : ""}`} cx={own} cy={NODE_Y} r={line.resumed ? 3.5 : 4.5} />
+      </svg>
+    </div>
+  );
+}
+
+function laneColor(colors: Map<string, number>, speaker: string | null | undefined): CSSProperties {
+  if (speaker === ME) return { "--c": "var(--me)" } as CSSProperties;
+  if (!speaker) return { "--c": "var(--text-3)" } as CSSProperties;
+  const slot = colors.get(speaker);
+  return { "--c": slot === undefined ? "var(--others)" : `var(--spk-${(slot % 8) + 1})` } as CSSProperties;
+}
+
+/** The line's words, with "…" where someone cut in mid-sentence. */
+function lineText(line: Line): string {
+  let text = line.text;
+  if (line.cut && !/[.?!]$/.test(text)) text = text.replace(/[,;:\s—-]+$/, "") + "…";
+  if (line.resumed && /^\p{Ll}/u.test(text)) text = "…" + text;
+  return text;
+}
+
+function speakerName(speaker: string | null | undefined): string {
+  return speaker === ME ? "You" : (speaker ?? "Speaker");
 }
 
 const ME = "Me";
