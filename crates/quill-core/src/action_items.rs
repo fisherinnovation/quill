@@ -50,10 +50,36 @@ fn parse_item(line: &str) -> Option<Parsed> {
         return None;
     }
     Some(Parsed {
-        owner: owner.map(|o| plain(o).trim_end_matches(':').trim().to_string()),
+        owner: owner
+            .map(|o| plain(o).trim_end_matches(':').trim().to_string())
+            .filter(|o| !o.is_empty() && !is_no_owner(o)),
         task,
         due: due.map(|d| plain(strip_label(d))).filter(|d| !d.is_empty()),
     })
+}
+
+/// Owners that name no one: "Unassigned", or "Another participant" (the
+/// prompts' word for someone the transcript doesn't name).
+fn is_no_owner(owner: &str) -> bool {
+    let o = owner.to_lowercase();
+    let o = o.trim_start_matches("an ").trim_start_matches("a ");
+    [
+        "unassigned",
+        "not assigned",
+        "no owner",
+        "unknown",
+        "unclear",
+        "tbd",
+        "n/a",
+        "none",
+        "someone",
+        "other participant",
+        "another participant",
+        "participant",
+        "other participants",
+        "the other participant",
+    ]
+    .contains(&o)
 }
 
 /// "- x", "* x", "1. x" → "x".
@@ -89,11 +115,40 @@ fn split_due(text: &str) -> (&str, Option<&str>) {
     if let Some(at) = cut {
         let sep = text[at..].chars().nth(1).map_or(0, char::len_utf8) + 2;
         let (task, due) = (&text[..at], text[at + sep..].trim());
+        if says_no_date(due) {
+            return (task.trim(), None);
+        }
         if looks_like_a_date(due) {
             return (task.trim(), Some(due));
         }
     }
     (text, None)
+}
+
+/// "no due date given", "Due date: none", "not specified": the model
+/// saying nothing was said, which isn't a due date.
+fn says_no_date(text: &str) -> bool {
+    let t = plain(strip_label(text))
+        .to_lowercase()
+        .trim_matches(['(', ')'])
+        .to_string();
+    [
+        "no due",
+        "no deadline",
+        "no date",
+        "no specific",
+        "no timeline",
+        "none",
+        "n/a",
+        "tbd",
+        "not specified",
+        "not given",
+        "not mentioned",
+        "not stated",
+        "unspecified",
+    ]
+    .iter()
+    .any(|p| t.starts_with(p))
 }
 
 fn looks_like_a_date(text: &str) -> bool {
@@ -196,13 +251,41 @@ pub fn is_mine(owner: Option<&str>) -> bool {
 /// "by end of next week", "Oct 24", "in two weeks". `None` if it isn't a
 /// date (or is too vague, like "soon").
 pub fn due_date(text: &str, on: Date) -> Option<Date> {
+    // "end of day today (Friday)": the words around the brackets, else the
+    // ones in them.
+    if let Some((before, rest)) = text.split_once('(')
+        && let Some((inside, after)) = rest.split_once(')')
+    {
+        return due_date(&format!("{before} {after}"), on).or_else(|| due_date(inside, on));
+    }
     let mut t = strip_label(text.trim())
         .to_lowercase()
         .replace(['.', ','], " ");
     t = t.split_whitespace().collect::<Vec<_>>().join(" ");
-    for prefix in ["due ", "by ", "before ", "until ", "on ", "no later than "] {
-        if let Some(rest) = t.strip_prefix(prefix) {
-            t = rest.to_string();
+    // Until none is left: "by end of day on Monday".
+    loop {
+        let before = t.len();
+        for prefix in [
+            "due ",
+            "by ",
+            "before ",
+            "until ",
+            "on ",
+            "no later than ",
+            "end of day ",
+            "end of the day ",
+            "eod ",
+            "cob ",
+            "close of business ",
+            "end of business ",
+            "eob ",
+        ] {
+            if let Some(rest) = t.strip_prefix(prefix) {
+                t = rest.to_string();
+            }
+        }
+        if t.len() == before {
+            break;
         }
     }
     for suffix in [
@@ -211,6 +294,8 @@ pub fn due_date(text: &str, on: Date) -> Option<Date> {
         " evening",
         " eod",
         " end of day",
+        " cob",
+        " close of business",
         " noon",
         " at noon",
     ] {
@@ -221,7 +306,8 @@ pub fn due_date(text: &str, on: Date) -> Option<Date> {
     let t = t.strip_prefix("the ").unwrap_or(&t);
 
     match t {
-        "today" | "tonight" | "eod" | "end of day" | "end of today" => return Some(on),
+        "today" | "tonight" | "eod" | "end of day" | "end of the day" | "end of today" | "cob"
+        | "close of business" | "eob" | "end of business" => return Some(on),
         "tomorrow" => return on.checked_add(1.day()).ok(),
         "end of week" | "end of the week" | "end of this week" | "this week" | "eow" => {
             return Some(friday_of(on, 0));
@@ -448,6 +534,59 @@ mod tests {
             assert!(parse(&notes(none)).is_empty(), "{none}");
         }
         assert!(parse("# Sync\n\n## Decisions\n- Ship it\n").is_empty());
+    }
+
+    #[test]
+    fn saying_no_date_or_no_owner_is_none() {
+        let items = parse(&notes(
+            "- **You** — send the deck — no due date given\n\
+             - **Dan** — book the room — Due date: none\n\
+             - **Priya** — review the plan — (not specified)\n\
+             - **Other participant** — share the recording\n\
+             - **Unassigned** — find a venue — by Friday\n\
+             - **Another participant** — draft the brief\n",
+        ));
+        assert_eq!(items.len(), 6);
+        for item in &items[..3] {
+            assert_eq!(item.due, None, "{item:?}");
+        }
+        assert_eq!(
+            items[0].task, "send the deck",
+            "the phrase leaves the task too"
+        );
+        assert_eq!(items[3].owner, None);
+        assert_eq!(items[4].owner, None);
+        assert_eq!(items[4].due.as_deref(), Some("by Friday"));
+        assert_eq!(items[5].owner, None);
+        // Real names, and you, stay.
+        assert_eq!(items[0].owner.as_deref(), Some("You"));
+        assert_eq!(items[1].owner.as_deref(), Some("Dan"));
+    }
+
+    #[test]
+    fn end_of_day_and_bracketed_days_resolve() {
+        // A Friday.
+        let on = jiff::civil::date(2026, 10, 30);
+        let due = |t: &str| due_date(t, on).map(|d| d.to_string());
+        assert_eq!(
+            due("end of day today (Friday)").as_deref(),
+            Some("2026-10-30")
+        );
+        assert_eq!(due("end of day Monday").as_deref(), Some("2026-11-02"));
+        assert_eq!(due("by EOD Monday").as_deref(), Some("2026-11-02"));
+        assert_eq!(
+            due("by end of day on Tuesday").as_deref(),
+            Some("2026-11-03")
+        );
+        assert_eq!(due("COB Wednesday").as_deref(), Some("2026-11-04"));
+        assert_eq!(due("Monday COB").as_deref(), Some("2026-11-02"));
+        assert_eq!(due("close of business").as_deref(), Some("2026-10-30"));
+        // Only the brackets say when.
+        assert_eq!(
+            due("before the review (Nov 5)").as_deref(),
+            Some("2026-11-05")
+        );
+        assert_eq!(due("after the launch (soon)"), None);
     }
 
     #[test]

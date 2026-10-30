@@ -331,15 +331,21 @@ END;
 ALTER TABLE summaries ADD COLUMN complete INTEGER NOT NULL DEFAULT 1;
 UPDATE summaries SET complete = 0 WHERE completion_tokens = 4096;
 ",
+    "
+-- No schema change. Action items are read again from each meeting's latest
+-- notes (see `Library::init`), now that \"no due date given\" isn't a due
+-- date, \"Unassigned\" isn't an owner and \"end of day Monday\" is a date.
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
 /// are checked once for a transcript file (see `Library::init`).
 const TRANSCRIBED_MIGRATION: i64 = 6;
 
-/// The migration that added `action_items`; they're read once from the notes
-/// already in the library (see `Library::init`).
-const ACTION_ITEMS_MIGRATION: i64 = 8;
+/// The latest migration after which action items are read again from the
+/// notes already in the library (see `Library::init`): 8 added them, 15
+/// fixed how due dates and owners are read. Ticks survive the re-read.
+const ACTION_ITEMS_MIGRATION: i64 = 15;
 
 /// The migration that added `search_items`; each meeting's latest notes are
 /// read into it once (see `Library::init`).
@@ -1850,6 +1856,44 @@ mod tests {
         lib.delete(&m.id).unwrap();
         assert!(lib.action_items().unwrap().is_empty());
         assert!(found("ship").is_empty());
+    }
+
+    #[test]
+    fn action_items_read_the_old_way_are_read_again_keeping_ticks() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = open(dir.path());
+        let m = lib.create_meeting().unwrap();
+        lib.save_summary(
+            &m.id,
+            &summary(
+                "## Action items\n\
+                 - **Unassigned** — book the room — no due date given\n\
+                 - **You** — send the deck — end of day Monday\n",
+            ),
+        )
+        .unwrap();
+        let items = lib.action_items().unwrap();
+        lib.set_action_item_done(items[1].id, true).unwrap();
+        // As the old parser stored them, in a library from before the fix.
+        lib.conn()
+            .execute_batch(
+                "UPDATE action_items SET owner = 'Unassigned', due_text = 'no due date given'
+                     WHERE task = 'book the room';
+                 UPDATE action_items SET due_date = NULL WHERE task = 'send the deck';
+                 PRAGMA user_version = 14;",
+            )
+            .unwrap();
+        drop(lib);
+
+        let lib = open(dir.path());
+        let items = lib.action_items().unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            (items[0].owner.as_deref(), items[0].due_text.as_deref()),
+            (None, None)
+        );
+        assert!(items[1].due_date.is_some(), "{:?}", items[1]);
+        assert!(items[1].done_at.is_some(), "still ticked off");
     }
 
     #[test]
