@@ -772,6 +772,7 @@ mod tests {
             completion_tokens: 0,
             cost_usd: None,
             latency_ms: 0,
+            complete: true,
         }
     }
 

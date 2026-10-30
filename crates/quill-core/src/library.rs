@@ -323,6 +323,14 @@ CREATE TRIGGER daily_summary_forget AFTER DELETE ON daily_summary_meetings BEGIN
     DELETE FROM daily_summaries WHERE day = old.day;
 END;
 ",
+    "
+-- Whether the model finished the notes, or still stopped at its length
+-- limit after being asked to carry on (`summary`). Older notes weren't
+-- checked, but one request that used exactly the old 4,096-token budget
+-- was cut off.
+ALTER TABLE summaries ADD COLUMN complete INTEGER NOT NULL DEFAULT 1;
+UPDATE summaries SET complete = 0 WHERE completion_tokens = 4096;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -373,6 +381,9 @@ pub struct StoredSummary {
     pub cost_usd: Option<f64>,
     pub latency_ms: u64,
     pub created_at: String,
+    /// False if the model stopped at its length limit, so the notes end
+    /// early (see [`Summary::complete`]).
+    pub complete: bool,
 }
 
 /// Everything about one meeting.
@@ -915,8 +926,8 @@ impl Library {
         }
         tx.execute(
             "INSERT INTO summaries (meeting_id, markdown, model, prompt_version, prompt_tokens,
-                completion_tokens, cost_usd, latency_ms, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                completion_tokens, cost_usd, latency_ms, created_at, complete)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 id,
                 summary.markdown,
@@ -927,6 +938,7 @@ impl Library {
                 summary.cost_usd,
                 to_i64(summary.latency_ms),
                 jiff::Timestamp::now().to_string(),
+                summary.complete,
             ],
         )?;
         if let Some(title) = title_from_markdown(&summary.markdown) {
@@ -939,6 +951,22 @@ impl Library {
         crate::search::sync_notes(&tx, id, &summary.markdown)?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Meetings whose latest notes were cut off at the model's length
+    /// limit, oldest first: the ones to summarize again.
+    pub fn incomplete_notes(&self) -> Result<Vec<String>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT s.meeting_id FROM summaries s
+             WHERE s.id = (SELECT MAX(id) FROM summaries t WHERE t.meeting_id = s.meeting_id)
+               AND s.complete = 0
+             ORDER BY s.id",
+        )?;
+        let ids = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<Result<_, _>>()?;
+        Ok(ids)
     }
 
     /// Every meeting's action items: newest meeting first, then as ordered
@@ -1087,7 +1115,7 @@ impl Library {
         let summaries = conn
             .prepare(
                 "SELECT markdown, model, prompt_version, prompt_tokens, completion_tokens, cost_usd,
-                        latency_ms, created_at
+                        latency_ms, created_at, complete
                  FROM summaries WHERE meeting_id = ?1 ORDER BY id DESC",
             )?
             .query_map([id], |r| {
@@ -1100,6 +1128,7 @@ impl Library {
                     cost_usd: r.get(5)?,
                     latency_ms: from_i64(r.get(6)?),
                     created_at: r.get(7)?,
+                    complete: r.get(8)?,
                 })
             })?
             .collect::<Result<_, _>>()?;
@@ -1628,7 +1657,27 @@ mod tests {
             completion_tokens: 20,
             cost_usd: Some(0.001),
             latency_ms: 1500,
+            complete: true,
         }
+    }
+
+    #[test]
+    fn finds_meetings_whose_latest_notes_were_cut_off() {
+        let (lib, _dir) = library();
+        let [a, b, c] = [(); 3].map(|()| lib.create_meeting().unwrap().id);
+        let cut_off = Summary {
+            complete: false,
+            ..summary("## TL;DR\n- x")
+        };
+        lib.save_summary(&a, &cut_off).unwrap();
+        // Summarized again in full: no longer incomplete.
+        lib.save_summary(&b, &cut_off).unwrap();
+        lib.save_summary(&b, &summary("## TL;DR\n- x")).unwrap();
+        lib.save_summary(&c, &summary("## TL;DR\n- x")).unwrap();
+
+        assert_eq!(lib.incomplete_notes().unwrap(), std::slice::from_ref(&a));
+        assert!(!lib.get(&a).unwrap().summaries[0].complete);
+        assert!(lib.get(&b).unwrap().summaries[0].complete);
     }
 
     #[test]
@@ -1763,7 +1812,8 @@ mod tests {
         // everything).
         lib.conn()
             .execute_batch(
-                "DROP TABLE daily_summary_meetings;
+                "ALTER TABLE summaries DROP COLUMN complete;
+                 DROP TABLE daily_summary_meetings;
                  DROP TABLE daily_summaries;
                  DROP TRIGGER search_title_ai;
                  DROP TRIGGER search_title_au;

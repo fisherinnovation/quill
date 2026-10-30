@@ -45,6 +45,13 @@ impl Message {
             content: content.into(),
         }
     }
+
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: content.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +79,9 @@ pub struct CompletionResponse {
     /// `None` if the provider didn't say.
     pub cost_usd: Option<f64>,
     pub latency_ms: u64,
+    /// The model stopped because it reached `max_tokens`, so `text` ends
+    /// wherever it was cut off.
+    pub truncated: bool,
 }
 
 /// Anything that can complete a chat conversation.

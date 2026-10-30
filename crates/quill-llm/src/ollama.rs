@@ -47,6 +47,9 @@ struct ChatResponse {
     prompt_eval_count: u32,
     #[serde(default)]
     eval_count: u32,
+    /// "stop", or "length" when `num_predict` cut the answer off.
+    #[serde(default)]
+    done_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -106,6 +109,7 @@ impl LlmProvider for Ollama {
             completion_tokens: parsed.eval_count,
             cost_usd: Some(0.0),
             latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+            truncated: parsed.done_reason.as_deref() == Some("length"),
         })
     }
 
@@ -163,5 +167,31 @@ mod tests {
             (1200, 150)
         );
         assert_eq!(response.cost_usd, Some(0.0));
+        assert!(!response.truncated);
+    }
+
+    #[tokio::test]
+    async fn reports_an_answer_cut_off_at_num_predict() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "model": "qwen3:8b",
+                "message": {"role": "assistant", "content": "## Decisions\n- Ship on"},
+                "done": true,
+                "done_reason": "length",
+            })))
+            .mount(&server)
+            .await;
+        let response = Ollama::new(server.uri())
+            .complete(CompletionRequest {
+                model: "qwen3:8b".into(),
+                messages: vec![Message::user("Summarize.")],
+                max_tokens: Some(8),
+                temperature: None,
+                no_reasoning: false,
+            })
+            .await
+            .unwrap();
+        assert!(response.truncated);
     }
 }

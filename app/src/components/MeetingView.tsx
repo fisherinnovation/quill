@@ -347,6 +347,11 @@ export function MeetingView({
           Speakers have changed since these notes were written.
         </Banner>
       )}
+      {tab === "summary" && summary && !summary.complete && !busy && (
+        <Banner kind="warning" icon="alert" action={<button onClick={() => process(false)}>Re-summarize</button>}>
+          These notes were cut off: the model stopped at its length limit, so later sections may be missing.
+        </Banner>
+      )}
       {tab === "summary" &&
         (summary ? (
           <section className={`summary${justWritten ? " revealing" : ""}`}>

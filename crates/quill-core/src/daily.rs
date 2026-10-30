@@ -271,6 +271,7 @@ pub async fn summarize_day(
         completion_tokens: u64::from(response.completion_tokens),
         cost_usd: response.cost_usd,
         latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        complete: !response.truncated,
     })
 }
 
@@ -372,6 +373,7 @@ mod tests {
                 completion_tokens: 80,
                 cost_usd: Some(0.0004),
                 latency_ms: 5,
+                truncated: false,
             })
         }
 
@@ -403,6 +405,7 @@ mod tests {
             completion_tokens: 0,
             cost_usd: None,
             latency_ms: 0,
+            complete: true,
         }
     }
 

@@ -218,6 +218,7 @@ pub(crate) mod testing {
                 completion_tokens: 200,
                 cost_usd: Some(0.01),
                 latency_ms: 10,
+                truncated: false,
             })
         }
 

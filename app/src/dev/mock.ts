@@ -870,7 +870,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
       meeting,
       segments: meeting.has_transcript ? SEGMENTS : [],
       summaries: meeting.has_summary
-        ? [{ markdown: SUMMARY, model: "anthropic/claude-haiku-5.5", prompt_version: "summary-v2", prompt_tokens: 5120, completion_tokens: 410, cost_usd: 0.0007, latency_ms: 4100, created_at: iso(H) }]
+        ? [{ markdown: SUMMARY, model: "anthropic/claude-haiku-5.5", prompt_version: "summary-v2", prompt_tokens: 5120, completion_tokens: 410, cost_usd: 0.0007, latency_ms: 4100, created_at: iso(H), complete: !flags.has("cutoff") }]
         : [],
     };
   },
