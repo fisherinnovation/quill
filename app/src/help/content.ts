@@ -244,6 +244,7 @@ If notes weren't written (no model set up, or **Summarize automatically** is off
 - **Waiting on others** lists what other people agreed to do, by person, for following up.
 - Click the circle to tick one off. It's ticked in the meeting's notes and on Home too, and moves to **Done**, where you can tick it back.
 - Click the meeting under an item to open it.
+- In a meeting's notes, an item someone only suggested, that nobody took on, is marked **Suggested**. The time next to an item opens the transcript where it was said.
 
 Due dates are worked out from what was said and the day of the meeting: "by Thursday" in a Tuesday meeting means that Thursday, and "end of next week" the Friday after. Phrases that aren't a date, like "after the launch", show as written. The numbers at the top count your open items, those overdue, those due in the next three days, and what was done this week.
 

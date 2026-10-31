@@ -73,7 +73,16 @@ function useStuck(ref: React.RefObject<HTMLElement | null>, ready: boolean) {
  * here and on the Action items page alike. Notes whose items couldn't be
  * read (or that have none) show as written.
  */
-function Notes({ markdown, meetingId }: { markdown: string; meetingId: string }) {
+function Notes({
+  markdown,
+  meetingId,
+  onJump,
+}: {
+  markdown: string;
+  meetingId: string;
+  /** Shows the transcript at a moment an action item points to. */
+  onJump?: (ms: number) => void;
+}) {
   const items = useActionItems()?.filter((i) => i.meeting_id === meetingId) ?? [];
   const parts = actionItemsSection(markdown);
   if (!parts || items.length === 0) return <Markdown remarkPlugins={[remarkGfm]}>{markdown}</Markdown>;
@@ -81,7 +90,7 @@ function Notes({ markdown, meetingId }: { markdown: string; meetingId: string })
     <>
       <Markdown remarkPlugins={[remarkGfm]}>{parts.before}</Markdown>
       <h2>{parts.heading}</h2>
-      <ActionChecklist items={items} />
+      <ActionChecklist items={items} onJump={onJump} />
       <Markdown remarkPlugins={[remarkGfm]}>{parts.after}</Markdown>
     </>
   );
@@ -355,7 +364,14 @@ export function MeetingView({
       {tab === "summary" &&
         (summary ? (
           <section className={`summary${justWritten ? " revealing" : ""}`}>
-            <Notes markdown={summary.markdown} meetingId={id} />
+            <Notes
+              markdown={summary.markdown}
+              meetingId={id}
+              onJump={(ms) => {
+                setStatsJump(ms);
+                setTab("transcript");
+              }}
+            />
             <footer className="summary-footer">
               <span>Written by {summary.model.split("/").pop()}</span>
               <span className="dot-sep">{summary.prompt_version}</span>

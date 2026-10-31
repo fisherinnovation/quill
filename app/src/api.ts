@@ -76,6 +76,10 @@ export interface ActionItem {
   due_date: string | null;
   /** When it was ticked off; null while open. */
   done_at: string | null;
+  /** Someone took it on; false if it was only suggested. */
+  committed: boolean;
+  /** Where in the recording it was said (ms), when the notes say. */
+  source_ms: number | null;
 }
 
 export interface SearchHit {

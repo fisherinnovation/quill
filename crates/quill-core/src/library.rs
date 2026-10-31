@@ -336,6 +336,13 @@ UPDATE summaries SET complete = 0 WHERE completion_tokens = 4096;
 -- notes (see `Library::init`), now that \"no due date given\" isn't a due
 -- date, \"Unassigned\" isn't an owner and \"end of day Monday\" is a date.
 ",
+    "
+-- From summary-v5, notes end each action item with where it was said
+-- ([mm:ss]) and mark ones nobody took on \"(suggested)\". Items are read
+-- again (see `Library::init`) to pick up timestamps older notes have.
+ALTER TABLE action_items ADD COLUMN source_ms INTEGER;
+ALTER TABLE action_items ADD COLUMN committed INTEGER NOT NULL DEFAULT 1;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -344,8 +351,9 @@ const TRANSCRIBED_MIGRATION: i64 = 6;
 
 /// The latest migration after which action items are read again from the
 /// notes already in the library (see `Library::init`): 8 added them, 15
-/// fixed how due dates and owners are read. Ticks survive the re-read.
-const ACTION_ITEMS_MIGRATION: i64 = 15;
+/// fixed how due dates and owners are read, 16 added timestamps and
+/// suggested items. Ticks survive the re-read.
+const ACTION_ITEMS_MIGRATION: i64 = 16;
 
 /// The migration that added `search_items`; each meeting's latest notes are
 /// read into it once (see `Library::init`).
@@ -471,12 +479,17 @@ pub struct ActionItem {
     pub due_date: Option<String>,
     /// When it was ticked off (RFC 3339); `None` while open.
     pub done_at: Option<String>,
+    /// Someone took it on; false if it was only suggested.
+    pub committed: bool,
+    /// Where in the recording it was said (ms from the start), when the
+    /// notes say.
+    pub source_ms: Option<u64>,
 }
 
 /// The columns [`action_item_row`] reads, in its order (`a` is
 /// `action_items`, `m` its meeting).
 const ACTION_ITEM_COLUMNS: &str = "a.id, a.meeting_id, m.title, m.started_at, a.owner, a.task, \
-     a.due_text, a.due_date, a.done_at";
+     a.due_text, a.due_date, a.done_at, a.committed, a.source_ms";
 
 fn action_item_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ActionItem> {
     let owner: Option<String> = r.get(4)?;
@@ -491,6 +504,8 @@ fn action_item_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ActionItem> {
         due_text: r.get(6)?,
         due_date: r.get(7)?,
         done_at: r.get(8)?,
+        committed: r.get(9)?,
+        source_ms: r.get::<_, Option<i64>>(10)?.map(from_i64),
     })
 }
 
@@ -534,6 +549,7 @@ fn sync_action_items(
             .and_then(|(due, day)| action_items::due_date(due, day))
             .map(|d| d.to_string());
         let words = action_items::words(&item.task);
+        let source_ms = item.source_ms.map(to_i64);
         // The most alike earlier item, if alike enough to be the same task.
         let same = existing
             .iter()
@@ -546,14 +562,31 @@ fn sync_action_items(
         match same {
             Some((id, _, _)) => conn.execute(
                 "UPDATE action_items SET position = ?2, owner = ?3, task = ?4, due_text = ?5,
-                     due_date = ?6 WHERE id = ?1",
-                params![id, position, item.owner, item.task, item.due, due_date],
+                     due_date = ?6, committed = ?7, source_ms = ?8 WHERE id = ?1",
+                params![
+                    id,
+                    position,
+                    item.owner,
+                    item.task,
+                    item.due,
+                    due_date,
+                    item.committed,
+                    source_ms
+                ],
             )?,
             None => conn.execute(
-                "INSERT INTO action_items (meeting_id, position, owner, task, due_text, due_date)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO action_items (meeting_id, position, owner, task, due_text, due_date,
+                     committed, source_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
-                    meeting_id, position, item.owner, item.task, item.due, due_date
+                    meeting_id,
+                    position,
+                    item.owner,
+                    item.task,
+                    item.due,
+                    due_date,
+                    item.committed,
+                    source_ms
                 ],
             )?,
         };
@@ -1912,6 +1945,8 @@ mod tests {
                 "UPDATE action_items SET owner = 'Unassigned', due_text = 'no due date given'
                      WHERE task = 'book the room';
                  UPDATE action_items SET due_date = NULL WHERE task = 'send the deck';
+                 ALTER TABLE action_items DROP COLUMN source_ms;
+                 ALTER TABLE action_items DROP COLUMN committed;
                  PRAGMA user_version = 14;",
             )
             .unwrap();

@@ -83,12 +83,26 @@ pub const SUMMARY_V4: SummaryPrompts = SummaryPrompts {
     vocabulary: true,
 };
 
+/// v5: decisions split into decided, direction given and proposed; action
+/// items marked "(suggested)" unless someone took them on; a [mm:ss]
+/// timestamp on every decision, action item and flagged uncertainty; no
+/// small talk; titles that say what the meeting was about.
+pub const SUMMARY_V5: SummaryPrompts = SummaryPrompts {
+    version: "summary-v5",
+    system: prompt!("summary-v5/system.md"),
+    single: prompt!("summary-v5/single.md"),
+    chunk: prompt!("summary-v5/chunk.md"),
+    reduce: prompt!("summary-v5/reduce.md"),
+    vocabulary: true,
+};
+
 /// The version used by default.
-pub const SUMMARY: SummaryPrompts = SUMMARY_V4;
+pub const SUMMARY: SummaryPrompts = SUMMARY_V5;
 
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
-pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4];
+pub const SUMMARY_VERSIONS: &[SummaryPrompts] =
+    &[SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5];
 
 /// The `vocabulary` value for summary prompts that take one: the user's
 /// names and terms as a paragraph, ready to sit above the transcript, or
