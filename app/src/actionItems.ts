@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type ActionItem, api } from "./api";
+import { type ActionItem, api, events } from "./api";
 
 /**
  * Every meeting's action items, shared by the sidebar's count, the Action
@@ -40,12 +40,20 @@ export async function setActionItemDone(id: number, done: boolean) {
   }
 }
 
+// An AI assistant may tick items off: reload when it does. Listened for
+// once, the first time anything shows action items.
+let listening = false;
+
 /** The action items (null until first loaded). */
 export function useActionItems(): ActionItem[] | null {
   const [, rerender] = useState(0);
   useEffect(() => {
     const listener = () => rerender((n) => n + 1);
     listeners.add(listener);
+    if (!listening) {
+      listening = true;
+      void events.onActionItemsChanged(() => void refreshActionItems());
+    }
     if (items === null) void refreshActionItems();
     return () => {
       listeners.delete(listener);

@@ -75,6 +75,9 @@ pub struct Settings {
     /// (`quill_core::vocabulary`), through the app's own connection. Off
     /// unless the user turns it on; checked on every request.
     pub assistant_vocabulary: bool,
+    /// Also let them tick action items off and back on (`quill_mcp`). Off
+    /// unless the user turns it on; checked on every request.
+    pub assistant_action_items: bool,
     /// The localhost port the app serves assistants on.
     pub assistant_port: u16,
     // Tables must come after plain values in TOML, so keep these last.
@@ -236,6 +239,7 @@ impl Default for Settings {
             semantic_search: true,
             assistant_access: false,
             assistant_vocabulary: false,
+            assistant_action_items: false,
             assistant_port: DEFAULT_ASSISTANT_PORT,
             gpu: GpuChoice::Automatic,
             live_notes_place: LiveNotesPlace::default(),

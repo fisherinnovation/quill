@@ -81,4 +81,10 @@ impl quill_mcp::Context for CliContext {
     ) -> Result<Vec<String>, String> {
         Err(quill_mcp::VOCABULARY_APP_ONLY.into())
     }
+
+    /// Action items live in the library, which the app reads again, so they
+    /// can be ticked from here too.
+    fn may_tick_action_items(&self) -> bool {
+        Settings::load(&self.data_dir).is_ok_and(|s| s.assistant_action_items)
+    }
 }

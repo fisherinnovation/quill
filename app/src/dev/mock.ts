@@ -323,6 +323,7 @@ const settings = {
   semantic_search: true,
   assistant_access: flags.has("assistants"),
   assistant_vocabulary: false,
+  assistant_action_items: false,
   assistant_port: 47321,
   gpu: { kind: "automatic" },
   dictation: {

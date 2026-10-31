@@ -7,7 +7,7 @@
 //! summaries. Dictations are left out, even from search: they're often
 //! private messages typed into other apps, not meeting content. Read-only,
 //! except that the user may also let assistants change the vocabulary
-//! ([`crate::vocabulary`]).
+//! ([`crate::vocabulary`]) and tick off action items.
 //!
 //! [`Settings::assistant_access`]: crate::settings::Settings::assistant_access
 
