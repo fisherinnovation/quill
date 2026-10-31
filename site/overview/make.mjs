@@ -244,8 +244,9 @@ run(
 );
 
 // Loudness for the web: -16 LUFS, peaks under -1.5 dB, measured first so
-// the second pass is linear (the mix keeps its balance).
-const LOUDNORM = "I=-16:TP=-1.5:LRA=11";
+// the second pass is linear (the mix keeps its balance). It aims 0.5 dB
+// lower, because encoding to AAC afterwards can raise peaks that much.
+const LOUDNORM = "I=-16:TP=-2:LRA=11";
 const probe = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", raw, "-vn", "-af", `loudnorm=${LOUDNORM}:print_format=json`, "-f", "null", "-"], {
   encoding: "utf8",
 });

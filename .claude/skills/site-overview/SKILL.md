@@ -54,8 +54,8 @@ Each scene's `shot` is one of:
 - `{"app": "<id>"}`: a scene from `site/video/script.json`, re-recorded
   without its caption and held as long as the line. To show something new,
   add the scene there first (see the `site-video` skill).
-- `{"card": {"title": …, "points": […]}}`: a title card on the site's
-  background.
+- `{"card": {"title": …, "points": […], "icon": "chat"}}`: a title card on
+  the site's background. `icon` is `lock` (the default) or `chat`.
 - `{"end": {"url": …}}`: the icon, the tagline, the platforms and the address.
 
 Footage clips are 4–8 s (Veo), so keep footage lines to about 6 s or cut

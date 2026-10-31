@@ -168,7 +168,13 @@ const Words = ({ text, delay = 0, step = 3, style }) => {
   );
 };
 
-const Card = ({ title, points }) => {
+/** A card's icon: a padlock (the default) or a speech bubble. */
+const CARD_ICONS = {
+  lock: () => [<rect key="body" x="5" y="11" width="14" height="9" rx="2" />, <path key="shackle" d="M8 11V8a4 4 0 0 1 8 0v3" />],
+  chat: () => <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-4.5 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />,
+};
+
+const Card = ({ title, points, icon = "lock" }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const pop = spring({ frame: f - 4, fps, config: { damping: 12, mass: 0.6 } });
@@ -187,8 +193,7 @@ const Card = ({ title, points }) => {
         }}
       >
         <svg width="66" height="66" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="5" y="11" width="14" height="9" rx="2" />
-          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+          {CARD_ICONS[icon]()}
         </svg>
       </div>
       <Words
