@@ -26,6 +26,10 @@ pub mod http;
 pub mod token;
 pub mod tools;
 
+/// A change to the vocabulary: the new list made from the current one, or
+/// why it can't be made.
+pub type EditVocabulary<'a> = dyn Fn(&[String]) -> Result<Vec<String>, String> + 'a;
+
 /// What the server needs from whoever hosts it.
 pub trait Context: Send + Sync + 'static {
     /// Whether the user still lets assistants read the library. Asked on
@@ -35,11 +39,28 @@ pub trait Context: Send + Sync + 'static {
     /// The search model, if search by meaning is on and it's downloaded
     /// (never downloading it); `None` searches by words only.
     fn embedder(&self) -> Option<Arc<dyn Embedder>>;
+    /// The user's vocabulary (`quill_core::vocabulary`).
+    fn vocabulary(&self) -> Vec<String>;
+    /// Replaces the vocabulary with what `edit` makes of it and returns the
+    /// new list, if the user lets assistants change it
+    /// (`Settings::assistant_vocabulary`, asked on every request). A host
+    /// that can't save it safely says so ([`VOCABULARY_APP_ONLY`]).
+    fn edit_vocabulary(&self, edit: &EditVocabulary<'_>) -> Result<Vec<String>, String>;
 }
 
 /// What an assistant is told when access is off.
 pub const TURNED_OFF: &str = "Quill isn't sharing meetings with AI assistants. The user can turn \
      it on in Quill: Settings → Meetings → Let AI assistants read your meetings.";
+
+/// What an assistant is told when it may read the vocabulary but not change it.
+pub const VOCABULARY_LOCKED: &str = "Quill doesn't let AI assistants change the vocabulary. \
+     The user can turn it on in Quill: Settings → Meetings → Let them change your vocabulary.";
+
+/// What `quill-cli mcp` says when asked to change the vocabulary: the app
+/// keeps its settings in memory and would later save over the change.
+pub const VOCABULARY_APP_ONLY: &str = "This connection (quill-cli mcp) can only read the \
+     vocabulary. Change it through the Quill app's own connection, while the app is open: \
+     its address is in Settings → Meetings.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum McpError {
@@ -68,8 +89,8 @@ pub async fn serve_stdio(context: Arc<dyn Context>) -> Result<(), McpError> {
 pub(crate) mod testing {
     //! A library with one meeting in it, for the tests of both transports.
 
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
 
     use quill_core::library::Library;
     use quill_core::summary::Summary;
@@ -79,6 +100,8 @@ pub(crate) mod testing {
     pub struct TestContext {
         pub library: Library,
         pub allowed: AtomicBool,
+        pub vocabulary: Mutex<Vec<String>>,
+        pub vocabulary_editable: AtomicBool,
         _dir: tempfile::TempDir,
     }
 
@@ -91,6 +114,17 @@ pub(crate) mod testing {
         }
         fn embedder(&self) -> Option<Arc<dyn Embedder>> {
             None
+        }
+        fn vocabulary(&self) -> Vec<String> {
+            self.vocabulary.lock().unwrap().clone()
+        }
+        fn edit_vocabulary(&self, edit: &super::EditVocabulary<'_>) -> Result<Vec<String>, String> {
+            if !self.vocabulary_editable.load(Ordering::SeqCst) {
+                return Err(super::VOCABULARY_LOCKED.into());
+            }
+            let mut vocabulary = self.vocabulary.lock().unwrap();
+            *vocabulary = edit(&vocabulary)?;
+            Ok(vocabulary.clone())
         }
     }
 
@@ -122,6 +156,8 @@ pub(crate) mod testing {
         let context = TestContext {
             library,
             allowed: AtomicBool::new(true),
+            vocabulary: Mutex::new(vec!["Quill".into()]),
+            vocabulary_editable: AtomicBool::new(false),
             _dir: dir,
         };
         (Arc::new(context), id)

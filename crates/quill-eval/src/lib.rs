@@ -157,7 +157,7 @@ pub async fn run_summaries(
                 let outcome = match provider {
                     Ok((provider, id)) => {
                         tracing::info!(case = %case.name, model, prompt = prompts.version, "summarizing");
-                        summary::summarize(provider.as_ref(), id, prompts, &case.segments, date)
+                        summary::summarize(provider.as_ref(), id, prompts, &case.segments, date, &[])
                             .await
                             .map_err(|e| e.to_string())
                     }

@@ -469,6 +469,7 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
         &quill_llm::prompts::SUMMARY,
         &detail.segments,
         &date,
+        &settings.dictation.vocabulary,
     )
     .await
     .map_err(|e| e.to_string())?;

@@ -13,6 +13,12 @@ pub fn open() -> anyhow::Result<Library> {
         .context("opening the meeting library")
 }
 
+/// The app's settings.
+pub fn settings() -> anyhow::Result<Settings> {
+    let data_dir = quill_core::paths::data_dir().context("could not find a home directory")?;
+    Settings::load(&data_dir).context("reading settings")
+}
+
 /// If `dir` is a meeting folder inside the library, the library and the
 /// meeting's id, so results can be saved to it as well as to files.
 pub fn meeting_for(dir: &Path) -> anyhow::Result<Option<(Library, String)>> {

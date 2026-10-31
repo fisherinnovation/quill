@@ -22,6 +22,10 @@ pub struct SummaryPrompts {
     pub chunk: &'static str,
     /// Combine part notes. Vars: date, duration, parts, notes.
     pub reduce: &'static str,
+    /// Whether `single`, `chunk` and `reduce` also take `vocabulary`: the
+    /// user's names and terms, as a paragraph ending in a blank line, or
+    /// empty. From v4.
+    pub vocabulary: bool,
 }
 
 // `concat!(env!("CARGO_MANIFEST_DIR"), ...)` builds an absolute path at
@@ -42,6 +46,7 @@ pub const SUMMARY_V1: SummaryPrompts = SummaryPrompts {
     single: prompt!("summary-v1/single.md"),
     chunk: prompt!("summary-v1/chunk.md"),
     reduce: prompt!("summary-v1/reduce.md"),
+    vocabulary: false,
 };
 
 /// v2: resolves "I/you/we" relative to each speaker (v1 once reversed who
@@ -53,6 +58,7 @@ pub const SUMMARY_V2: SummaryPrompts = SummaryPrompts {
     single: prompt!("summary-v2/single.md"),
     chunk: prompt!("summary-v2/chunk.md"),
     reduce: prompt!("summary-v2/reduce.md"),
+    vocabulary: false,
 };
 
 /// v3: understands voice-separated speakers ("Speaker 1", …) and names the
@@ -63,14 +69,41 @@ pub const SUMMARY_V3: SummaryPrompts = SummaryPrompts {
     single: prompt!("summary-v3/single.md"),
     chunk: prompt!("summary-v3/chunk.md"),
     reduce: prompt!("summary-v3/reduce.md"),
+    vocabulary: false,
+};
+
+/// v4: given the user's vocabulary (names and terms speech recognition
+/// mishears), to spell them as listed. Templates otherwise unchanged.
+pub const SUMMARY_V4: SummaryPrompts = SummaryPrompts {
+    version: "summary-v4",
+    system: prompt!("summary-v4/system.md"),
+    single: prompt!("summary-v4/single.md"),
+    chunk: prompt!("summary-v4/chunk.md"),
+    reduce: prompt!("summary-v4/reduce.md"),
+    vocabulary: true,
 };
 
 /// The version used by default.
-pub const SUMMARY: SummaryPrompts = SUMMARY_V3;
+pub const SUMMARY: SummaryPrompts = SUMMARY_V4;
 
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
-pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY_V1, SUMMARY_V2, SUMMARY_V3];
+pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4];
+
+/// The `vocabulary` value for summary prompts that take one: the user's
+/// names and terms as a paragraph, ready to sit above the transcript, or
+/// empty if there are none.
+pub fn vocabulary_note(terms: &[String]) -> String {
+    if terms.is_empty() {
+        return String::new();
+    }
+    format!(
+        "These names and terms come up in the user's meetings. Speech \
+         recognition often mishears them, so when the transcript means one of \
+         them, spell it exactly as listed: {}.\n\n",
+        terms.join(", ")
+    )
+}
 
 /// Looks up a summary prompt version by name, e.g. `summary-v1`.
 pub fn find_summary(version: &str) -> Option<&'static SummaryPrompts> {
@@ -279,32 +312,47 @@ mod tests {
     }
 
     fn check_summary_templates(p: &SummaryPrompts) {
+        // `vocabulary` too, for the versions that take it.
+        let with = |vars: &[(&'static str, &'static str)]| {
+            let mut vars = vars.to_vec();
+            if p.vocabulary {
+                vars.push(("vocabulary", "v"));
+            }
+            vars
+        };
         render(p.system, &[]).unwrap();
         render(
             p.single,
-            &[("date", "d"), ("duration", "1 min"), ("transcript", "t")],
+            &with(&[("date", "d"), ("duration", "1 min"), ("transcript", "t")]),
         )
         .unwrap();
         render(
             p.chunk,
-            &[
+            &with(&[
                 ("part", "1"),
                 ("parts", "2"),
                 ("range", "00:00–30:00"),
                 ("transcript", "t"),
-            ],
+            ]),
         )
         .unwrap();
         render(
             p.reduce,
-            &[
+            &with(&[
                 ("date", "d"),
                 ("duration", "2 h"),
                 ("parts", "2"),
                 ("notes", "n"),
-            ],
+            ]),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn vocabulary_note_lists_terms_or_is_empty() {
+        assert_eq!(vocabulary_note(&[]), "");
+        let note = vocabulary_note(&["Prall".into(), "Shrivastava".into()]);
+        assert!(note.ends_with(": Prall, Shrivastava.\n\n"), "{note}");
     }
 
     /// Golden file for the live-notes prompt; regenerate like the others.
@@ -339,6 +387,7 @@ mod tests {
     /// `UPDATE_GOLDEN=1 cargo test -p quill-llm`, then review the diff.
     #[test]
     fn single_prompt_golden() {
+        let vocabulary = vocabulary_note(&["Quill".into(), "OpenRouter".into()]);
         let rendered = render(
             SUMMARY.single,
             &[
@@ -348,6 +397,7 @@ mod tests {
                     "transcript",
                     "[00:00] Me: Shall we ship Friday?\n[00:04] Others: Yes, Friday works.",
                 ),
+                ("vocabulary", &vocabulary),
             ],
         )
         .unwrap();

@@ -3,9 +3,11 @@
 //! `quill-cli mcp` serves it over the Model Context Protocol; this module
 //! decides what they see and how, so any other way in sees the same.
 //!
-//! Read-only, and meetings only: titles, notes, transcripts, action items
-//! and daily summaries. Dictations are left out, even from search: they're
-//! often private messages typed into other apps, not meeting content.
+//! Meetings only: titles, notes, transcripts, action items and daily
+//! summaries. Dictations are left out, even from search: they're often
+//! private messages typed into other apps, not meeting content. Read-only,
+//! except that the user may also let assistants change the vocabulary
+//! ([`crate::vocabulary`]).
 //!
 //! [`Settings::assistant_access`]: crate::settings::Settings::assistant_access
 

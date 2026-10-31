@@ -43,12 +43,15 @@ export function DictationSettingsTab({
   settings,
   speechModel,
   update,
+  vocabularyRevision = 0,
   onReviewSamples,
 }: {
   settings: DictationSettings;
   /** The speech model dictation uses (Settings → Models). */
   speechModel?: string;
   update: (patch: Partial<DictationSettings>) => void;
+  /** Changes when an assistant changed the vocabulary, to show the new list. */
+  vocabularyRevision?: number;
   /** Opens the page that reviews the saved samples. */
   onReviewSamples?: () => void;
 }) {
@@ -210,12 +213,12 @@ export function DictationSettingsTab({
           <div className="row-label">
             <span>Vocabulary</span>
             <p className="row-hint">
-              Names and terms to spell exactly, one per line.
+              Names and terms to spell exactly, one per line. Meeting notes use them too.
               {parakeet && " Parakeet listens out for them as it transcribes."}
             </p>
           </div>
           <ListInput
-            key={`vocabulary-${wordsRevision}`}
+            key={`vocabulary-${wordsRevision}-${vocabularyRevision}`}
             rows={3}
             placeholder={"Quill\nOpenRouter"}
             value={settings.vocabulary.join("\n")}

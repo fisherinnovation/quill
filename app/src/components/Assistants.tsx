@@ -108,6 +108,19 @@ export function AssistantRows({
         </Banner>
       )}
 
+      {settings.assistant_access && (
+        <Row
+          label="Let them change your vocabulary"
+          hint="Assistants can add names and terms to Settings → Dictation → Words, and take them out, so meeting notes and dictations spell them right. Only through the address below, while Quill is open."
+        >
+          <Switch
+            label="Let them change your vocabulary"
+            checked={settings.assistant_vocabulary}
+            onChange={(on) => update({ assistant_vocabulary: on })}
+          />
+        </Row>
+      )}
+
       {settings.assistant_access && server?.error && (
         <Row label="Not available" hint={server.error}>
           {null}

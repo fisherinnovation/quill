@@ -53,6 +53,9 @@ export function SettingsView({
   // Saved on their own (save_dictation_settings rebinds the shortcut;
   // save_settings leaves dictation alone).
   const [dictation, setDictation] = useState<DictationSettings | null>(null);
+  // Bumped when an assistant changes the vocabulary, so the Words box
+  // shows it (and the next save doesn't put the old list back).
+  const [vocabularyRevision, setVocabularyRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // Bumped when models are deleted, so the disk footprint updates.
   const [diskVersion, setDiskVersion] = useState(0);
@@ -69,6 +72,11 @@ export function SettingsView({
         setDictation(s.dictation);
       })
       .catch((e) => setError(errorText(e)));
+    const unlisten = events.onVocabulary((vocabulary) => {
+      setDictation((d) => d && { ...d, vocabulary });
+      setVocabularyRevision((n) => n + 1);
+    });
+    return () => void unlisten.then((f) => f());
   }, []);
 
   if (!settings || !dictation) return error ? <div className="page error-text">{error}</div> : null;
@@ -276,6 +284,7 @@ export function SettingsView({
           settings={dictation}
           speechModel={dictation.stt_model ?? current.stt_model}
           update={(patch) => setDictation({ ...dictation, ...patch })}
+          vocabularyRevision={vocabularyRevision}
           onReviewSamples={onReviewSamples}
         />
       )}

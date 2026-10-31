@@ -72,6 +72,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         &quill_llm::prompts::SUMMARY,
         &segments,
         &date,
+        &vocabulary(),
     ))?;
 
     println!("{}", summary.markdown);
@@ -103,6 +104,7 @@ fn again_where_incomplete(
         return Ok(());
     }
     eprintln!("{} meeting(s) with incomplete notes.", ids.len());
+    let vocabulary = vocabulary();
     let mut still = 0;
     for id in &ids {
         let detail = library.get(id)?;
@@ -115,6 +117,7 @@ fn again_where_incomplete(
                 &quill_llm::prompts::SUMMARY,
                 &detail.segments,
                 &date,
+                &vocabulary,
             ))
             .with_context(|| format!("summarizing {id}"))?;
         library.save_summary(id, &summary)?;
@@ -132,6 +135,14 @@ fn again_where_incomplete(
         );
     }
     Ok(())
+}
+
+/// The user's vocabulary (Settings → Dictation → Words), as the app writes
+/// notes with it; none if the settings can't be read.
+fn vocabulary() -> Vec<String> {
+    crate::library::settings()
+        .map(|s| s.dictation.vocabulary)
+        .unwrap_or_default()
 }
 
 fn read_transcript(path: &Path) -> anyhow::Result<Vec<Segment>> {

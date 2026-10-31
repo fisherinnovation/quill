@@ -26,5 +26,6 @@ pub mod settings;
 pub mod speakers;
 pub mod stats;
 pub mod summary;
+pub mod vocabulary;
 pub mod voices;
 pub mod wer;
