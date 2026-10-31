@@ -50,7 +50,8 @@
           <span>Quill</span>
         </a>
         <nav class="nav-links" aria-label="Sections">
-          <a href="#features">Features</a>
+          <a href="#meetings">Meetings</a>
+          <a href="#dictation">Dictation</a>
           <a href="#privacy">Privacy</a>
           <a href="#compare">Compare</a>
           <a href="#download">Download</a>
@@ -71,8 +72,8 @@
             meeting bot
           </h1>
           <p class="lead reveal">
-            Record any call and get notes while you talk, then a transcript and a full write-up when it ends. Or hold
-            a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded.
+            Record any call and get notes while you talk, then a transcript, a full write-up and your action items when
+            it ends. Or hold a key and speak to type anywhere. Audio is transcribed on your computer and never uploaded.
           </p>
           <div class="hero-actions reveal">
             <a class="btn btn-dark" href="#download">Get Quill</a>
@@ -83,7 +84,7 @@
               Watch the overview
             </a>
             <!--else overview-->
-            <a class="btn btn-ghost" href="#features">See what it does</a>
+            <a class="btn btn-ghost" href="#meetings">See what it does</a>
             <!--end overview-->
           </div>
         </div>
@@ -129,10 +130,10 @@
         <p class="footnote">Timings measured on a MacBook Pro with an M3 Pro chip.</p>
       </section>
 
-      <!-- Features -->
-      <section class="section" id="features">
+      <!-- Meetings -->
+      <section class="section" id="meetings">
         <div class="section-head reveal">
-          <p class="eyebrow">Meeting notes and dictation in one app</p>
+          <p class="eyebrow">Meeting notes</p>
           <h2>Everything said, written down</h2>
         </div>
 
@@ -142,15 +143,16 @@
               <h3>Knows who said what</h3>
               <p>
                 Your microphone and the call are recorded as separate tracks, so your words are always yours. The
-                other voices are told apart on your computer, and you can name them in a click.
+                other voices are told apart on your computer. Name someone once and Quill recognizes their voice in
+                later meetings.
               </p>
             </div>
             <div class="speakers" aria-hidden="true">
               <div class="speaker"><span class="who me">You</span><i style="--w: 72%"></i></div>
-              <div class="speaker"><span class="who sky">Speaker 1</span><i style="--w: 48%"></i></div>
-              <div class="speaker"><span class="who rose">Speaker 2</span><i style="--w: 31%"></i></div>
+              <div class="speaker"><span class="who sky known">Priya</span><i style="--w: 48%"></i></div>
+              <div class="speaker"><span class="who rose known">Dan</span><i style="--w: 31%"></i></div>
               <div class="speaker"><span class="who lime">Speaker 3</span><i style="--w: 17%"></i></div>
-              <p class="muted small">Share of the talking</p>
+              <p class="muted small">Share of the talking · <span class="known-mark">✦</span> recognized from earlier meetings</p>
             </div>
           </article>
 
@@ -159,7 +161,7 @@
               <h3>Notes while you talk</h3>
               <p>
                 A panel beside the call keeps what to ask before the end, follow-ups and decisions, updated every
-                minute. It's hidden from screen sharing.
+                minute. Drag it anywhere. It's hidden from screen sharing.
               </p>
             </div>
             <ul class="live-notes" aria-label="Example live notes">
@@ -172,81 +174,41 @@
 
           <article class="card feature reveal">
             <div class="feature-copy">
-              <h3>Notes worth reading</h3>
+              <h3>Notes you can check</h3>
               <p>
-                When the call ends: a TL;DR, decisions, action items with owners, and the discussion by topic. Export
-                to Markdown.
+                When the call ends: a TL;DR, decisions, action items with owners, and the discussion by topic. Each
+                decision and action item links to the moment it was said, and names are spelled your way.
               </p>
             </div>
-            <div class="note-stack" aria-hidden="true">
-              <span>TL;DR</span><span>Decisions</span><span>Action items</span><span>Open questions</span>
-            </div>
-          </article>
-
-          <article class="card feature reveal">
-            <div class="feature-copy">
-              <h3>Dictate into any app</h3>
-              <p>
-                Hold a key (or fn on a Mac), speak, let go. Your words show as you say them, and fillers and false
-                starts are tidied only when there's something to fix.
-              </p>
-            </div>
-            <div class="dictate" aria-hidden="true">
-              <div class="keys"><kbd>⌥ Option</kbd><span>+</span><kbd>Space</kbd></div>
-              <p class="caption">Let's move the launch <span>to Thursday</span></p>
-              <div class="pill-indicator"><span class="dot"></span><span class="levels" data-bars="14"></span></div>
-            </div>
-          </article>
-
-          <article class="card feature reveal">
-            <div class="feature-copy">
-              <h3>The right tone for each app</h3>
-              <p>Casual in chat, formal in email, exact in your editor and terminal. Change any app's style.</p>
-            </div>
-            <ul class="styles" aria-label="Example styles">
-              <li><span>Slack</span><em class="chip sky">Casual</em></li>
-              <li><span>Mail</span><em class="chip lilac">Formal</em></li>
-              <li><span>VS Code</span><em class="chip mint">Technical</em></li>
+            <ul class="note-lines" aria-label="Example notes">
+              <li><span>Launch moves to Thursday</span><time>12:04</time></li>
+              <li><span>Dan sends the revised timeline</span><time>18:40</time></li>
+              <li><span>Re-run the pricing test</span><em class="chip peach">Suggested</em><time>31:15</time></li>
             </ul>
           </article>
 
-          <article class="card feature reveal">
+          <article class="card feature span-2 reveal">
             <div class="feature-copy">
               <h3>See how the call went</h3>
               <p>
-                Who talked and for how long, a timeline of who spoke when, questions asked and the longest monologue.
-                Worked out on your computer.
+                Who talked and for how long, a lane per person showing who spoke when and who talked over whom,
+                questions asked and the longest monologue. Worked out on your computer.
               </p>
             </div>
             <div class="timeline" aria-hidden="true">
               <div class="lane">
                 <span class="who me">You</span>
-                <span class="track"><i style="--x: 0%; --w: 16%"></i><i style="--x: 41%; --w: 9%"></i><i style="--x: 71%; --w: 21%"></i></span>
+                <span class="track"><i style="--x: 0%; --w: 18%"></i><i style="--x: 41%; --w: 9%"></i><i style="--x: 71%; --w: 21%"></i></span>
               </div>
               <div class="lane">
-                <span class="who sky">Dan</span>
-                <span class="track"><i style="--x: 17%; --w: 23%"></i><i style="--x: 63%; --w: 7%"></i></span>
+                <span class="who sky">Priya</span>
+                <span class="track"><i style="--x: 15%; --w: 25%"></i><i style="--x: 63%; --w: 7%"></i></span>
               </div>
               <div class="lane">
-                <span class="who rose">Priya</span>
-                <span class="track"><i style="--x: 51%; --w: 11%"></i><i style="--x: 93%; --w: 7%"></i></span>
+                <span class="who rose">Dan</span>
+                <span class="track"><i style="--x: 51%; --w: 11%"></i><i style="--x: 89%; --w: 11%"></i></span>
               </div>
-              <p class="muted small">Who spoke when</p>
-            </div>
-          </article>
-
-          <article class="card feature reveal">
-            <div class="feature-copy">
-              <h3>Search every meeting</h3>
-              <p>Full-text search across every transcript, kept in a local library on your computer.</p>
-            </div>
-            <div class="search" aria-hidden="true">
-              <div class="search-box">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></svg>
-                launch date
-              </div>
-              <p><b>Product sync</b> · “…hold the <mark>launch</mark> until that's fixed…”</p>
-              <p><b>Design review</b> · “…the <mark>launch date</mark> slipped a week…”</p>
+              <p class="muted small">Who spoke when, and over whom</p>
             </div>
           </article>
         </div>
@@ -293,6 +255,140 @@
         </p>
       </section>
 
+      <!-- Across meetings -->
+      <section class="section" id="library">
+        <div class="section-head reveal">
+          <p class="eyebrow">Across all your meetings</p>
+          <h2>Nothing gets buried</h2>
+        </div>
+
+        <div class="bento">
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Every action item in one list</h3>
+              <p>
+                Yours first, overdue at the top, with due dates worked out from what was said ("by Thursday"). What
+                others agreed to do is kept by person, for following up.
+              </p>
+            </div>
+            <ul class="todos" aria-label="Example action items">
+              <li><i class="tick"></i><span>Send Priya the revised timeline</span><em class="chip rose">Overdue</em></li>
+              <li><i class="tick"></i><span>Book the pricing test</span><em class="chip sky">Thu</em></li>
+              <li class="done"><i class="tick"></i><span>Share the launch checklist</span><em class="chip mint">Done</em></li>
+              <li><span class="who rose">Dan</span><span>Fix the analytics event</span><em class="chip lilac">Waiting on</em></li>
+            </ul>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>A summary of your day</h3>
+              <p>
+                On a day of meetings, one write-up from all their notes: what the day came to, decisions as they ended
+                up, and threads that ran across meetings. Written only when you ask.
+              </p>
+            </div>
+            <div class="day" aria-hidden="true">
+              <div class="day-head"><b>Tuesday</b><span>4 meetings · 3 h 10 min</span></div>
+              <div class="day-meetings"><span>Standup</span><span>Design review</span><span>Pricing</span><span>1:1 with Dan</span></div>
+              <p class="day-tldr"><em class="chip peach">TL;DR</em>Launch holds for Thursday; the pricing test moves to annual plans.</p>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Search by meaning</h3>
+              <p>
+                One box searches every transcript, note, action item and dictation at once, by their words or by what
+                they mean, in about 100 languages. The search model runs on your computer.
+              </p>
+            </div>
+            <div class="search" aria-hidden="true">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></svg>
+                when did we talk about hiring
+              </div>
+              <p><b>Weekly sync</b> · “…the <mark>hiring</mark> freeze ends in May…”</p>
+              <p><b>Planning</b> · “…we're bringing on two engineers…” <em class="chip lilac">Related</em></p>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Ask Claude about your meetings</h3>
+              <p>
+                Let Claude Code, or another AI assistant that speaks MCP, answer from your meetings. Off until you turn
+                it on, read-only unless you let it tick off action items, and it never sees your dictations.
+              </p>
+            </div>
+            <div class="chat" aria-hidden="true">
+              <p class="ask">What do I owe Priya?</p>
+              <p class="reply">
+                Two things from Tuesday's design review: the revised timeline, due Friday, and the onboarding copy.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Dictation -->
+      <section class="section" id="dictation">
+        <div class="section-head reveal">
+          <p class="eyebrow">Dictation</p>
+          <h2>Speak, and it's typed</h2>
+        </div>
+
+        <div class="bento">
+          <article class="card feature span-2 reveal">
+            <div class="feature-copy">
+              <h3>Dictate into any app</h3>
+              <p>
+                Hold a key, speak, let go: fn on a Mac, right Ctrl on Windows, or a shortcut you choose. Your words show
+                as you say them, and fillers and false starts are tidied only when there's something to fix.
+              </p>
+            </div>
+            <div class="dictate" aria-hidden="true">
+              <div class="keys"><kbd>⌥ Option</kbd><span>+</span><kbd>Space</kbd></div>
+              <p class="caption">Let's move the launch <span>to Thursday</span></p>
+              <div class="pill-indicator"><span class="dot"></span><span class="levels" data-bars="14"></span></div>
+            </div>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>The right tone for each app</h3>
+              <p>
+                Casual in chat, formal in email, exact in your editor and terminal, and no full stop at the end of a
+                search. Change any app's style.
+              </p>
+            </div>
+            <ul class="styles" aria-label="Example styles">
+              <li><span>Slack</span><em class="chip sky">Casual</em></li>
+              <li><span>Mail</span><em class="chip lilac">Formal</em></li>
+              <li><span>VS Code</span><em class="chip mint">Technical</em></li>
+            </ul>
+          </article>
+
+          <article class="card feature reveal">
+            <div class="feature-copy">
+              <h3>Learns your words</h3>
+              <p>
+                Names and jargon, spelled your way. Fix a dictation and Quill offers to remember the word. Meeting
+                notes use the same list, so people's names come out right there too.
+              </p>
+            </div>
+            <div class="words" aria-hidden="true">
+              <ul>
+                <li>Priya</li>
+                <li>Kubernetes</li>
+                <li>OpenRouter</li>
+                <li class="learned">Quill</li>
+              </ul>
+              <p class="fix"><s>open router</s><span>→</span>OpenRouter</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <!-- Privacy -->
       <section class="section" id="privacy">
         <div class="section-head reveal">
@@ -304,8 +400,9 @@
             <div class="feature-copy">
               <h3>Audio stays on your computer</h3>
               <p>
-                Whisper transcribes on your own hardware, on the GPU on Apple Silicon and on Windows graphics cards.
-                Recordings are kept as compact FLAC files in a folder you choose.
+                Whisper transcribes on your own hardware, on the GPU on Apple Silicon and on Windows graphics cards, or
+                NVIDIA Parakeet on the CPU. Voice fingerprints and search by meaning stay on your computer too, and
+                recordings are kept as compact FLAC files in a folder you choose.
               </p>
             </div>
             <div class="local" aria-hidden="true">
@@ -322,8 +419,9 @@
             <div class="feature-copy">
               <h3>You choose where text goes</h3>
               <p>
-                Notes, live notes and dictation clean-up use a model you pick: through OpenRouter, only to providers
-                that don't store or train on your data, or with Ollama on your own machine, so nothing leaves it at all.
+                Notes, live notes, daily summaries and dictation clean-up use a model you pick: through OpenRouter,
+                only to providers that don't store or train on your data, or with Ollama on your own machine, so nothing
+                leaves it at all.
               </p>
             </div>
             <div class="choice" role="group" aria-label="Example model choice">
@@ -539,7 +637,8 @@
       <div class="footer-cols">
         <div>
           <p class="footer-title">Product</p>
-          <a href="#features">Features</a>
+          <a href="#meetings">Meetings</a>
+          <a href="#dictation">Dictation</a>
           <a href="#privacy">Privacy</a>
           <a href="#compare">Compare</a>
           <a href="#download">Download</a>
