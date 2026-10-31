@@ -195,6 +195,8 @@ export interface Settings {
   semantic_search: boolean;
   /** Let AI assistants such as Claude read meetings: served on a localhost URL while on. Off unless turned on. */
   assistant_access: boolean;
+  /** Also let them add terms to the vocabulary and take terms out (through the app's connection). Off unless turned on. */
+  assistant_vocabulary: boolean;
   /** The localhost port assistants connect to. */
   assistant_port: number;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
@@ -888,6 +890,9 @@ export const events = {
     listen<CallPrompt | null>("call-prompt", (e) => cb(e.payload)),
   /** The theme setting changed (in any window). */
   onTheme: (cb: (theme: Theme) => void): Promise<UnlistenFn> => listen<Theme>("theme", (e) => cb(e.payload)),
+  /** An AI assistant changed the vocabulary; the whole new list. */
+  onVocabulary: (cb: (vocabulary: string[]) => void): Promise<UnlistenFn> =>
+    listen<string[]>("vocabulary", (e) => cb(e.payload)),
   /** A dictation sample was saved. */
   onDictationSamples: (cb: (usage: SamplesUsage) => void): Promise<UnlistenFn> =>
     listen<SamplesUsage>("dictation-samples", (e) => cb(e.payload)),

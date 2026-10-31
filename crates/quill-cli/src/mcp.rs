@@ -66,4 +66,19 @@ impl quill_mcp::Context for CliContext {
         });
         embedder.clone().map(|e| e as Arc<dyn Embedder>)
     }
+
+    fn vocabulary(&self) -> Vec<String> {
+        Settings::load(&self.data_dir)
+            .map(|s| s.dictation.vocabulary)
+            .unwrap_or_default()
+    }
+
+    /// Never: the app keeps its settings in memory, so a change saved here
+    /// would be lost the next time it saves them.
+    fn edit_vocabulary(
+        &self,
+        _edit: &quill_mcp::EditVocabulary<'_>,
+    ) -> Result<Vec<String>, String> {
+        Err(quill_mcp::VOCABULARY_APP_ONLY.into())
+    }
 }

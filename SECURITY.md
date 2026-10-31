@@ -79,7 +79,7 @@ deny`), and optionally for zero data retention.
 
 **AI assistants.** Off by default, and turned on only after a confirmation
 that says what's shared. With **Let AI assistants read your meetings** on,
-the app serves read-only MCP tools while it's open, at
+the app serves MCP tools while it's open, at
 `http://127.0.0.1:<port>/mcp`: search, listing meetings, reading a
 meeting's notes and transcript, action items and daily summaries. It stops
 the moment the setting is turned off, and every request re-checks the
@@ -100,6 +100,15 @@ results.
   read audio. It logs which tool was called, how long it took and whether
   it worked, and that a request without a valid token was turned away;
   never what was asked or returned.
+- It can read the vocabulary (Settings → Dictation → Words). It changes
+  nothing unless **Let them change your vocabulary** is also on (off by
+  default, re-checked on every request). Then it can add terms to the
+  vocabulary and take terms out, and nothing else: each term must be one
+  line of at most six words and 60 characters, and the list stops at 500
+  terms. The vocabulary goes into the prompt that writes meeting notes, so
+  these limits keep what an assistant adds to names and terms rather than
+  instructions. Changes go only through the app's address; `quill-cli mcp`
+  only reads the vocabulary.
 
 `quill-cli mcp` serves the same tools over stdin/stdout for an assistant
 that starts it itself, with no port or token. It refuses to start while the

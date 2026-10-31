@@ -21,6 +21,9 @@ use crate::commands::{CommandError, CommandResult, lock};
 
 /// Sent whenever [`AssistantServer`] changes.
 pub const ASSISTANT_EVENT: &str = "assistant-server";
+/// The vocabulary after an assistant changed it, so an open Settings page
+/// shows it rather than saving its own copy over it.
+pub const VOCABULARY_EVENT: &str = "vocabulary";
 
 /// Kept in Tauri's state.
 #[derive(Default)]
@@ -149,6 +152,36 @@ impl quill_mcp::Context for AppContext {
 
     fn embedder(&self) -> Option<Arc<dyn Embedder>> {
         crate::semantic::embedder(&self.0).map(|e| e as Arc<dyn Embedder>)
+    }
+
+    fn vocabulary(&self) -> Vec<String> {
+        lock(&self.0.state::<AppState>().settings)
+            .dictation
+            .vocabulary
+            .clone()
+    }
+
+    fn edit_vocabulary(&self, edit: &quill_mcp::EditVocabulary<'_>) -> Result<Vec<String>, String> {
+        let state = self.0.state::<AppState>();
+        let vocabulary = {
+            let mut settings = lock(&state.settings);
+            if !settings.assistant_vocabulary {
+                return Err(quill_mcp::VOCABULARY_LOCKED.into());
+            }
+            let mut changed = settings.clone();
+            changed.dictation.vocabulary = edit(&settings.dictation.vocabulary)?;
+            changed.save(&state.data_dir).map_err(|e| e.to_string())?;
+            *settings = changed;
+            settings.dictation.vocabulary.clone()
+        };
+        tracing::info!(
+            terms = vocabulary.len(),
+            "an assistant changed the vocabulary"
+        );
+        if let Err(e) = self.0.emit(VOCABULARY_EVENT, &vocabulary) {
+            tracing::warn!("could not emit the vocabulary: {e}");
+        }
+        Ok(vocabulary)
     }
 }
 

@@ -68,13 +68,15 @@ struct Answer {
 
 /// Summarizes `segments` with `model` on `provider`, using one version of
 /// the summary prompts (normally [`prompts::SUMMARY`]). `date` goes into the
-/// title line (e.g. `2026-10-11`).
+/// title line (e.g. `2026-10-11`); `vocabulary` is the user's names and
+/// terms (see [`crate::vocabulary`]), for versions that take it.
 pub async fn summarize(
     provider: &dyn LlmProvider,
     model: &str,
     prompts: &SummaryPrompts,
     segments: &[Segment],
     date: &str,
+    vocabulary: &[String],
 ) -> Result<Summary, SummaryError> {
     // Whole turns rather than Whisper's arbitrary segment cuts.
     let segments = &crate::meeting::turns(segments);
@@ -89,6 +91,10 @@ pub async fn summarize(
         .saturating_sub(RESERVED_TOKENS)
         .max(1_000);
     let transcript = lines.join("\n");
+    let note = prompts
+        .vocabulary
+        .then(|| quill_llm::prompts::vocabulary_note(&crate::vocabulary::terms(vocabulary)));
+    let note = note.as_deref();
     let request = |user: String, max_tokens| CompletionRequest {
         model: model.to_string(),
         messages: vec![Message::system(prompts.system), Message::user(user)],
@@ -99,13 +105,14 @@ pub async fn summarize(
 
     let mut answers = Vec::new();
     if quill_llm::estimate_tokens(&transcript) <= budget {
-        let prompt = quill_llm::prompts::render(
+        let prompt = render(
             prompts.single,
             &[
                 ("date", date),
                 ("duration", &duration),
                 ("transcript", &transcript),
             ],
+            note,
         )?;
         answers.push(complete_in_full(provider, request(prompt, SUMMARY_MAX_TOKENS)).await?);
     } else {
@@ -116,7 +123,7 @@ pub async fn summarize(
             .enumerate()
             .map(|(i, part)| {
                 let range = part_range(&segments[part.start..part.end]);
-                let prompt = quill_llm::prompts::render(
+                let prompt = render(
                     prompts.chunk,
                     &[
                         ("part", &(i + 1).to_string()),
@@ -124,6 +131,7 @@ pub async fn summarize(
                         ("range", &range),
                         ("transcript", &lines[part.clone()].join("\n")),
                     ],
+                    note,
                 )?;
                 Ok((range, request(prompt, PART_MAX_TOKENS)))
             })
@@ -150,7 +158,7 @@ pub async fn summarize(
             .map(|(i, (range, a))| format!("### Part {} ({range})\n\n{}", i + 1, notes_of(a)))
             .collect::<Vec<_>>()
             .join("\n\n");
-        let prompt = quill_llm::prompts::render(
+        let prompt = render(
             prompts.reduce,
             &[
                 ("date", date),
@@ -158,6 +166,7 @@ pub async fn summarize(
                 ("parts", &count),
                 ("notes", &notes),
             ],
+            note,
         )?;
         answers.extend(part_notes.into_iter().map(|(_, a)| a));
         answers.push(complete_in_full(provider, request(prompt, SUMMARY_MAX_TOKENS)).await?);
@@ -186,6 +195,20 @@ pub async fn summarize(
         latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         complete,
     })
+}
+
+/// Renders a summary template, with the vocabulary `note` for versions that
+/// take one (rendering refuses a value the template has no place for).
+fn render(
+    template: &str,
+    vars: &[(&str, &str)],
+    note: Option<&str>,
+) -> Result<String, quill_llm::prompts::RenderError> {
+    let mut vars = vars.to_vec();
+    if let Some(note) = note {
+        vars.push(("vocabulary", note));
+    }
+    quill_llm::prompts::render(template, &vars)
 }
 
 /// Sends `req`, and while the model stops at `max_tokens`, asks it to carry
@@ -385,7 +408,7 @@ mod tests {
     #[tokio::test]
     async fn short_transcript_is_one_request() {
         let provider = fake(100_000);
-        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11")
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11", &[])
             .await
             .unwrap();
 
@@ -403,7 +426,7 @@ mod tests {
     async fn long_transcript_uses_map_reduce_in_order() {
         // ~7k tokens of transcript with a 7k context → 1k budget per part.
         let provider = fake(7_000);
-        let summary = summarize(&provider, "m", &SUMMARY, &meeting(400), "2026-10-11")
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(400), "2026-10-11", &[])
             .await
             .unwrap();
 
@@ -428,7 +451,7 @@ mod tests {
             cut_off: 1,
             ..fake(100_000)
         };
-        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11")
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11", &[])
             .await
             .unwrap();
 
@@ -451,7 +474,7 @@ mod tests {
             cut_off: usize::MAX,
             ..fake(100_000)
         };
-        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11")
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(10), "2026-10-11", &[])
             .await
             .unwrap();
 
@@ -480,7 +503,7 @@ mod tests {
             cut_off: 1 + MAX_CONTINUATIONS,
             requests: Mutex::new(Vec::new()),
         };
-        let summary = summarize(&provider, "m", &SUMMARY, &meeting(400), "2026-10-11")
+        let summary = summarize(&provider, "m", &SUMMARY, &meeting(400), "2026-10-11", &[])
             .await
             .unwrap();
         assert!(!summary.complete);
@@ -496,8 +519,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_vocabulary_reaches_every_prompt_that_takes_it() {
+        let words = ["Prall".to_string(), "Derik".to_string()];
+        // One request; then map-reduce's parts and its final request.
+        for (context, lines) in [(100_000, 10), (7_000, 400)] {
+            let provider = fake(context);
+            summarize(
+                &provider,
+                "m",
+                &SUMMARY,
+                &meeting(lines),
+                "2026-10-11",
+                &words,
+            )
+            .await
+            .unwrap();
+            for req in provider.requests.lock().unwrap().iter() {
+                let user = &req.messages[1].content;
+                assert!(user.contains("exactly as listed: Prall, Derik."), "{user}");
+            }
+        }
+        // Older prompt versions have no place for it, and still render.
+        let provider = fake(100_000);
+        let v3 = quill_llm::prompts::SUMMARY_V3;
+        summarize(&provider, "m", &v3, &meeting(10), "2026-10-11", &words)
+            .await
+            .unwrap();
+        assert!(
+            !provider.requests.lock().unwrap()[0].messages[1]
+                .content
+                .contains("Prall")
+        );
+    }
+
+    #[tokio::test]
     async fn empty_transcript_is_an_error() {
-        let result = summarize(&fake(100_000), "m", &SUMMARY, &[], "d").await;
+        let result = summarize(&fake(100_000), "m", &SUMMARY, &[], "d", &[]).await;
         assert!(matches!(result, Err(SummaryError::EmptyTranscript)));
     }
 

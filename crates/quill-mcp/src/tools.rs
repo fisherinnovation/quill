@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use jiff::civil::Date;
-use quill_core::assistants;
+use quill_core::{assistants, vocabulary};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::{ServerHandler, tool, tool_handler, tool_router};
 use serde::Deserialize;
@@ -123,6 +123,14 @@ pub struct DayArgs {
     date: String,
 }
 
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct TermsArgs {
+    /// Names and terms as they should be spelled, each one line of at most
+    /// six words, e.g. ["Simant Shrivastava", "OpenRouter"].
+    terms: Vec<String>,
+}
+
 // `#[tool_router]` collects the `#[tool]` methods below into the list the
 // assistant sees; `#[tool_handler]` (further down) answers its requests
 // with them. Each method's doc comment is its description.
@@ -205,6 +213,56 @@ impl Server {
         })
         .await
     }
+
+    /// The user's vocabulary: names and terms Quill spells exactly when it
+    /// writes meeting notes and types dictations. A name the transcripts or
+    /// notes keep getting wrong belongs here (see add_vocabulary).
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn vocabulary(&self) -> Result<String, String> {
+        self.answer("vocabulary", |context| json(&context.vocabulary()))
+            .await
+    }
+
+    /// Add names or terms to the user's vocabulary, spelled as they should
+    /// be: people's names that transcripts mishear, product and system
+    /// names. Notes written from now on use them; existing notes change only
+    /// when summarized again. Terms already there are skipped. Works only if
+    /// the user allows it in Quill, and through the app's own connection.
+    /// Returns the whole vocabulary.
+    #[tool(annotations(
+        read_only_hint = false,
+        destructive_hint = false,
+        idempotent_hint = true,
+        open_world_hint = false
+    ))]
+    async fn add_vocabulary(
+        &self,
+        Parameters(args): Parameters<TermsArgs>,
+    ) -> Result<String, String> {
+        self.answer("add_vocabulary", move |context| {
+            json(&context.edit_vocabulary(&|now| vocabulary::added(now, &args.terms))?)
+        })
+        .await
+    }
+
+    /// Take names or terms out of the user's vocabulary (ignoring case):
+    /// ones that are wrong or no longer come up. Needs the same permission
+    /// as add_vocabulary. Returns the whole vocabulary.
+    #[tool(annotations(
+        read_only_hint = false,
+        destructive_hint = true,
+        idempotent_hint = true,
+        open_world_hint = false
+    ))]
+    async fn remove_vocabulary(
+        &self,
+        Parameters(args): Parameters<TermsArgs>,
+    ) -> Result<String, String> {
+        self.answer("remove_vocabulary", move |context| {
+            json(&context.edit_vocabulary(&|now| Ok(vocabulary::removed(now, &args.terms)))?)
+        })
+        .await
+    }
 }
 
 #[tool_handler(
@@ -212,7 +270,8 @@ impl Server {
     instructions = "Quill holds the user's meeting notes and transcripts, recorded and \
         transcribed on their computer. Use it to answer questions about what was said or \
         decided in meetings: search first, then read the meetings that match. Quote the \
-        notes or transcript and name the meeting and its date when you rely on them."
+        notes or transcript and name the meeting and its date when you rely on them. Names \
+        Quill keeps mishearing can go in its vocabulary, if the user allows it."
 )]
 impl ServerHandler for Server {}
 
@@ -311,10 +370,13 @@ mod tests {
             names,
             [
                 "action_items",
+                "add_vocabulary",
                 "daily_summary",
                 "get_meeting",
                 "list_meetings",
-                "search"
+                "remove_vocabulary",
+                "search",
+                "vocabulary"
             ]
         );
 
@@ -344,6 +406,28 @@ mod tests {
             .tool("daily_summary", json!({"date": "tomorrow"}))
             .await;
         assert!(failed && bad.contains("isn't a date"), "{bad}");
+
+        // The vocabulary: readable, and changed only once the user allows it.
+        let (words, _) = client.tool("vocabulary", json!({})).await;
+        assert!(words.contains("Quill"), "{words}");
+        let add = |terms: Value| json!({"terms": terms});
+        let (refused, failed) = client.tool("add_vocabulary", add(json!(["Prall"]))).await;
+        assert!(
+            failed && refused.contains("doesn't let AI assistants"),
+            "{refused}"
+        );
+        context.vocabulary_editable.store(true, Ordering::SeqCst);
+        let (words, failed) = client
+            .tool("add_vocabulary", add(json!(["Prall", "quill"])))
+            .await;
+        assert!(!failed && words.contains("Prall"), "{words}");
+        assert_eq!(*context.vocabulary.lock().unwrap(), ["Quill", "Prall"]);
+        let (bad, failed) = client.tool("add_vocabulary", add(json!(["a\nb"]))).await;
+        assert!(failed && bad.contains("isn't a name or term"), "{bad}");
+        client
+            .tool("remove_vocabulary", add(json!(["QUILL"])))
+            .await;
+        assert_eq!(*context.vocabulary.lock().unwrap(), ["Prall"]);
 
         // Turned off in Settings while connected: nothing more is served.
         context.allowed.store(false, Ordering::SeqCst);

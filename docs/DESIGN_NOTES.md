@@ -184,6 +184,17 @@ decision someone might otherwise undo.
   The migration marks older notes that used exactly 4,096 tokens in one
   request as incomplete; cut-off notes of long meetings (map-reduce) can't
   be told from their token counts, so they stay marked complete.
+- Vocabulary in notes (summary-v4, #54): the notes model is given the
+  user's vocabulary (Settings → Dictation → Words) in every request, single,
+  part and combining, and told to spell those names as listed when the
+  transcript means one. Names in titles, owners and notes come from this
+  step, so it fixes what readers of the notes see even when the transcript
+  is wrong. Meeting transcription doesn't use the vocabulary yet. Each
+  track goes to whisper.cpp as one call, and its initial prompt only
+  primes the first 30-second window: later windows are prompted with the
+  text decoded so far. whisper.cpp's `carry_initial_prompt` keeps it on
+  every window, but whisper-rs 0.16 (the latest) has no setter for it.
+  Either way, it needs measuring on real meetings before it ships.
 
 ## Daily summaries
 
@@ -1323,3 +1334,14 @@ gives it the library, the search model and the setting through
 - **Logs.** The tool name, time taken and whether it worked are logged, as
   is a request turned away for its token. What was asked or returned never
   is.
+- **Vocabulary (#54).** Assistants can read the vocabulary (`vocabulary`)
+  and, with a second setting on (off by default), add terms and take them
+  out (`add_vocabulary`, `remove_vocabulary`): an agent that reads the notes
+  sees which names keep coming out wrong. It's the only thing they can
+  change. Terms go into the notes prompt, so each must be one line of at
+  most 6 words and 60 characters, and the list stops at 500. Changes go
+  only through the app, which saves its in-memory settings and tells an
+  open Settings page (`vocabulary` event) so its next autosave doesn't put
+  the old list back. `quill-cli mcp` only reads: the app never reloads
+  `settings.toml`, so a change the CLI saved would be lost the next time
+  the app saved its settings.
