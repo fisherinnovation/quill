@@ -392,6 +392,15 @@ pub struct StoredSummary {
     pub complete: bool,
 }
 
+/// How often a meeting's notes have been written ([`Library::notes_versions`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotesVersion {
+    /// 1 for the first notes, 2 once summarized again, and so on.
+    pub version: u64,
+    /// When the latest notes were written, RFC 3339.
+    pub written_at: String,
+}
+
 /// Everything about one meeting.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MeetingDetail {
@@ -1421,6 +1430,29 @@ impl Library {
         )?;
         let rows = stmt.query_map([], |r| {
             Ok((r.get(0)?, u64::try_from(r.get::<_, i64>(1)?).unwrap_or(0)))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// For each meeting with notes, by id: how many times its notes have
+    /// been written, and when the latest were (RFC 3339).
+    pub fn notes_versions(
+        &self,
+    ) -> Result<std::collections::HashMap<String, NotesVersion>, LibraryError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT s.meeting_id, c.n, s.created_at FROM summaries s
+             JOIN (SELECT meeting_id, COUNT(*) AS n, MAX(id) AS last FROM summaries
+                   GROUP BY meeting_id) c ON s.id = c.last",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                NotesVersion {
+                    version: from_i64(r.get(1)?),
+                    written_at: r.get(2)?,
+                },
+            ))
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
