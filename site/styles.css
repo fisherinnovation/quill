@@ -839,6 +839,206 @@ mark {
   color: var(--peach-ink);
 }
 
+.rose {
+  background: var(--rose);
+  color: var(--rose-ink);
+}
+
+/* A name Quill recognized from an earlier meeting, as the app marks it. */
+.who.known {
+  outline: 1.5px dashed currentColor;
+  outline-offset: -1.5px;
+}
+
+.who.known::after,
+.known-mark {
+  content: " ✦";
+  color: var(--accent-text);
+}
+
+.note-lines,
+.todos {
+  display: grid;
+  gap: 8px;
+  margin: auto 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-lines li,
+.todos li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.note-lines span,
+.todos span:not(.who) {
+  flex: 1;
+}
+
+/* The moment it was said: a link to the transcript in the app. */
+.note-lines time {
+  color: var(--accent-text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tick {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 50%;
+}
+
+.todos li.done .tick {
+  border-color: var(--mint-ink);
+  background: var(--mint-ink);
+}
+
+.todos li.done span {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.day {
+  display: grid;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+}
+
+.day-head span {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.day-meetings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.day-meetings span {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.day-tldr {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.feature .day-tldr {
+  margin-top: 0;
+  color: var(--text);
+}
+
+.search .chip {
+  margin-left: 4px;
+  padding: 1px 9px;
+  font-size: 12px;
+}
+
+.chat {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  font-size: 15px;
+}
+
+.feature .chat p {
+  margin: 0;
+  max-width: 85%;
+  padding: 12px 16px;
+  border-radius: 18px;
+}
+
+.feature .chat .ask {
+  justify-self: end;
+  border-bottom-right-radius: 6px;
+  background: var(--dark);
+  color: var(--on-dark);
+  font-weight: 550;
+}
+
+.feature .chat .reply {
+  border-bottom-left-radius: 6px;
+  background: var(--card-2);
+  color: var(--text);
+}
+
+.words {
+  display: grid;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.words ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.words li {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--card-2);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+/* Learned from a correction. */
+.words li.learned {
+  background: var(--lilac);
+  color: var(--lilac-ink);
+}
+
+.feature .fix {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.fix s {
+  color: var(--text-3);
+}
+
+.fix span {
+  color: var(--text-3);
+}
+
 /* ---------- Call apps ---------- */
 
 .app-chips {
