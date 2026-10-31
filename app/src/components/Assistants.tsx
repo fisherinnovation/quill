@@ -121,6 +121,19 @@ export function AssistantRows({
         </Row>
       )}
 
+      {settings.assistant_access && (
+        <Row
+          label="Let them tick off action items"
+          hint="Assistants can mark your action items done, and undo that, so a to-do list kept elsewhere stays in step with Quill."
+        >
+          <Switch
+            label="Let them tick off action items"
+            checked={settings.assistant_action_items}
+            onChange={(on) => update({ assistant_action_items: on })}
+          />
+        </Row>
+      )}
+
       {settings.assistant_access && server?.error && (
         <Row label="Not available" hint={server.error}>
           {null}

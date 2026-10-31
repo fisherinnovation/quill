@@ -159,6 +159,13 @@ pub struct DayArgs {
 
 #[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+pub struct ItemArgs {
+    /// The action item's id, from action_items.
+    id: i64,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
 pub struct TermsArgs {
     /// Names and terms as they should be spelled, each one line of at most
     /// six words, e.g. ["Simant Shrivastava", "OpenRouter"].
@@ -313,6 +320,62 @@ impl Server {
         })
         .await
     }
+
+    /// Tick an action item off (by its id from action_items), for when the
+    /// user has done it: it then drops off the open list. Works only if the
+    /// user allows it in Quill. Returns the item.
+    #[tool(annotations(
+        read_only_hint = false,
+        destructive_hint = false,
+        idempotent_hint = true,
+        open_world_hint = false
+    ))]
+    async fn complete_action_item(
+        &self,
+        Parameters(args): Parameters<ItemArgs>,
+    ) -> Result<String, String> {
+        self.answer("complete_action_item", move |context| {
+            tick(context, args.id, true)
+        })
+        .await
+    }
+
+    /// Put a ticked-off action item back on the open list (by its id), when
+    /// it was ticked by mistake or isn't done after all. Needs the same
+    /// permission as complete_action_item. Returns the item.
+    #[tool(annotations(
+        read_only_hint = false,
+        destructive_hint = false,
+        idempotent_hint = true,
+        open_world_hint = false
+    ))]
+    async fn reopen_action_item(
+        &self,
+        Parameters(args): Parameters<ItemArgs>,
+    ) -> Result<String, String> {
+        self.answer("reopen_action_item", move |context| {
+            tick(context, args.id, false)
+        })
+        .await
+    }
+}
+
+/// Ticks an action item off or back on, if the user lets assistants.
+fn tick(context: &dyn crate::Context, id: i64, done: bool) -> Result<String, String> {
+    if !context.may_tick_action_items() {
+        return Err(crate::ACTION_ITEMS_LOCKED.into());
+    }
+    let item = context
+        .library()
+        .set_action_item_done(id, done)
+        .map_err(|e| match e {
+            quill_core::library::LibraryError::NotFound(_) => {
+                format!("no action item with id {id}; get ids from action_items")
+            }
+            e => e.to_string(),
+        })?;
+    context.action_items_changed();
+    json(&item)
 }
 
 #[tool_handler(
@@ -421,10 +484,12 @@ mod tests {
             [
                 "action_items",
                 "add_vocabulary",
+                "complete_action_item",
                 "daily_summary",
                 "get_meeting",
                 "list_meetings",
                 "remove_vocabulary",
+                "reopen_action_item",
                 "search",
                 "vocabulary"
             ]
@@ -508,6 +573,34 @@ mod tests {
             .tool("remove_vocabulary", add(json!(["QUILL"])))
             .await;
         assert_eq!(*context.vocabulary.lock().unwrap(), ["Prall"]);
+
+        // Ticking action items: only once allowed, and done ones drop off
+        // the default list.
+        let item = context.library.action_items().unwrap()[0].id;
+        let (refused, failed) = client
+            .tool("complete_action_item", json!({"id": item}))
+            .await;
+        assert!(
+            failed && refused.contains("tick off action items"),
+            "{refused}"
+        );
+        context.action_items_editable.store(true, Ordering::SeqCst);
+        let (done, failed) = client
+            .tool("complete_action_item", json!({"id": item}))
+            .await;
+        assert!(!failed && done.contains("\"done_at\": \"20"), "{done}");
+        let (open, _) = client.tool("action_items", json!({})).await;
+        assert_eq!(open.trim(), "[]");
+        client.tool("reopen_action_item", json!({"id": item})).await;
+        let (open, _) = client.tool("action_items", json!({})).await;
+        assert!(open.contains("email the customers"), "{open}");
+        let (missing, failed) = client
+            .tool("complete_action_item", json!({"id": 999_999}))
+            .await;
+        assert!(
+            failed && missing.contains("no action item with id"),
+            "{missing}"
+        );
 
         // Turned off in Settings while connected: nothing more is served.
         context.allowed.store(false, Ordering::SeqCst);

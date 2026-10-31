@@ -109,6 +109,9 @@ results.
   these limits keep what an assistant adds to names and terms rather than
   instructions. Changes go only through the app's address; `quill-cli mcp`
   only reads the vocabulary.
+- With **Let them tick off action items** also on (off by default,
+  re-checked on every request), it can tick an action item off or back on
+  by its id, through either way in. That only sets when the item was done.
 
 `quill-cli mcp` serves the same tools over stdin/stdout for an assistant
 that starts it itself, with no port or token. It refuses to start while the

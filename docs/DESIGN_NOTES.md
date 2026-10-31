@@ -1373,3 +1373,10 @@ gives it the library, the search model and the setting through
   the old list back. `quill-cli mcp` only reads: the app never reloads
   `settings.toml`, so a change the CLI saved would be lost the next time
   the app saved its settings.
+- **Ticking action items (#59).** A to-do list kept elsewhere never told
+  Quill what was done, so items stayed open forever. `complete_action_item`
+  and `reopen_action_item` set `done_at` by id, behind their own setting
+  (off by default). Unlike the vocabulary, `quill-cli mcp` may do this too:
+  items live in SQLite, which both share safely, not in the app's
+  in-memory settings. The app emits `action-items-changed` so its lists
+  reload; a tick from the CLI shows the next time they load.

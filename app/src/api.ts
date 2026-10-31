@@ -201,6 +201,8 @@ export interface Settings {
   assistant_access: boolean;
   /** Also let them add terms to the vocabulary and take terms out (through the app's connection). Off unless turned on. */
   assistant_vocabulary: boolean;
+  /** Also let them tick action items off and back on. Off unless turned on. */
+  assistant_action_items: boolean;
   /** The localhost port assistants connect to. */
   assistant_port: number;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
@@ -894,6 +896,8 @@ export const events = {
     listen<CallPrompt | null>("call-prompt", (e) => cb(e.payload)),
   /** The theme setting changed (in any window). */
   onTheme: (cb: (theme: Theme) => void): Promise<UnlistenFn> => listen<Theme>("theme", (e) => cb(e.payload)),
+  /** An AI assistant ticked an action item off or back on. */
+  onActionItemsChanged: (cb: () => void): Promise<UnlistenFn> => listen("action-items-changed", () => cb()),
   /** An AI assistant changed the vocabulary; the whole new list. */
   onVocabulary: (cb: (vocabulary: string[]) => void): Promise<UnlistenFn> =>
     listen<string[]>("vocabulary", (e) => cb(e.payload)),

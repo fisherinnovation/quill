@@ -46,6 +46,11 @@ pub trait Context: Send + Sync + 'static {
     /// (`Settings::assistant_vocabulary`, asked on every request). A host
     /// that can't save it safely says so ([`VOCABULARY_APP_ONLY`]).
     fn edit_vocabulary(&self, edit: &EditVocabulary<'_>) -> Result<Vec<String>, String>;
+    /// Whether the user lets assistants tick action items off and back on
+    /// (`Settings::assistant_action_items`). Asked on every request.
+    fn may_tick_action_items(&self) -> bool;
+    /// Told after an assistant ticked one, so the host can show it.
+    fn action_items_changed(&self) {}
 }
 
 /// What an assistant is told when access is off.
@@ -55,6 +60,9 @@ pub const TURNED_OFF: &str = "Quill isn't sharing meetings with AI assistants. T
 /// What an assistant is told when it may read the vocabulary but not change it.
 pub const VOCABULARY_LOCKED: &str = "Quill doesn't let AI assistants change the vocabulary. \
      The user can turn it on in Quill: Settings → Meetings → Let them change your vocabulary.";
+
+/// What an assistant is told when it may read action items but not tick them.
+pub const ACTION_ITEMS_LOCKED: &str = "Quill doesn't let AI assistants tick off action items.      The user can turn it on in Quill: Settings → Meetings → Let them tick off action items.";
 
 /// What `quill-cli mcp` says when asked to change the vocabulary: the app
 /// keeps its settings in memory and would later save over the change.
@@ -102,6 +110,7 @@ pub(crate) mod testing {
         pub allowed: AtomicBool,
         pub vocabulary: Mutex<Vec<String>>,
         pub vocabulary_editable: AtomicBool,
+        pub action_items_editable: AtomicBool,
         _dir: tempfile::TempDir,
     }
 
@@ -126,6 +135,9 @@ pub(crate) mod testing {
             *vocabulary = edit(&vocabulary)?;
             Ok(vocabulary.clone())
         }
+        fn may_tick_action_items(&self) -> bool {
+            self.action_items_editable.load(Ordering::SeqCst)
+        }
     }
 
     /// The context, and the id of its one meeting: Priya on pricing.
@@ -140,7 +152,8 @@ pub(crate) mod testing {
             speaker: Some("Priya".into()),
         };
         library.save_transcript(&id, &[line]).unwrap();
-        let notes = "# Pricing — 2026-10-20\n\n## Decisions\n- Raise prices in March.\n";
+        let notes = "# Pricing — 2026-10-20\n\n## Decisions\n- Raise prices in March.\n\n\
+             ## Action items\n- **Priya** — email the customers\n";
         let summary = Summary {
             markdown: notes.into(),
             model: "test".into(),
@@ -158,6 +171,7 @@ pub(crate) mod testing {
             allowed: AtomicBool::new(true),
             vocabulary: Mutex::new(vec!["Quill".into()]),
             vocabulary_editable: AtomicBool::new(false),
+            action_items_editable: AtomicBool::new(false),
             _dir: dir,
         };
         (Arc::new(context), id)

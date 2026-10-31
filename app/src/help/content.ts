@@ -307,7 +307,9 @@ Voices are stored as fingerprints (lists of numbers, not audio) in your library 
         keywords: "mcp model context protocol claude desktop claude code chatgpt assistant ai agent connector integration localhost url address token port mcp-remote",
         body: `Turn on **Settings → Meetings → Let AI assistants read your meetings**, confirm, and an AI assistant such as Claude Code can look through your meetings to answer what you ask it: "what did we decide about pricing last week?", "what do I owe Priya?". It can search your meetings, list them by day, read their notes and transcripts, see your action items and read daily summaries. It never sees your dictations.
 
-**Your vocabulary.** Assistants can read your vocabulary (**Settings → Dictation → Words**). Turn on **Let them change your vocabulary** and they can also add names and terms Quill keeps mishearing, or take wrong ones out, so later notes spell them right. That's all they can change. Changes go through the address Quill serves while it's open; \`quill-cli mcp\` can only read the vocabulary.
+**Your vocabulary.** Assistants can read your vocabulary (**Settings → Dictation → Words**). Turn on **Let them change your vocabulary** and they can also add names and terms Quill keeps mishearing, or take wrong ones out, so later notes spell them right. Changes go through the address Quill serves while it's open; \`quill-cli mcp\` can only read the vocabulary.
+
+**Your action items.** Turn on **Let them tick off action items** and an assistant can mark items done, or undo that: useful when you track your to-dos somewhere else and want Quill to keep up. The vocabulary and ticks are all assistants can change.
 
 **What's shared.** Whatever the assistant reads goes to that assistant's provider (for Claude, Anthropic), like anything else you show it, so turn this on only if you're happy for your meetings to go there. It reads only when you ask it something. Turning the setting off stops it at once, even mid-conversation.
 

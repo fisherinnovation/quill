@@ -24,6 +24,8 @@ pub const ASSISTANT_EVENT: &str = "assistant-server";
 /// The vocabulary after an assistant changed it, so an open Settings page
 /// shows it rather than saving its own copy over it.
 pub const VOCABULARY_EVENT: &str = "vocabulary";
+/// An assistant ticked an action item off or back on: lists reload.
+pub const ACTION_ITEMS_EVENT: &str = "action-items-changed";
 
 /// Kept in Tauri's state.
 #[derive(Default)]
@@ -182,6 +184,16 @@ impl quill_mcp::Context for AppContext {
             tracing::warn!("could not emit the vocabulary: {e}");
         }
         Ok(vocabulary)
+    }
+
+    fn may_tick_action_items(&self) -> bool {
+        lock(&self.0.state::<AppState>().settings).assistant_action_items
+    }
+
+    fn action_items_changed(&self) {
+        if let Err(e) = self.0.emit(ACTION_ITEMS_EVENT, ()) {
+            tracing::warn!("could not emit action items changed: {e}");
+        }
     }
 }
 
