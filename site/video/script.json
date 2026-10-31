@@ -1,6 +1,6 @@
 {
-  "based_on": "8ebfdb2",
-  "label": "Quill in use: during a video call, the live notes panel ticks off a question and a new one arrives; after the call, the meeting's notes open; the transcript shows who said what; the Stats tab charts who spoke when; in a chat app, holding a key shows live captions of what's said and the text is typed into the message; the Dictations page counts up words dictated and time saved over a moving waveform.",
+  "based_on": "9d77c4b",
+  "label": "Quill in use: during a video call, the live notes panel ticks off a question and a new one arrives; after the call, the meeting's notes open; the transcript scrolls past a lane for each person, marking who talked over whom, with Priya named by her voice; on the Action items page, an overdue item is ticked off; search finds the hiring discussion when asked \"when did we talk about hiring\", by meaning rather than exact words; in a chat app, holding a key shows live captions of what's said and the text is typed into the message.",
   "viewport": {
     "width": 1000,
     "height": 720,
@@ -89,49 +89,112 @@
         },
         {
           "wait": 500
-        }
-      ],
-      "camera": ".page",
-      "pad": 0,
-      "cursorStart": "text:Summary",
-      "steps": [
+        },
         {
           "click": "text:Transcript"
-        }
-      ],
-      "hold": 2600
-    },
-    {
-      "id": "stats",
-      "caption": "See how the call went",
-      "ready": ".home",
-      "setup": [
-        {
-          "click": ".latest-title"
         },
         {
           "wait": 500
         }
       ],
-      "camera": ".page",
-      "pad": 0,
-      "cursorStart": "text:Transcript",
+      "camera": [
+        230,
+        266,
+        716
+      ],
+      "cursorStart": ".transcript .line:nth-child(3) .turn-text",
       "steps": [
         {
-          "click": "text:Stats"
+          "wait": 300
         },
         {
-          "wait": 600
+          "cursor": "hide"
         },
         {
-          "scroll": ".timeline",
-          "to": 175
+          "scroll": ".transcript .line:nth-child(12)"
         },
         {
-          "hover": ".timeline-lane:nth-child(2) .timeline-span:nth-child(14)"
+          "wait": 400
         }
       ],
-      "hold": 2300
+      "hold": 2000,
+      "flags": "voices"
+    },
+    {
+      "id": "actions",
+      "caption": "Every to-do in one list",
+      "ready": ".home",
+      "setup": [
+        {
+          "click": "text:Action items"
+        },
+        {
+          "wait": 500
+        },
+        {
+          "scroll": ".kind-filter",
+          "to": 20
+        },
+        {
+          "wait": 300
+        }
+      ],
+      "camera": ".page",
+      "pad": 0,
+      "cursorStart": ".kind-filter",
+      "steps": [
+        {
+          "wait": 300
+        },
+        {
+          "click": ".action-row:not(.done) .action-check"
+        },
+        {
+          "wait": 800
+        },
+        {
+          "hover": ".action-row:not(.done) .action-meeting"
+        }
+      ],
+      "hold": 1800
+    },
+    {
+      "id": "search",
+      "caption": "Find it by meaning",
+      "ready": ".home",
+      "setup": [
+        {
+          "click": "text:Search"
+        },
+        {
+          "wait": 400
+        }
+      ],
+      "camera": ".palette",
+      "pad": 16,
+      "cursorStart": ".palette-search",
+      "steps": [
+        {
+          "cursor": "hide"
+        },
+        {
+          "type": {
+            "into": "input[aria-label=\"Search\"]",
+            "text": "when did we talk about hiring",
+            "cps": 19
+          }
+        },
+        {
+          "wait": 400
+        },
+        {
+          "cursor": "show"
+        },
+        {
+          "hover": ".palette-row-icon"
+        }
+      ],
+      "hold": 1700
     },
     {
       "id": "dictate",
@@ -170,33 +233,6 @@
         }
       ],
       "hold": 1500
-    },
-    {
-      "id": "dictations",
-      "caption": "See the time you save",
-      "ready": ".home",
-      "setup": [
-        {
-          "eval": "document.querySelector('.main-scroll').style.opacity = '0'"
-        }
-      ],
-      "camera": [
-        236,
-        112,
-        730
-      ],
-      "steps": [
-        {
-          "cursor": "hide"
-        },
-        {
-          "eval": "(async () => { [...document.querySelectorAll('.sidebar .nav-item')].find((b) => b.textContent.trim() === 'Dictations').click(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const m = document.querySelector('.main-scroll'); m.style.transition = 'opacity 250ms ease'; m.style.opacity = '1'; })()"
-        },
-        {
-          "wait": 1200
-        }
-      ],
-      "hold": 2300
     }
   ]
 }
