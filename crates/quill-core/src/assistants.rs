@@ -68,18 +68,31 @@ pub struct Listed {
     pub title: String,
     /// Local time, `YYYY-MM-DD HH:MM`.
     pub started: String,
+    /// The same moment as RFC 3339 with the local offset,
+    /// `2026-10-30T17:00:00-07:00`.
+    pub started_at: String,
     pub minutes: u64,
     pub has_notes: bool,
+    /// When the latest notes were written (RFC 3339, local offset); `None`
+    /// without notes.
+    pub notes_updated_at: Option<String>,
+    /// How many times the notes have been written: 0 without notes, 1 for
+    /// the first, and one more each time the meeting is summarized again.
+    pub notes_version: u64,
 }
 
 /// Meetings with something said, newest first, started between `from` and
-/// `to` (local days, both included), up to `limit`.
+/// `to` (local days, both included), up to `limit`. With `updated_since`,
+/// only those recorded or given new notes at or after that moment.
 pub fn meetings(
     library: &Library,
     from: Option<Date>,
     to: Option<Date>,
+    updated_since: Option<jiff::Timestamp>,
     limit: usize,
 ) -> Result<Vec<Listed>, LibraryError> {
+    let versions = library.notes_versions()?;
+    let instant = |at: &str| at.parse::<jiff::Timestamp>().ok();
     Ok(library
         .list()?
         .into_iter()
@@ -89,13 +102,27 @@ pub fn meetings(
             from.is_none_or(|from| day.is_some_and(|d| d >= from))
                 && to.is_none_or(|to| day.is_some_and(|d| d <= to))
         })
+        .filter(|m| {
+            updated_since.is_none_or(|since| {
+                let notes = versions.get(&m.id).and_then(|v| instant(&v.written_at));
+                instant(&m.started_at)
+                    .max(notes)
+                    .is_some_and(|at| at >= since)
+            })
+        })
         .take(limit)
-        .map(|m: Meeting| Listed {
-            started: local_time(&m.started_at).unwrap_or_else(|| m.started_at.clone()),
-            minutes: (m.duration_ms + 30_000) / 60_000,
-            has_notes: m.has_summary,
-            id: m.id,
-            title: m.title,
+        .map(|m: Meeting| {
+            let notes = versions.get(&m.id).cloned();
+            Listed {
+                started: local_time(&m.started_at).unwrap_or_else(|| m.started_at.clone()),
+                started_at: rfc3339_local(&m.started_at),
+                minutes: (m.duration_ms + 30_000) / 60_000,
+                has_notes: m.has_summary,
+                notes_updated_at: notes.as_ref().map(|v| rfc3339_local(&v.written_at)),
+                notes_version: notes.map_or(0, |v| v.version),
+                id: m.id,
+                title: m.title,
+            }
         })
         .collect())
 }
@@ -179,9 +206,20 @@ pub fn meeting_markdown(
     let when = local_time(&m.started_at).unwrap_or_else(|| m.started_at.clone());
     let _ = writeln!(
         out,
-        "Started {when} (local time), {}.\n",
+        "Started {when} (local time, {}), {}.",
+        rfc3339_local(&m.started_at),
         duration(m.duration_ms)
     );
+    // Newest first, so the first is the latest and the count is its version.
+    if let Some(notes) = detail.summaries.first() {
+        let _ = writeln!(
+            out,
+            "Notes version {}, written {}.",
+            detail.summaries.len(),
+            rfc3339_local(&notes.created_at)
+        );
+    }
+    out.push('\n');
     match detail.summaries.first() {
         Some(notes) => {
             if !notes.complete {
@@ -218,6 +256,19 @@ pub fn meeting_markdown(
         let _ = writeln!(out, "More follows: ask again from line {to}.");
     }
     Ok(out)
+}
+
+/// An RFC 3339 time (as stored, in UTC) as RFC 3339 with the local offset,
+/// to the second: `2026-10-30T17:00:00-07:00`. Unchanged if it can't be read.
+pub fn rfc3339_local(at: &str) -> String {
+    at.parse::<jiff::Timestamp>().map_or_else(
+        |_| at.to_string(),
+        |at| {
+            at.to_zoned(jiff::tz::TimeZone::system())
+                .strftime("%Y-%m-%dT%H:%M:%S%:z")
+                .to_string()
+        },
+    )
 }
 
 /// An RFC 3339 time as local `YYYY-MM-DD HH:MM`.
@@ -344,6 +395,52 @@ mod tests {
     }
 
     #[test]
+    fn meetings_say_when_their_notes_changed() {
+        let (lib, _dir) = library();
+        let said = [segment(0, "Me", "Hello.")];
+        let old = meeting(&lib, "2026-10-19T12:00:00Z", &said);
+        let new = meeting(&lib, "2026-10-20T12:00:00Z", &said);
+        // Summarized twice, just now: newer notes than either meeting.
+        lib.save_summary(&old, &summary(NOTES)).unwrap();
+        lib.save_summary(&old, &summary(NOTES)).unwrap();
+
+        let listed = meetings(&lib, None, None, None, 10).unwrap();
+        assert_eq!(listed[0].id, new);
+        assert_eq!(
+            (listed[0].notes_version, &listed[0].notes_updated_at),
+            (0, &None)
+        );
+        assert_eq!(listed[1].notes_version, 2);
+        assert!(listed[1].notes_updated_at.is_some());
+        // RFC 3339 with the local offset: the same moment as stored.
+        let started = &listed[1].started_at;
+        assert_eq!(
+            started.len(),
+            "2026-10-19T12:00:00+00:00".len(),
+            "{started}"
+        );
+        assert_eq!(
+            started.parse::<jiff::Timestamp>().unwrap(),
+            "2026-10-19T12:00:00Z".parse::<jiff::Timestamp>().unwrap()
+        );
+
+        // Since a minute ago: only the meeting whose notes were just written.
+        let ids = |since: jiff::Timestamp| -> Vec<String> {
+            meetings(&lib, None, None, Some(since), 10)
+                .unwrap()
+                .into_iter()
+                .map(|m| m.id)
+                .collect()
+        };
+        let minute_ago = jiff::Timestamp::now()
+            .checked_sub(jiff::SignedDuration::from_mins(1))
+            .unwrap();
+        assert_eq!(ids(minute_ago), std::slice::from_ref(&old));
+        // Since before the newer meeting started: both.
+        assert_eq!(ids("2026-10-20T00:00:00Z".parse().unwrap()), [new, old]);
+    }
+
+    #[test]
     fn meetings_filter_by_local_day_and_skip_empty_ones() {
         let (lib, _dir) = library();
         let said = [segment(0, "Me", "Hello.")];
@@ -355,7 +452,7 @@ mod tests {
         let empty = meeting(&lib, "2026-10-20T13:00:00Z", &[]);
         let ids = |from: Option<&str>, to: Option<&str>, limit| -> Vec<String> {
             let day = |d: &str| d.parse::<Date>().unwrap();
-            meetings(&lib, from.map(day), to.map(day), limit)
+            meetings(&lib, from.map(day), to.map(day), None, limit)
                 .unwrap()
                 .into_iter()
                 .map(|m| m.id)
@@ -472,6 +569,7 @@ mod tests {
         lib.save_summary(&id, &summary(NOTES)).unwrap();
         let first = meeting_markdown(&lib, &id, Some(0)).unwrap();
         assert!(first.contains("## TL;DR\n- We agreed"), "{first}");
+        assert!(first.contains("\nNotes version 1, written 20"), "{first}");
         assert!(first.contains("[0:00:00] Priya: line 0\n[0:00:05] Me: line 1\n"));
         assert!(first.contains(&format!("ask again from line {TRANSCRIPT_PAGE}")));
         assert!(!first.contains(&format!("line {TRANSCRIPT_PAGE}\n")));

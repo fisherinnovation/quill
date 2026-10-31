@@ -73,6 +73,23 @@ fn day(text: &str) -> Result<Date, String> {
         .map_err(|_| format!("{text:?} isn't a date like 2026-10-27"))
 }
 
+/// A moment from a tool's arguments: RFC 3339, or a `YYYY-MM-DD` day for
+/// the start of that local day.
+fn moment(text: &str) -> Result<jiff::Timestamp, String> {
+    if let Ok(at) = text.parse::<jiff::Timestamp>() {
+        return Ok(at);
+    }
+    day(text)
+        .ok()
+        .and_then(|d| d.to_zoned(jiff::tz::TimeZone::system()).ok())
+        .map(|start| start.timestamp())
+        .ok_or_else(|| {
+            format!(
+                "{text:?} isn't a time like 2026-10-30T17:00:00-07:00 or a date like 2026-10-30"
+            )
+        })
+}
+
 // Each tool's arguments. The doc comments become the descriptions in the
 // JSON Schema the assistant is shown; `crate = …` because schemars comes
 // through rmcp rather than as a dependency of our own.
@@ -94,6 +111,10 @@ pub struct ListArgs {
     from: Option<String>,
     /// Only meetings on or before this local day, `YYYY-MM-DD`.
     to: Option<String>,
+    /// Only meetings recorded or given new notes at or after this moment:
+    /// RFC 3339 (`2026-10-30T17:00:00-07:00`), or `YYYY-MM-DD` for the
+    /// start of that local day. For syncing: pass the time of the last sync.
+    updated_since: Option<String>,
     /// Most meetings to list, newest first. Default 50.
     limit: Option<usize>,
 }
@@ -168,8 +189,11 @@ impl Server {
     }
 
     /// List the user's meetings, newest first, optionally between two local
-    /// days: id, title, local start time, length in minutes, and whether it
-    /// has notes.
+    /// days or only those changed since a moment: id, title, start time
+    /// (`started` local, `started_at` RFC 3339 with the local offset),
+    /// length in minutes, whether it has notes, and when the notes were
+    /// last written and how many times (`notes_updated_at`,
+    /// `notes_version`, which grows when notes are summarized again).
     #[tool(annotations(read_only_hint = true, open_world_hint = false))]
     async fn list_meetings(
         &self,
@@ -178,8 +202,10 @@ impl Server {
         self.answer("list_meetings", move |context| {
             let from = args.from.as_deref().map(day).transpose()?;
             let to = args.to.as_deref().map(day).transpose()?;
+            let since = args.updated_since.as_deref().map(moment).transpose()?;
             let limit = args.limit.unwrap_or(50).clamp(1, MAX_LIST);
-            json(&assistants::meetings(context.library(), from, to, limit).map_err(message)?)
+            let listed = assistants::meetings(context.library(), from, to, since, limit);
+            json(&listed.map_err(message)?)
         })
         .await
     }
@@ -441,6 +467,25 @@ mod tests {
             )
             .await;
         assert!(!failed && none.trim() == "[]", "{none}");
+
+        // Changed since: a day or a moment, and the fields a sync needs.
+        let (listed, failed) = client
+            .tool("list_meetings", json!({"updated_since": "2026-01-01"}))
+            .await;
+        assert!(!failed && listed.contains(&id), "{listed}");
+        assert!(listed.contains("\"notes_version\": 1"), "{listed}");
+        assert!(listed.contains("\"notes_updated_at\": \"20"), "{listed}");
+        let (later, _) = client
+            .tool(
+                "list_meetings",
+                json!({"updated_since": "2999-01-01T00:00:00Z"}),
+            )
+            .await;
+        assert_eq!(later.trim(), "[]");
+        let (bad, failed) = client
+            .tool("list_meetings", json!({"updated_since": "yesterday"}))
+            .await;
+        assert!(failed && bad.contains("isn't a time"), "{bad}");
 
         // The vocabulary: readable, and changed only once the user allows it.
         let (words, _) = client.tool("vocabulary", json!({})).await;

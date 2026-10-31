@@ -1340,6 +1340,14 @@ gives it the library, the search model and the setting through
   was on), `mine`, `owner` (part of the name, ignoring case) and `limit`
   (newest meeting first). Without them it returns what it always did. No
   cursor: with a limit and days to narrow by, a library's items fit.
+- **Times and syncing (#57).** `list_meetings` gave local
+  `YYYY-MM-DD HH:MM` and `search` UTC RFC 3339. Rather than change either,
+  `list_meetings` adds `started_at` (RFC 3339 with the local offset, which
+  carries the local day and the moment), `notes_updated_at` and
+  `notes_version` (how many times the notes were written), and takes
+  `updated_since`, so a consumer can fetch only meetings recorded or
+  summarized again since its last sync. `get_meeting` says the same in its
+  header. `action_items` keeps `meeting_started_at`, already RFC 3339.
 - **Vocabulary (#54).** Assistants can read the vocabulary (`vocabulary`)
   and, with a second setting on (off by default), add terms and take them
   out (`add_vocabulary`, `remove_vocabulary`): an agent that reads the notes
