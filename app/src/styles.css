@@ -6156,6 +6156,12 @@ html.indicator-window #root {
   transform: scale(0.9);
 }
 
+/* Where an action item was said: jumps to the transcript. */
+.item-meta button.link {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 .due-chip {
   padding: 0 7px;
   border-radius: 999px;

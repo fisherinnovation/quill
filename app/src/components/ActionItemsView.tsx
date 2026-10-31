@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { type ActionItem, errorText } from "../api";
+import { type ActionItem, clock, errorText } from "../api";
 import { byUrgency, dueLabel, dueState, setActionItemDone, today, useActionItems } from "../actionItems";
 import { Icon, type IconName } from "./Icon";
 import { useCountUp } from "./ui";
@@ -266,7 +266,14 @@ function TaskText({ text }: { text: string }) {
  * A meeting's action items as a checklist, in place of the notes' plain
  * list: ticking here ticks them on the Action items page too.
  */
-export function ActionChecklist({ items }: { items: ActionItem[] }) {
+export function ActionChecklist({
+  items,
+  onJump,
+}: {
+  items: ActionItem[];
+  /** Shows the transcript where an item was said; without it, no time is shown. */
+  onJump?: (ms: number) => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const now = today();
   return (
@@ -290,11 +297,27 @@ export function ActionChecklist({ items }: { items: ActionItem[] }) {
                   {item.owner && " — "}
                   <TaskText text={item.task} />
                 </span>
-                {due && (
+                {(due || !item.committed || (onJump && item.source_ms !== null)) && (
                   <span className="item-meta">
-                    <span className={`due-chip${state ? ` ${state}` : ""}`} title={item.due_text ?? undefined}>
-                      {state === "overdue" ? `Overdue · ${due}` : due}
-                    </span>
+                    {due && (
+                      <span className={`due-chip${state ? ` ${state}` : ""}`} title={item.due_text ?? undefined}>
+                        {state === "overdue" ? `Overdue · ${due}` : due}
+                      </span>
+                    )}
+                    {!item.committed && (
+                      <span className="due-chip" title="Suggested in the meeting, but nobody took it on">
+                        Suggested
+                      </span>
+                    )}
+                    {onJump && item.source_ms !== null && (
+                      <button
+                        className="link"
+                        title="Show where this was said in the transcript"
+                        onClick={() => onJump(item.source_ms ?? 0)}
+                      >
+                        {clock(item.source_ms)}
+                      </button>
+                    )}
                   </span>
                 )}
               </div>

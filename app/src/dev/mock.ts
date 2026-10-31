@@ -72,6 +72,10 @@ const item = (
   due_text: due?.[0] ?? null,
   due_date: due ? dayFromNow(due[1]) : null,
   done_at: doneAgo === undefined ? null : iso(doneAgo),
+  // Nobody took on Northwind's pilot date; two product-sync items point to
+  // where SEGMENTS says them.
+  committed: id !== 9,
+  source_ms: ({ 1: 41_000, 3: 74_000 } as Record<number, number>)[id] ?? null,
 });
 const PRODUCT: [string, string, number] = ["m1", "Product sync", 2 * H];
 const ONE_ON_ONE: [string, string, number] = ["m2", "1:1 with Priya", 5 * H];

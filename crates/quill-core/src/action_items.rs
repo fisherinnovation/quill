@@ -19,6 +19,10 @@ pub struct Parsed {
     pub task: String,
     /// As written, e.g. "by Thursday".
     pub due: Option<String>,
+    /// Someone took it on; false when the notes mark it "(suggested)".
+    pub committed: bool,
+    /// Where in the recording it was said, from the notes' `[mm:ss]`.
+    pub source_ms: Option<u64>,
 }
 
 /// The action items in a meeting's notes, in order. Placeholders ("None",
@@ -42,20 +46,88 @@ fn parse_item(line: &str) -> Option<Parsed> {
         .unwrap_or(text)
         .trim();
 
+    let (text, source_ms) = split_timestamp(text);
     let (owner, rest) = split_owner(text);
-    let rest = rest.trim_start_matches(['—', '–', '-', ':', ' ']).trim();
+    let separators = ['—', '–', '-', ':', ' '];
+    // "**Priya** (suggested) — …", or with no owner "(suggested) — …".
+    let (rest, suggested_first) = without_suggested(rest.trim_start_matches(separators));
+    let rest = rest.trim_start_matches(separators).trim();
     let (task, due) = split_due(rest);
+    let (task, suggested_last) = without_suggested(task);
     let task = plain(task);
     if task.is_empty() || (owner.is_none() && is_placeholder(&task)) {
         return None;
     }
+    let owner = owner.map(|o| plain(o).trim_end_matches(':').trim().to_string());
+    // "Priya (suggested): …" puts it in the owner.
+    let (owner, suggested_owner) = match owner {
+        Some(o) => {
+            let (o, suggested) = without_suggested(&o);
+            (Some(o.to_string()), suggested)
+        }
+        None => (None, false),
+    };
     Some(Parsed {
-        owner: owner
-            .map(|o| plain(o).trim_end_matches(':').trim().to_string())
-            .filter(|o| !o.is_empty() && !is_no_owner(o)),
+        owner: owner.filter(|o| !o.is_empty() && !is_no_owner(o)),
         task,
         due: due.map(|d| plain(strip_label(d))).filter(|d| !d.is_empty()),
+        committed: !(suggested_first || suggested_last || suggested_owner),
+        source_ms,
     })
+}
+
+/// "send the deck [12:34]" → ("send the deck", 754 s in ms): the
+/// timestamp the notes end an item with, `[mm:ss]` or `[h:mm:ss]` (or in
+/// round brackets). Only the first of several counts.
+fn split_timestamp(text: &str) -> (&str, Option<u64>) {
+    let t = text.trim_end().trim_end_matches('.').trim_end();
+    let open = match t.chars().last() {
+        Some(']') => '[',
+        Some(')') => '(',
+        _ => return (text, None),
+    };
+    let Some(at) = t.rfind(open) else {
+        return (text, None);
+    };
+    let inside = &t[at + 1..t.len() - 1];
+    let first = inside.split([',', ';', '–']).next().unwrap_or("").trim();
+    match clock_ms(first) {
+        Some(ms) => (t[..at].trim_end(), Some(ms)),
+        None => (text, None),
+    }
+}
+
+/// "12:34" or "1:02:03" in milliseconds.
+fn clock_ms(text: &str) -> Option<u64> {
+    let parts: Vec<&str> = text.split(':').collect();
+    let numbers = parts
+        .iter()
+        .map(|p| (!p.is_empty() && p.chars().all(|c| c.is_ascii_digit())).then(|| p.parse()))
+        .collect::<Option<Result<Vec<u64>, _>>>()?
+        .ok()?;
+    let seconds_ok = parts.last().is_some_and(|s| s.len() == 2);
+    let secs = match numbers.as_slice() {
+        [m, s] if *s < 60 => m * 60 + s,
+        [h, m, s] if *m < 60 && *s < 60 => (h * 60 + m) * 60 + s,
+        _ => return None,
+    };
+    seconds_ok.then_some(secs * 1000)
+}
+
+/// `text` without a "(suggested)" mark at its start or end (ignoring
+/// case), and whether it had one.
+fn without_suggested(text: &str) -> (&str, bool) {
+    const MARK: &str = "(suggested)";
+    let t = text.trim();
+    let mark = |s: Option<&str>| s.is_some_and(|s| s.eq_ignore_ascii_case(MARK));
+    if mark(t.get(..MARK.len())) {
+        return (t[MARK.len()..].trim(), true);
+    }
+    let cut = t.len().saturating_sub(MARK.len());
+    if t.len() >= MARK.len() && mark(t.get(cut..)) {
+        return (t[..cut].trim(), true);
+    }
+    (text, false)
 }
 
 /// Owners that name no one: "Unassigned", or "Another participant" (the
@@ -561,6 +633,41 @@ mod tests {
         // Real names, and you, stay.
         assert_eq!(items[0].owner.as_deref(), Some("You"));
         assert_eq!(items[1].owner.as_deref(), Some("Dan"));
+    }
+
+    #[test]
+    fn reads_v5_timestamps_and_suggested_items() {
+        let items = parse(&notes(
+            "- **You** — send the deck — by Friday [12:34]\n\
+             - **Priya** (suggested) — look at the churn numbers [1:02:03]\n\
+             - (suggested) — find a venue [05:00].\n\
+             - **Dan** — fix the build (suggested)\n\
+             - **Dan** — book the room (Friday)\n",
+        ));
+        assert_eq!(items.len(), 5);
+        assert_eq!(items[0].task, "send the deck");
+        assert_eq!(items[0].due.as_deref(), Some("by Friday"));
+        assert_eq!(items[0].source_ms, Some(754_000));
+        assert!(items[0].committed);
+        assert_eq!(items[1].owner.as_deref(), Some("Priya"));
+        assert_eq!(items[1].task, "look at the churn numbers");
+        assert_eq!(items[1].source_ms, Some(3_723_000));
+        assert!(!items[1].committed);
+        assert_eq!(
+            (items[2].owner.as_deref(), items[2].task.as_str()),
+            (None, "find a venue")
+        );
+        assert_eq!(items[2].source_ms, Some(300_000));
+        assert!(!items[2].committed);
+        assert_eq!(items[3].task, "fix the build");
+        assert!(!items[3].committed && items[3].source_ms.is_none());
+        // Brackets that aren't a time stay part of the item.
+        assert_eq!(items[4].task, "book the room (Friday)");
+        assert!(items[4].committed && items[4].source_ms.is_none());
+        // An owner with the mark after it, the other way models write it.
+        let other = parse(&notes("- Priya (suggested): draft the brief [00:42]\n"));
+        assert_eq!(other[0].owner.as_deref(), Some("Priya"));
+        assert!(!other[0].committed);
     }
 
     #[test]

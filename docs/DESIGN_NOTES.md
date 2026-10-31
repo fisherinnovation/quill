@@ -196,6 +196,20 @@ decision someone might otherwise undo.
   every window, but whisper-rs 0.16 (the latest) has no setter for it.
   Either way, it needs measuring on real meetings before it ships.
 
+- summary-v5 (#58), from a knowledge-base agent's reading of 30 real
+  notes: about a quarter said "No formal decisions were recorded" and then
+  listed some, small talk got in, items couldn't be checked against the
+  transcript, and two meetings were titled just "Mike". Decisions now come
+  in three groups under the same `## Decisions` heading (Decided, Direction
+  given, Proposed, not agreed), so the section parsers still find them.
+  Every decision, action item and flagged uncertain number ends with the
+  `[mm:ss]` of its line; an action item nobody took on is marked
+  "(suggested)". Both are parsed into `source_ms` and `committed` on action
+  items (migration 16, which reads existing items again), shown in the
+  meeting's checklist (a Suggested tag, and the time opening the
+  transcript) and served by `action_items` over MCP. Not yet compared with
+  v4 by `quill-eval` on real meetings: do that before relying on it.
+
 ## Daily summaries
 
 On the Meetings page, a day with two or more meetings that have notes gets
