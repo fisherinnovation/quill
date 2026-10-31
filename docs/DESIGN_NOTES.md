@@ -1334,6 +1334,12 @@ gives it the library, the search model and the setting through
 - **Logs.** The tool name, time taken and whether it worked are logged, as
   is a request turned away for its token. What was asked or returned never
   is.
+- **Narrowing action items (#56).** `action_items` returned every open
+  item, 55 KB for one user's 122, most of which an assistant didn't need.
+  It now takes `meeting_id`, `since`/`until` (the local day the meeting
+  was on), `mine`, `owner` (part of the name, ignoring case) and `limit`
+  (newest meeting first). Without them it returns what it always did. No
+  cursor: with a limit and days to narrow by, a library's items fit.
 - **Vocabulary (#54).** Assistants can read the vocabulary (`vocabulary`)
   and, with a second setting on (off by default), add terms and take them
   out (`add_vocabulary`, `remove_vocabulary`): an agent that reads the notes

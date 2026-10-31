@@ -114,6 +114,19 @@ pub struct MeetingArgs {
 pub struct ActionArgs {
     /// Include items already ticked off. Default false.
     include_done: Option<bool>,
+    /// Only items from this meeting (an id from list_meetings or search).
+    meeting_id: Option<String>,
+    /// Only items from meetings on or after this local day, `YYYY-MM-DD`.
+    since: Option<String>,
+    /// Only items from meetings on or before this local day, `YYYY-MM-DD`.
+    until: Option<String>,
+    /// true: only the user's own items; false: only other people's.
+    mine: Option<bool>,
+    /// Only items whose owner includes this name, ignoring case, e.g.
+    /// "Priya" (which also finds "Priya and Dan").
+    owner: Option<String>,
+    /// Most items to return, newest meeting first. Default: all of them.
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
@@ -187,17 +200,28 @@ impl Server {
         .await
     }
 
-    /// The action items from every meeting's notes, newest meeting first:
-    /// the task, who owns it ("mine" is the user), when it's due, and the
-    /// meeting it came from. Open ones only unless include_done.
+    /// The action items from meetings' notes, newest meeting first: the
+    /// task, who owns it ("mine" is the user), when it's due, and the
+    /// meeting it came from. Open ones only unless include_done. Narrow it
+    /// down rather than reading them all: by meeting, by the days meetings
+    /// were on (since, until), to the user's own (mine) or someone else's
+    /// (owner), and with a limit.
     #[tool(annotations(read_only_hint = true, open_world_hint = false))]
     async fn action_items(
         &self,
         Parameters(args): Parameters<ActionArgs>,
     ) -> Result<String, String> {
         self.answer("action_items", move |context| {
-            let include_done = args.include_done.unwrap_or(false);
-            json(&assistants::action_items(context.library(), include_done).map_err(message)?)
+            let filter = assistants::ActionFilter {
+                include_done: args.include_done.unwrap_or(false),
+                meeting_id: args.meeting_id,
+                since: args.since.as_deref().map(day).transpose()?,
+                until: args.until.as_deref().map(day).transpose()?,
+                mine: args.mine,
+                owner: args.owner.filter(|o| !o.trim().is_empty()),
+                limit: args.limit,
+            };
+            json(&assistants::action_items(context.library(), &filter).map_err(message)?)
         })
         .await
     }
@@ -406,6 +430,17 @@ mod tests {
             .tool("daily_summary", json!({"date": "tomorrow"}))
             .await;
         assert!(failed && bad.contains("isn't a date"), "{bad}");
+        let (bad, failed) = client
+            .tool("action_items", json!({"mine": true, "since": "last week"}))
+            .await;
+        assert!(failed && bad.contains("isn't a date"), "{bad}");
+        let (none, failed) = client
+            .tool(
+                "action_items",
+                json!({"mine": true, "since": "2026-10-01", "limit": 5}),
+            )
+            .await;
+        assert!(!failed && none.trim() == "[]", "{none}");
 
         // The vocabulary: readable, and changed only once the user allows it.
         let (words, _) = client.tool("vocabulary", json!({})).await;
