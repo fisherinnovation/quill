@@ -269,6 +269,17 @@ On the Meetings page, a day with two or more meetings that have notes gets
   calendar dates (a date without a year more than 60 days before the
   meeting is next year's). Anything else, like "after the launch", stays
   as written and isn't flagged.
+- **What models write when nothing was said** (#53): in one user's 122
+  open items, `due_text` was sometimes "no due date given", and 30 items
+  had a due phrase but no date, such as "end of day Monday" ("end of day"
+  was only understood at the end) and "end of day today (Friday)" (the
+  brackets broke it). Owners included "Unassigned" and "Other
+  participant", the prompts' word for someone unnamed. Now "no due date…",
+  "none", "not specified" and the like are no due date; "end of day",
+  "EOD" and "COB" can lead or follow a day; brackets are read as the words
+  around them, else the words inside; and owners that name no one are
+  `None`. Migration 15 reads every meeting's items again from its latest
+  notes, keeping ticks, so libraries are fixed without re-summarizing.
 
 ## Dictation
 
