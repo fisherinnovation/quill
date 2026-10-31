@@ -115,16 +115,54 @@ pub fn daily_markdown(library: &Library, day: Date) -> Result<Option<String>, Li
     }))
 }
 
-/// Action items, newest meeting first; open ones only unless `include_done`.
+/// Which action items [`action_items`] returns. The default is every open
+/// item; each filter narrows it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ActionFilter {
+    /// Ticked-off items too.
+    pub include_done: bool,
+    /// Only this meeting's.
+    pub meeting_id: Option<String>,
+    /// Only from meetings on or after this local day.
+    pub since: Option<Date>,
+    /// Only from meetings on or before this local day.
+    pub until: Option<Date>,
+    /// `Some(true)`: only the user's own; `Some(false)`: only other people's.
+    pub mine: Option<bool>,
+    /// Only items whose owner includes this, ignoring case: "priya" finds
+    /// "Priya and Dan".
+    pub owner: Option<String>,
+    /// At most this many, newest meeting first.
+    pub limit: Option<usize>,
+}
+
+/// Action items, newest meeting first, as `filter` narrows them.
 pub fn action_items(
     library: &Library,
-    include_done: bool,
+    filter: &ActionFilter,
 ) -> Result<Vec<ActionItem>, LibraryError> {
-    let mut items = library.action_items()?;
-    if !include_done {
-        items.retain(|a| a.done_at.is_none());
-    }
-    Ok(items)
+    let owner = filter.owner.as_deref().map(str::to_lowercase);
+    let items = library.action_items()?.into_iter().filter(|a| {
+        let day = local_day(&a.meeting_started_at);
+        (filter.include_done || a.done_at.is_none())
+            && filter
+                .meeting_id
+                .as_ref()
+                .is_none_or(|id| *id == a.meeting_id)
+            && filter
+                .since
+                .is_none_or(|since| day.is_some_and(|d| d >= since))
+            && filter
+                .until
+                .is_none_or(|until| day.is_some_and(|d| d <= until))
+            && filter.mine.is_none_or(|mine| mine == a.mine)
+            && owner.as_ref().is_none_or(|o| {
+                a.owner
+                    .as_ref()
+                    .is_some_and(|owner| owner.to_lowercase().contains(o.as_str()))
+            })
+    });
+    Ok(items.take(filter.limit.unwrap_or(usize::MAX)).collect())
 }
 
 /// One meeting as Markdown: when it was, its latest notes, and, if
@@ -337,12 +375,75 @@ mod tests {
         let id = meeting(&lib, "2026-10-20T15:00:00Z", &[segment(0, "Me", "Hi.")]);
         let notes = "## Action items\n- **Priya** — post the job ads\n- **You** — book the room\n";
         lib.save_summary(&id, &summary(notes)).unwrap();
-        let all = action_items(&lib, true).unwrap();
+        let everything = ActionFilter {
+            include_done: true,
+            ..ActionFilter::default()
+        };
+        let all = action_items(&lib, &everything).unwrap();
         assert_eq!(all.len(), 2);
         lib.set_action_item_done(all[0].id, true).unwrap();
-        let open = action_items(&lib, false).unwrap();
+        let open = action_items(&lib, &ActionFilter::default()).unwrap();
         assert_eq!(open.len(), 1);
         assert_eq!(open[0].task, all[1].task);
+    }
+
+    #[test]
+    fn action_items_narrow_by_meeting_day_owner_and_count() {
+        let (lib, _dir) = library();
+        let said = [segment(0, "Me", "Hi.")];
+        // Midday UTC, so the local day is the same wherever the tests run.
+        let old = meeting(&lib, "2026-10-19T12:00:00Z", &said);
+        let new = meeting(&lib, "2026-10-30T12:00:00Z", &said);
+        lib.save_summary(
+            &old,
+            &summary("## Action items\n- **You** — send the old deck\n- **Priya** — old ads\n"),
+        )
+        .unwrap();
+        lib.save_summary(
+            &new,
+            &summary(
+                "## Action items\n- **You** — book the room — by Monday\n\
+                 - **Priya and Dan** — post the job ads\n- **Dan** — fix the build\n",
+            ),
+        )
+        .unwrap();
+        let tasks = |filter: ActionFilter| -> Vec<String> {
+            action_items(&lib, &filter)
+                .unwrap()
+                .into_iter()
+                .map(|a| a.task)
+                .collect()
+        };
+        let day = |d: &str| Some(d.parse::<Date>().unwrap());
+
+        // What a daily sync asks for: the user's own items since a day.
+        let mine_since = ActionFilter {
+            mine: Some(true),
+            since: day("2026-10-30"),
+            ..ActionFilter::default()
+        };
+        assert_eq!(tasks(mine_since), ["book the room"]);
+        let others = ActionFilter {
+            mine: Some(false),
+            until: day("2026-10-29"),
+            ..ActionFilter::default()
+        };
+        assert_eq!(tasks(others), ["old ads"]);
+        let priya = ActionFilter {
+            owner: Some("priya".into()),
+            ..ActionFilter::default()
+        };
+        assert_eq!(tasks(priya), ["post the job ads", "old ads"]);
+        let one_meeting = ActionFilter {
+            meeting_id: Some(old.clone()),
+            ..ActionFilter::default()
+        };
+        assert_eq!(tasks(one_meeting).len(), 2);
+        let newest_two = ActionFilter {
+            limit: Some(2),
+            ..ActionFilter::default()
+        };
+        assert_eq!(tasks(newest_two), ["book the room", "post the job ads"]);
     }
 
     #[test]
