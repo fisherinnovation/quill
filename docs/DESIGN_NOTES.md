@@ -890,6 +890,21 @@ On the Meetings page, a day with two or more meetings that have notes gets
   plain `windows-x86_64` falls back to NSIS. NSIS installs per user, so
   updating needs no UAC prompt. The installer runs in passive mode (a
   progress bar) and reopens Quill.
+- **Updater 2.14.1 ahead of the two-week rule** (2026-11-02). Five `zip`
+  advisories (one critical: GHSA-m665-v7pm-7grj; fixed in 9.0.5) covered
+  the 2.x, 4.x and 7.x `zip` that `sherpa-onnx-sys` (build script),
+  `tauri-plugin-updater` and `candle-core` pull in, and only releases days
+  old move to `zip` 9. The updater is the one place Quill unpacks something
+  downloaded, so 2.14.1 went in at 5 days old, with `zip` held at 9.0.5
+  (16 days) rather than that week's 9.2.2. It also adds a check that a
+  signature's `version:` matches the version `latest.json` announces;
+  releases are signed with `--app-version`, and v0.9.0's signatures all
+  carry `version:0.9.0`. Its `minisign-verify` 0.3.0 verified v0.9.0's
+  Windows installer with the key in `tauri.conf.json` and rejected a copy
+  with one byte changed. `candle-core` (0.11.1) and `sherpa-onnx` (2.0)
+  wait for two weeks: Quill never reaches their `zip` code (it loads
+  `.safetensors`, and CI and releases bypass the build script's download
+  with `SHERPA_ONNX_LIB_DIR`).
 - **Release notes** come from `scripts/release-notes.sh`: the `feat` and
   `fix` subjects since the previous tag, as New and Fixes (without the
   website's), then the downloads by file name and where to start. GitHub's

@@ -105,8 +105,12 @@ tauri-build = { version = "2.7", features = [] }
 tauri-plugin-dialog = "2.8"
 tauri-plugin-global-shortcut = "2.4"
 tauri-plugin-opener = "2.6"
-# Downloads and installs signed app updates from GitHub Releases.
-tauri-plugin-updater = "2.13"
+# Downloads and installs signed app updates from GitHub Releases. 2.14.1,
+# taken at 5 days old as a security exception to the two-week rule: it moves
+# to zip 9.0.5, past five zip advisories (GHSA-m665-v7pm-7grj and others),
+# and is where Quill unpacks downloaded archives. See docs/DESIGN_NOTES.md
+# ("Updates").
+tauri-plugin-updater = "2.14.1"
 # Search by meaning (quill-embed): candle runs the sentence-embedding model on
 # the CPU in pure Rust, so there's no second onnxruntime next to sherpa-onnx's.
 # 0.9.2 because 0.10 and later make candle-core pull in `tokenizers` with
