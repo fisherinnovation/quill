@@ -92,6 +92,7 @@ async fn summarizes_a_day_that_changed_its_mind() {
                 cost_usd: None,
                 latency_ms: 0,
                 complete: true,
+                speakers: Vec::new(),
             },
         )
         .unwrap();

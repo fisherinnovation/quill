@@ -26,6 +26,10 @@ pub struct SummaryPrompts {
     /// user's names and terms, as a paragraph ending in a blank line, or
     /// empty. From v4.
     pub vocabulary: bool,
+    /// Whether `single` and `chunk` answers end with a `<speakers>` block
+    /// naming numbered speakers, for Quill to suggest (not part of the
+    /// notes). From v6.
+    pub speaker_names: bool,
 }
 
 // `concat!(env!("CARGO_MANIFEST_DIR"), ...)` builds an absolute path at
@@ -47,6 +51,7 @@ pub const SUMMARY_V1: SummaryPrompts = SummaryPrompts {
     chunk: prompt!("summary-v1/chunk.md"),
     reduce: prompt!("summary-v1/reduce.md"),
     vocabulary: false,
+    speaker_names: false,
 };
 
 /// v2: resolves "I/you/we" relative to each speaker (v1 once reversed who
@@ -59,6 +64,7 @@ pub const SUMMARY_V2: SummaryPrompts = SummaryPrompts {
     chunk: prompt!("summary-v2/chunk.md"),
     reduce: prompt!("summary-v2/reduce.md"),
     vocabulary: false,
+    speaker_names: false,
 };
 
 /// v3: understands voice-separated speakers ("Speaker 1", …) and names the
@@ -70,6 +76,7 @@ pub const SUMMARY_V3: SummaryPrompts = SummaryPrompts {
     chunk: prompt!("summary-v3/chunk.md"),
     reduce: prompt!("summary-v3/reduce.md"),
     vocabulary: false,
+    speaker_names: false,
 };
 
 /// v4: given the user's vocabulary (names and terms speech recognition
@@ -81,6 +88,7 @@ pub const SUMMARY_V4: SummaryPrompts = SummaryPrompts {
     chunk: prompt!("summary-v4/chunk.md"),
     reduce: prompt!("summary-v4/reduce.md"),
     vocabulary: true,
+    speaker_names: false,
 };
 
 /// v5: decisions split into decided, direction given and proposed; action
@@ -94,15 +102,31 @@ pub const SUMMARY_V5: SummaryPrompts = SummaryPrompts {
     chunk: prompt!("summary-v5/chunk.md"),
     reduce: prompt!("summary-v5/reduce.md"),
     vocabulary: true,
+    speaker_names: false,
+};
+
+/// v6: links a name to a numbered speaker only when they're handed the
+/// floor by name and answer, or say who they are (not on a mention), and
+/// lists those links after the notes in a `<speakers>` block, so the
+/// transcript can show the names the notes use. Reduce is unchanged.
+pub const SUMMARY_V6: SummaryPrompts = SummaryPrompts {
+    version: "summary-v6",
+    system: prompt!("summary-v6/system.md"),
+    single: prompt!("summary-v6/single.md"),
+    chunk: prompt!("summary-v6/chunk.md"),
+    reduce: prompt!("summary-v6/reduce.md"),
+    vocabulary: true,
+    speaker_names: true,
 };
 
 /// The version used by default.
-pub const SUMMARY: SummaryPrompts = SUMMARY_V5;
+pub const SUMMARY: SummaryPrompts = SUMMARY_V6;
 
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
-pub const SUMMARY_VERSIONS: &[SummaryPrompts] =
-    &[SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5];
+pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[
+    SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5, SUMMARY_V6,
+];
 
 /// The `vocabulary` value for summary prompts that take one: the user's
 /// names and terms as a paragraph, ready to sit above the transcript, or

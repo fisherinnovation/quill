@@ -776,7 +776,7 @@ function SpeakerBar({
               title={
                 recognized.has(p.name)
                   ? `Recognized by voice. Click to rename if it's someone else.`
-                  : `Suggested by an AI assistant. Click to rename if it's someone else.`
+                  : `Suggested from what was said on the call. Click to rename if it's someone else.`
               }
               disabled={busy}
               onClick={() => setEditing(p.name)}
@@ -826,7 +826,7 @@ function SpeakerBar({
       )}
       {suggested.size > 0 && editing === null && (
         <span className="muted speaker-note">
-          <Icon name="bolt" size={11} /> Suggested by an AI assistant
+          <Icon name="bolt" size={11} /> Suggested name
         </span>
       )}
       {error && <span className="muted">{error}</span>}

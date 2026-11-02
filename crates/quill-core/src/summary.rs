@@ -26,6 +26,9 @@ const TEMPERATURE: f32 = 0.2;
 const RESERVED_TOKENS: usize = 10_000;
 /// Upper bound per part in map-reduce. Smaller parts get more detailed notes.
 const MAX_PART_TOKENS: usize = 15_000;
+/// How soon after someone says a name its owner must start talking for the
+/// notes' link between them to stand (see [`checked_names`]).
+const HANDOFF_MS: u64 = 15_000;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SummaryError {
@@ -58,6 +61,17 @@ pub struct Summary {
     /// False if the model still stopped at its length limit after being
     /// asked to carry on, so the notes end early.
     pub complete: bool,
+    /// Numbered speakers the notes named, as the transcript bears out (see
+    /// [`checked_names`]). Empty for prompt versions that don't name them.
+    pub speakers: Vec<SpeakerName>,
+}
+
+/// A name the notes gave a numbered speaker ("Speaker 2" is Dana), for the
+/// transcript to suggest (`Library::suggest_speaker_names`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpeakerName {
+    pub label: String,
+    pub name: String,
 }
 
 /// A model's whole answer to one request, continued if it was cut off.
@@ -104,6 +118,8 @@ pub async fn summarize(
     };
 
     let mut answers = Vec::new();
+    // Speaker labels and names from the answers' `<speakers>` blocks.
+    let mut pairs = Vec::new();
     if quill_llm::estimate_tokens(&transcript) <= budget {
         let prompt = render(
             prompts.single,
@@ -151,11 +167,16 @@ pub async fn summarize(
             .try_collect()
             .await?;
 
-        // "Reduce": combine the part notes into the final summary.
+        // "Reduce": combine the part notes into the final summary, without
+        // the parts' lists of names (kept for checking below).
         let notes = part_notes
             .iter()
             .enumerate()
-            .map(|(i, (range, a))| format!("### Part {} ({range})\n\n{}", i + 1, notes_of(a)))
+            .map(|(i, (range, a))| {
+                let (notes, named) = without_speakers(&notes_of(a));
+                pairs.extend(named);
+                format!("### Part {} ({range})\n\n{notes}", i + 1)
+            })
             .collect::<Vec<_>>()
             .join("\n\n");
         let prompt = render(
@@ -183,8 +204,15 @@ pub async fn summarize(
         );
     }
     let responses = || answers.iter().map(|a| &a.response);
+    let (markdown, named) = without_speakers(&notes_of(last));
+    pairs.extend(named);
+    let speakers = if prompts.speaker_names {
+        checked_names(pairs, segments)
+    } else {
+        Vec::new()
+    };
     Ok(Summary {
-        markdown: notes_of(last),
+        markdown,
         model: last.response.model.clone(),
         prompt_version: prompts.version,
         requests: answers.iter().map(|a| a.requests).sum(),
@@ -194,7 +222,113 @@ pub async fn summarize(
         cost_usd: responses().map(|r| r.cost_usd).sum(),
         latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         complete,
+        speakers,
     })
+}
+
+/// `notes` without the `<speakers>` block the prompts ask for after them
+/// (and any code fence around it), and the label and name on each of its
+/// lines ("Speaker 2 = Dana [03:12]"). A block cut off at the length limit
+/// gives what it has.
+fn without_speakers(notes: &str) -> (String, Vec<(String, String)>) {
+    const OPEN: &str = "<speakers>";
+    const CLOSE: &str = "</speakers>";
+    let Some(open) = notes.rfind(OPEN) else {
+        return (notes.to_string(), Vec::new());
+    };
+    let after = &notes[open + OPEN.len()..];
+    let (inside, rest) = after.find(CLOSE).map_or((after, ""), |end| {
+        (&after[..end], &after[end + CLOSE.len()..])
+    });
+    let pairs = inside
+        .lines()
+        .filter_map(|line| {
+            let (label, name) = line
+                .trim()
+                .trim_start_matches(['-', '*', ' '])
+                .split_once('=')?;
+            let name = name.split('[').next().unwrap_or(name);
+            Some((label.trim().to_string(), name.trim().to_string()))
+        })
+        .collect();
+    let before = notes[..open].trim_end().trim_end_matches("```").trim_end();
+    let rest = rest.trim_start().trim_start_matches("```").trim();
+    let notes = if rest.is_empty() {
+        before.to_string()
+    } else {
+        format!("{before}\n\n{rest}")
+    };
+    (notes, pairs)
+}
+
+/// The names from `pairs` the transcript (`turns`) bears out. A pair
+/// stands when its label is a numbered speaker ("Speaker 2") in the
+/// transcript, the name looks like a name (`crate::speakers::speaker_name`)
+/// and isn't anyone else's label, and the name is said in that speaker's
+/// own turn (introducing themselves) or in the turn just before one of
+/// theirs, which they start within [`HANDOFF_MS`] (being handed the floor).
+/// The model judges what was meant ("over to you, Dana" against "thanks,
+/// Dana"); this only drops names nobody said near that speaker. A label the
+/// model named twice differently, or a name it gave two labels, is dropped,
+/// whether or not the others stood.
+fn checked_names(pairs: Vec<(String, String)>, turns: &[Segment]) -> Vec<SpeakerName> {
+    let labels: Vec<&str> = turns.iter().filter_map(|t| t.speaker.as_deref()).collect();
+    let numbered = |label: &str| {
+        label
+            .strip_prefix("Speaker ")
+            .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+    };
+    // Letters and digits only, lowercased: "Dana," and "dana" match.
+    let word = |w: &str| -> String {
+        w.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    let pairs: Vec<(String, String)> = pairs
+        .into_iter()
+        .filter_map(|(label, name)| Some((label, crate::speakers::speaker_name(&name)?)))
+        .collect();
+    let clashes = |label: &str, name: &str| {
+        pairs
+            .iter()
+            .any(|(l, n)| (l == label) != n.eq_ignore_ascii_case(name))
+    };
+    let mut named: Vec<SpeakerName> = Vec::new();
+    for (label, name) in pairs.iter().cloned() {
+        if clashes(&label, &name) {
+            continue;
+        }
+        if !numbered(&label)
+            || numbered(&name)
+            || !labels.contains(&label.as_str())
+            || labels.iter().any(|l| l.eq_ignore_ascii_case(&name))
+            || [crate::meeting::ME, crate::meeting::OTHERS, "You"]
+                .iter()
+                .any(|r| name.eq_ignore_ascii_case(r))
+        {
+            continue;
+        }
+        let parts: Vec<String> = name
+            .split_whitespace()
+            .map(word)
+            .filter(|w| w.chars().count() >= 2)
+            .collect();
+        let said = |t: &Segment| t.text.split_whitespace().any(|w| parts.contains(&word(w)));
+        let shown = turns.iter().enumerate().any(|(i, t)| {
+            t.speaker.as_deref() == Some(label.as_str())
+                && (said(t)
+                    || i.checked_sub(1).map(|p| &turns[p]).is_some_and(|before| {
+                        before.speaker != t.speaker
+                            && t.start_ms <= before.end_ms + HANDOFF_MS
+                            && said(before)
+                    }))
+        });
+        if shown && !named.iter().any(|n| n.label == label) {
+            named.push(SpeakerName { label, name });
+        }
+    }
+    named
 }
 
 /// Renders a summary template, with the vocabulary `note` for versions that
@@ -351,6 +485,8 @@ mod tests {
     struct FakeProvider {
         context: usize,
         cut_off: usize,
+        /// Added to every whole answer, e.g. a `<speakers>` block.
+        tail: &'static str,
         requests: Mutex<Vec<CompletionRequest>>,
     }
 
@@ -365,7 +501,7 @@ mod tests {
                 text: if truncated {
                     format!("<think>\n\n</think>\n\n- item {n}\n- send the")
                 } else {
-                    format!("<think>\n\n</think>\n\nanswer {n}")
+                    format!("<think>\n\n</think>\n\nanswer {n}{}", self.tail)
                 },
                 model: "fake-1".into(),
                 prompt_tokens: 100,
@@ -390,6 +526,7 @@ mod tests {
         FakeProvider {
             context,
             cut_off: 0,
+            tail: "",
             requests: Mutex::new(Vec::new()),
         }
     }
@@ -499,10 +636,9 @@ mod tests {
     #[tokio::test]
     async fn a_part_cut_off_makes_long_notes_incomplete() {
         let provider = FakeProvider {
-            context: 7_000,
             // Part 1, and both times it's asked to carry on.
             cut_off: 1 + MAX_CONTINUATIONS,
-            requests: Mutex::new(Vec::new()),
+            ..fake(7_000)
         };
         let summary = summarize(&provider, "m", &SUMMARY, &meeting(400), "2026-10-11", &[])
             .await
@@ -573,5 +709,128 @@ mod tests {
         let lines: Vec<String> = (0..10).map(|_| "x".repeat(30)).collect(); // ~11 tokens each
         let parts = split_lines(&lines, 25);
         assert_eq!(parts, vec![0..2, 2..4, 4..6, 6..8, 8..10]);
+    }
+
+    #[test]
+    fn the_speakers_block_is_taken_out_of_the_notes() {
+        let pair = |l: &str, n: &str| (l.to_string(), n.to_string());
+        let (notes, pairs) = without_speakers(
+            "# Sync\n\n## TL;DR\n- Ship.\n\n<speakers>\nSpeaker 2 = Dana [03:12]\n- Speaker 4 = Sam Lee\n</speakers>\n",
+        );
+        assert_eq!(notes, "# Sync\n\n## TL;DR\n- Ship.");
+        assert_eq!(
+            pairs,
+            [pair("Speaker 2", "Dana"), pair("Speaker 4", "Sam Lee")]
+        );
+        // In a code fence, empty, cut off, or followed by more notes.
+        let (notes, pairs) = without_speakers("- Ship.\n\n```\n<speakers>\n</speakers>\n```");
+        assert_eq!((notes.as_str(), pairs.len()), ("- Ship.", 0));
+        let (notes, pairs) = without_speakers("- Ship.\n<speakers>\nSpeaker 1 = Dana");
+        assert_eq!(
+            (notes.as_str(), pairs),
+            ("- Ship.", vec![pair("Speaker 1", "Dana")])
+        );
+        let (notes, _) = without_speakers("- Ship.\n<speakers></speakers>\n## Quotes\n- \"Go.\"");
+        assert_eq!(notes, "- Ship.\n\n## Quotes\n- \"Go.\"");
+        assert_eq!(without_speakers("- Ship.").0, "- Ship.");
+    }
+
+    #[test]
+    fn names_stand_only_where_the_transcript_shows_them() {
+        let turn = |start_s: u64, speaker: &str, text: &str| Segment {
+            start_ms: start_s * 1000,
+            end_ms: start_s * 1000 + 4000,
+            text: text.into(),
+            speaker: Some(speaker.into()),
+            words: Vec::new(),
+        };
+        let turns = [
+            turn(0, "Me", "Thanks everyone. Over to you, Dana."),
+            turn(5, "Speaker 1", "Thanks. The dates first."),
+            turn(10, "Speaker 2", "Hi, it's Sam from support."),
+            turn(15, "Me", "Good point, Alex."),
+            turn(40, "Speaker 3", "One more thing."),
+            turn(45, "Priya", "Sounds good."),
+        ];
+        let pair = |l: &str, n: &str| (l.to_string(), n.to_string());
+        let named = |pairs: Vec<(String, String)>| -> Vec<(String, String)> {
+            checked_names(pairs, &turns)
+                .into_iter()
+                .map(|n| (n.label, n.name))
+                .collect()
+        };
+        // Handed the floor by name, and saying who they are.
+        assert_eq!(
+            named(vec![pair("Speaker 1", "Dana"), pair("Speaker 2", "Sam")]),
+            [pair("Speaker 1", "Dana"), pair("Speaker 2", "Sam")]
+        );
+        for wrong in [
+            pair("Speaker 3", "Alex"),   // named 25 s before they spoke
+            pair("Speaker 1", "Jordan"), // never said
+            pair("Me", "Matt"),          // not a numbered speaker
+            pair("Speaker 9", "Dana"),   // not in the transcript
+            pair("Speaker 1", "Priya"),  // someone else's label
+            pair("Speaker 1", "Speaker 2"),
+            pair("Speaker 1", "Dana: ok"), // not a name
+        ] {
+            assert!(named(vec![wrong.clone()]).is_empty(), "{wrong:?}");
+        }
+        // Two names for one label, or one name for two labels: neither.
+        assert!(named(vec![pair("Speaker 1", "Dana"), pair("Speaker 1", "Sam")]).is_empty());
+        assert_eq!(
+            named(vec![pair("Speaker 1", "Dana"), pair("Speaker 1", "Dana")]),
+            [pair("Speaker 1", "Dana")]
+        );
+    }
+
+    #[tokio::test]
+    async fn names_from_every_part_are_kept_out_of_the_notes() {
+        // A long call where the host hands Dana the floor, every time.
+        let segments: Vec<Segment> = (0..400)
+            .map(|i| Segment {
+                start_ms: i as u64 * 5_000,
+                end_ms: i as u64 * 5_000 + 4_000,
+                text: if i % 2 == 0 {
+                    format!("Point {i} about the roadmap. Over to you, Dana.")
+                } else {
+                    format!("Thanks. Answer {i} about the roadmap and hiring.")
+                },
+                speaker: Some(if i % 2 == 0 { "Me" } else { "Speaker 1" }.into()),
+                words: Vec::new(),
+            })
+            .collect();
+        let provider = FakeProvider {
+            tail: "\n\n<speakers>\nSpeaker 1 = Dana [00:05]\n</speakers>",
+            ..fake(7_000)
+        };
+        let summary = summarize(&provider, "m", &SUMMARY, &segments, "2026-11-02", &[])
+            .await
+            .unwrap();
+        {
+            let requests = provider.requests.lock().unwrap();
+            let reduce = &requests.last().unwrap().messages[1].content;
+            assert!(
+                requests.len() > 2 && !reduce.contains("<speakers>"),
+                "{reduce}"
+            );
+        }
+        assert!(
+            !summary.markdown.contains("<speakers>"),
+            "{}",
+            summary.markdown
+        );
+        let named: Vec<_> = summary
+            .speakers
+            .iter()
+            .map(|n| (n.label.as_str(), n.name.as_str()))
+            .collect();
+        assert_eq!(named, [("Speaker 1", "Dana")]);
+
+        // Versions before v6 don't name anyone.
+        let v5 = quill_llm::prompts::SUMMARY_V5;
+        let summary = summarize(&provider, "m", &v5, &segments[..10], "2026-11-02", &[])
+            .await
+            .unwrap();
+        assert!(summary.speakers.is_empty());
     }
 }

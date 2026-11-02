@@ -6,6 +6,12 @@
   - `product-sync.json`: a synthetic 4-minute, 4-person product meeting
     (script in `bench/meeting_script.txt`, read by macOS voices, recorded as
     two tracks with speaker echo, transcribed by turbo). Not a real meeting.
+  - `all-hands-names.json`: a written 2-minute all-hands with numbered
+    speakers, for checking which people the notes name (`quill-cli
+    summarize` prints "Suggests Dana for Speaker 2"). Dana, Priya and Luis
+    should be named (a handoff by name, a self-introduction, a call by
+    name); Speakers 1 and 5 shouldn't, though Sam, Alex and Jordan are
+    thanked or quoted, Jordan just before Speaker 5 speaks.
 - `results/` holds harness outputs: `eval.sqlite` (every run), and per run a
   folder with `leaderboard.md`, `review.md` (summaries side by side with
   scores) and `results.csv`. Everything in it is gitignored.

@@ -184,6 +184,7 @@ pub(crate) mod testing {
             cost_usd: None,
             latency_ms: 0,
             complete: true,
+            speakers: Vec::new(),
         };
         library.save_summary(&id, &summary).unwrap();
         let context = TestContext {

@@ -150,6 +150,11 @@ local voice model, not audio, but they can identify a voice, so treat them
 like biometric data: they never leave your computer, are never logged, and
 a known voice is kept until you forget it in Settings → Meetings (deleting
 a meeting doesn't). Your own microphone track is never remembered.
+When the notes are written, the summary model may also name people on the
+call who were handed the floor by name or said who they are; Quill checks
+the name was said by or just before that person, holds it to letters,
+spaces, hyphens, apostrophes and periods, and shows it in the transcript
+only as a suggestion until you confirm it.
 Daily summaries are kept in `quill.sqlite`, one per day; since each holds
 its meetings' content, deleting any of that day's meetings deletes it.
 Search (Ctrl+K / ⌘K) keeps a word index in `quill.sqlite` holding a copy

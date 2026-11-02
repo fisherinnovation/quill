@@ -224,6 +224,25 @@ decision someone might otherwise undo.
   transcript) and served by `action_items` over MCP. Not yet compared with
   v4 by `quill-eval` on real meetings: do that before relying on it.
 
+- **Names in the transcript from the notes (summary-v6).** The notes
+  already worked out who "Speaker 3" was from handoffs ("over to you,
+  Dana") but the transcript kept the number, so the two disagreed about
+  who said what. v6 tightens when a name may be linked (handed the floor
+  by name and answering, or saying who they are; not a mention or thanks)
+  and lists the links after the notes in a `<speakers>` block, which
+  `summary` strips: map-reduce parts each give theirs, and reduce never
+  sees them. Quill keeps a link only if the name is said in that
+  speaker's turn or the one just before it (within 15 s), the label is
+  still a numbered one, the name is letters only and nobody else's label,
+  and the model didn't give that label or name twice. Kept links become
+  suggestions (`suggested_speakers`), as an assistant's do: shown with a
+  ✓, learned as a voice only once confirmed. On a synthetic all-hands with
+  traps (`eval/transcripts/all-hands-names.json`: a handoff by name, a
+  self-introduction, a call by name, a thanks and a quote that aren't
+  handoffs, a thanks just before someone else speaks, a host never named),
+  Haiku 5.5 named exactly the three right people in 3 runs of 3, and the
+  notes called the unnamed ones "host" and "another participant".
+
 ## Daily summaries
 
 On the Meetings page, a day with two or more meetings that have notes gets

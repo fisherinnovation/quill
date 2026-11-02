@@ -477,6 +477,16 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
         .library
         .save_summary(id, &summary)
         .map_err(|e| e.to_string())?;
+    // The names the notes gave people on the call, as suggestions in the
+    // transcript. Counts only: names stay out of the logs.
+    match state.library.suggest_speaker_names(id, &summary.speakers) {
+        Ok(0) => {}
+        Ok(named) => tracing::info!(meeting_id = id, named, "suggested names from the notes"),
+        Err(e) => tracing::warn!(
+            meeting_id = id,
+            "couldn't suggest names from the notes: {e}"
+        ),
+    }
     job.finish(StepKind::Notes);
     Ok(())
 }

@@ -169,7 +169,7 @@ Live notes are a rough draft made as you go. The full transcript and notes are s
 1. **Removes echo** of the call from your microphone, in case you used speakers rather than headphones.
 2. **Transcribes** both tracks with Whisper, skipping silence so it doesn't invent words in quiet stretches.
 3. **Tells the other people apart** by voice, as Speaker 1, Speaker 2 and so on.
-4. **Writes the notes**, if **Summarize automatically** is on.
+4. **Writes the notes**, if **Summarize automatically** is on. When someone was handed the floor by name ("over to you, Dana") or said who they are, the notes name them, and the transcript suggests that name for their speaker.
 5. **Compacts the audio** to about 70 MB per hour.
 
 You can watch it happen. The meeting shows each step as it goes, with how far it's got, roughly how long is left, and the lines it's hearing as they're transcribed. Home shows it at the top, the meeting's tile has a progress bar, and the sidebar says **Writing up**. You can keep using your computer, and dictate, while it runs. Telling speakers apart adds about two minutes per hour of audio.
@@ -259,7 +259,7 @@ Items are read from the notes when they're written. If you re-summarize, items s
 Beside it, each person has a lane, solid while they're talking. When someone starts while another person is still talking, their line branches off that person's lane and is marked **over** them, and the line they cut into goes on after them (a hollow dot). Where the cut falls inside a sentence is Quill's estimate.
 
 - **Click a speaker's name** to rename them. The notes use the names once you re-summarize.
-- **A name with a ✓** was given by Quill (recognized by voice) or by an AI assistant you let suggest names. Click ✓ if it's right, or the name to change it.
+- **A name with a ✓** was suggested: recognized by voice, worked out by the notes from what was said ("over to you, Dana"), or given by an AI assistant you let suggest names. Click ✓ if it's right, or the name to change it. Quill only learns a voice once you confirm it.
 - **Type an existing name** to merge two speakers who are really the same person.
 - **People on the call**: if Quill found too few or too many people, choose how many there were and it splits the voices again, instantly.
 

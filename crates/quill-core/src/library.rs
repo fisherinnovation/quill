@@ -974,6 +974,36 @@ impl Library {
         self.rename_speaker_as(id, from, to, false, true)
     }
 
+    /// Suggests the names meeting `id`'s notes gave numbered speakers
+    /// (`Summary::speakers`), as [`Library::suggest_speaker_name`] does for
+    /// an assistant: shown until the user confirms or changes them. Only
+    /// for speakers still numbered, and names nobody in the transcript has
+    /// (the user may have renamed someone while the notes were written).
+    /// Returns how many were named.
+    pub fn suggest_speaker_names(
+        &self,
+        id: &str,
+        names: &[crate::summary::SpeakerName],
+    ) -> Result<usize, LibraryError> {
+        let labels: Vec<String> = {
+            let conn = self.conn();
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT speaker FROM segments WHERE meeting_id = ?1 AND speaker IS NOT NULL",
+            )?;
+            stmt.query_map([id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?
+        };
+        let mut named = 0;
+        for n in names {
+            let free = !labels.iter().any(|l| l.eq_ignore_ascii_case(&n.name));
+            if free && labels.contains(&n.label) && !crate::speakers::rememberable(&n.label) {
+                self.suggest_speaker_name(id, &n.label, &n.name)?;
+                named += 1;
+            }
+        }
+        Ok(named)
+    }
+
     fn rename_speaker_as(
         &self,
         id: &str,
@@ -1793,6 +1823,7 @@ mod tests {
             cost_usd: Some(0.001),
             latency_ms: 1500,
             complete: true,
+            speakers: Vec::new(),
         }
     }
 
@@ -2414,5 +2445,47 @@ mod tests {
             Some("\"say\" \"\"\"hi\"\"\"*")
         );
         assert_eq!(fts_query(""), None);
+    }
+
+    #[test]
+    fn names_from_the_notes_are_suggested_for_numbered_speakers_only() {
+        use crate::summary::SpeakerName;
+        let (lib, _dir) = library();
+        let m = lib.create_meeting().unwrap();
+        let line = |speaker: &str| Segment {
+            start_ms: 0,
+            end_ms: 1000,
+            text: "Hi.".into(),
+            speaker: Some(speaker.into()),
+            words: Vec::new(),
+        };
+        lib.save_transcript(
+            &m.id,
+            &[line("Speaker 1"), line("Speaker 2"), line("Priya")],
+        )
+        .unwrap();
+        let name = |label: &str, name: &str| SpeakerName {
+            label: label.into(),
+            name: name.into(),
+        };
+        let named = lib
+            .suggest_speaker_names(
+                &m.id,
+                &[
+                    name("Speaker 1", "Dana"),
+                    name("Speaker 2", "priya"), // someone else's name already
+                    name("Priya", "Sam"),       // named by the user
+                    name("Speaker 7", "Alex"),  // not in this transcript
+                ],
+            )
+            .unwrap();
+        assert_eq!(named, 1);
+        let voices = lib.meeting_voices(&m.id).unwrap();
+        let suggested: Vec<_> = voices
+            .iter()
+            .filter(|v| v.suggested)
+            .map(|v| v.label.as_str())
+            .collect();
+        assert_eq!(suggested, ["Dana"]);
     }
 }

@@ -99,6 +99,7 @@ fn finds_notes_action_items_and_dictations_by_meaning() {
             cost_usd: None,
             latency_ms: 0,
             complete: true,
+            speakers: Vec::new(),
         },
     )
     .unwrap();

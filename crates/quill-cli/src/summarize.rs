@@ -77,10 +77,14 @@ pub fn run(args: Args) -> anyhow::Result<()> {
 
     println!("{}", summary.markdown);
     eprintln!("\n{}", stats(&summary));
+    for n in &summary.speakers {
+        eprintln!("Suggests {} for {}", n.name, n.label);
+    }
     if let Some(dir) = out_dir {
         save(&dir, &summary, &args.model)?;
         if let Some((library, id)) = crate::library::meeting_for(&dir)? {
             library.save_summary(&id, &summary)?;
+            library.suggest_speaker_names(&id, &summary.speakers)?;
         }
         eprintln!("Saved {}", dir.join("summary.md").display());
     }
@@ -121,6 +125,7 @@ fn again_where_incomplete(
             ))
             .with_context(|| format!("summarizing {id}"))?;
         library.save_summary(id, &summary)?;
+        library.suggest_speaker_names(id, &summary.speakers)?;
         still += usize::from(!summary.complete);
         let outcome = if summary.complete {
             "complete"
