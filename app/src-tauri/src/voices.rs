@@ -23,6 +23,17 @@ pub fn confirm_speaker(state: State<'_, AppState>, id: String, label: String) ->
     Ok(state.library.confirm_speaker(&id, &label, remember)?)
 }
 
+/// The user says a suggested name is wrong: the speaker gets back the label
+/// it replaced ("Speaker 3"), which is returned.
+#[tauri::command]
+pub fn reject_speaker(
+    state: State<'_, AppState>,
+    id: String,
+    label: String,
+) -> CommandResult<String> {
+    Ok(state.library.reject_suggested_speaker(&id, &label)?)
+}
+
 /// Every known voice, for Settings.
 #[tauri::command]
 pub fn known_voices(state: State<'_, AppState>) -> CommandResult<Vec<KnownVoiceInfo>> {

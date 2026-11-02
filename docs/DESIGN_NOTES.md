@@ -224,6 +224,37 @@ decision someone might otherwise undo.
   transcript) and served by `action_items` over MCP. Not yet compared with
   v4 by `quill-eval` on real meetings: do that before relying on it.
 
+- **Names in the transcript from the notes (summary-v6).** The notes
+  already worked out who "Speaker 3" was from handoffs ("over to you,
+  Dana") but the transcript kept the number, so the two disagreed about
+  who said what. v6 tightens when a name may be linked (handed the floor
+  by name and answering, or saying who they are; not a mention or thanks)
+  and lists the links after the notes in a `<speakers>` block, which
+  `summary` strips: map-reduce parts each give theirs, and reduce never
+  sees them. Quill keeps a link only if part of the name is said in that
+  speaker's turn or the one just before it (within 15 s), every word of
+  it is said somewhere in the transcript (so a name adds nothing to later
+  prompts that wasn't in them), the label is still a numbered one, the
+  name is letters only and nobody else's label, and the model didn't give
+  that label or name twice. Angle brackets in transcript lines become
+  ‹ › in prompts, so a line can't close `<transcript>` or fake a
+  `<speakers>` block (both from code scanning review). A suggestion still
+  renames the label straight away, so the notes and transcript agree, but
+  it remembers the label it replaced (`suggested_speakers.was`) and a ✗
+  beside the ✓ puts it back in one click, for names from the notes and
+  from assistants alike. Code scanning flagged model output changing the
+  transcript unasked; the alternative, leaving "Speaker 3" until the user
+  confirms, would keep the notes and transcript apart until then. A
+  suggestion that merged two speakers has no ✗: they can't be pulled
+  apart again. Kept links become
+  suggestions (`suggested_speakers`), as an assistant's do: shown with a
+  ✓, learned as a voice only once confirmed. On a synthetic all-hands with
+  traps (`eval/transcripts/all-hands-names.json`: a handoff by name, a
+  self-introduction, a call by name, a thanks and a quote that aren't
+  handoffs, a thanks just before someone else speaks, a host never named),
+  Haiku 5.5 named exactly the three right people in 3 runs of 3, and the
+  notes called the unnamed ones "host" and "another participant".
+
 ## Daily summaries
 
 On the Meetings page, a day with two or more meetings that have notes gets

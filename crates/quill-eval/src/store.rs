@@ -185,6 +185,7 @@ mod tests {
                 cost_usd: Some(0.002),
                 latency_ms: 1500,
                 complete: true,
+                speakers: Vec::new(),
             }),
             scores: Some(Scores {
                 completeness: 8.0,

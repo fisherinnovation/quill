@@ -1,0 +1,22 @@
+[
+  {"start_ms": 0, "end_ms": 6200, "text": "Okay, I think most people are in. Welcome everyone to the monthly all-hands.", "speaker": "Speaker 1"},
+  {"start_ms": 6400, "end_ms": 12800, "text": "We've got a product update, some sales numbers, and time for questions at the end.", "speaker": "Speaker 1"},
+  {"start_ms": 13000, "end_ms": 16500, "text": "So, first up, over to you, Dana, for the product update.", "speaker": "Speaker 1"},
+  {"start_ms": 16700, "end_ms": 24900, "text": "Thanks. So the big one this month is that the new onboarding flow went live to everyone on Tuesday.", "speaker": "Speaker 2"},
+  {"start_ms": 25100, "end_ms": 33800, "text": "Completion is up from forty-one to fifty-eight percent, and a lot of that is down to Sam's design work, so thanks to Sam for that.", "speaker": "Speaker 2"},
+  {"start_ms": 34000, "end_ms": 41200, "text": "Next month we're moving on to the billing page, which has been the top support complaint since the summer.", "speaker": "Speaker 2"},
+  {"start_ms": 41500, "end_ms": 45900, "text": "Great, thanks Dana. Any questions on the product side before we move on?", "speaker": "Speaker 1"},
+  {"start_ms": 46300, "end_ms": 54100, "text": "Hi, it's Priya from support. Quick question: will the billing changes include the invoice download people keep asking for?", "speaker": "Speaker 3"},
+  {"start_ms": 54300, "end_ms": 60800, "text": "Good question, Priya. Yes, invoice download is in the first release, planned for the end of next month.", "speaker": "Speaker 2"},
+  {"start_ms": 61000, "end_ms": 63900, "text": "Perfect, that'll cut a lot of tickets. Thank you.", "speaker": "Speaker 3"},
+  {"start_ms": 64200, "end_ms": 68800, "text": "Okay. Next up is Luis with the sales numbers. Luis?", "speaker": "Speaker 1"},
+  {"start_ms": 69000, "end_ms": 77400, "text": "Yep. So we closed the quarter at one point two million in new annual revenue, about eight percent over target.", "speaker": "Speaker 4"},
+  {"start_ms": 77600, "end_ms": 86900, "text": "As Alex said last week, the mid-market deals are getting bigger, and two of our three largest deals came through partners.", "speaker": "Speaker 4"},
+  {"start_ms": 87100, "end_ms": 93500, "text": "For next quarter the target is one point four million, and we're hiring two more account executives.", "speaker": "Speaker 4"},
+  {"start_ms": 93800, "end_ms": 99000, "text": "Are the partner deals counted at full value, or after the partner's share?", "speaker": "Me"},
+  {"start_ms": 99200, "end_ms": 104600, "text": "Full value. The partner share comes out as a cost, so it's in the margin numbers, not revenue.", "speaker": "Speaker 4"},
+  {"start_ms": 104900, "end_ms": 112300, "text": "Thanks, Luis. And a big thank you to Jordan for organizing next week's offsite, by the way.", "speaker": "Speaker 1"},
+  {"start_ms": 112500, "end_ms": 120700, "text": "Sorry, can I add one thing on the sales numbers? Support renewals were also up, about ninety-four percent retention.", "speaker": "Speaker 5"},
+  {"start_ms": 120900, "end_ms": 125300, "text": "Oh, good point, I should have mentioned that. Thanks.", "speaker": "Speaker 4"},
+  {"start_ms": 125600, "end_ms": 133200, "text": "Great. That's everything for today. Slides will be in the shared folder this afternoon. Thanks, everyone.", "speaker": "Speaker 1"}
+]

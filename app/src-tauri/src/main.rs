@@ -277,6 +277,7 @@ fn main() {
             updates::install_update,
             voices::meeting_voices,
             voices::confirm_speaker,
+            voices::reject_speaker,
             voices::known_voices,
             voices::delete_known_voice,
             voices::forget_known_voices,

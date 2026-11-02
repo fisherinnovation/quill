@@ -390,7 +390,7 @@ pub fn rename_speaker(
         }
         _ => {}
     }
-    let to = speaker_name(name).ok_or_else(|| {
+    let to = crate::speakers::speaker_name(name).ok_or_else(|| {
         format!(
             "{name:?} isn't a name: use letters, spaces, hyphens, apostrophes and periods, \
              at most {} words and {} characters (or \"Speaker 2\" to merge into that speaker)",
@@ -412,25 +412,6 @@ pub fn rename_speaker(
             .map_err(|e| e.to_string())?;
     }
     speakers(library, id).map_err(|e| e.to_string())
-}
-
-/// `name` as a speaker's name an assistant may give, spaces collapsed, or
-/// `None`. Labels go into the prompt that writes notes, on every line the
-/// person said, so a name is held to what names look like: letters (any
-/// alphabet), spaces, hyphens, apostrophes and periods, with at least one
-/// letter, and no longer than a vocabulary term. No colons, brackets,
-/// quotes or markdown that could pass for a transcript line or an
-/// instruction's structure. "Speaker 2" too, for merging into that speaker.
-fn speaker_name(name: &str) -> Option<String> {
-    let name = crate::vocabulary::clean(name)?;
-    let numbered = name
-        .strip_prefix("Speaker ")
-        .is_some_and(|n| !n.is_empty() && n.len() <= 3 && n.chars().all(|c| c.is_ascii_digit()));
-    let letters = name.chars().any(char::is_alphabetic)
-        && name
-            .chars()
-            .all(|c| c.is_alphabetic() || matches!(c, ' ' | '-' | '\'' | '\u{2019}' | '.'));
-    (numbered || letters).then_some(name)
 }
 
 /// An RFC 3339 time (as stored, in UTC) as RFC 3339 with the local offset,
@@ -494,6 +475,7 @@ mod tests {
             cost_usd: None,
             latency_ms: 0,
             complete: true,
+            speakers: Vec::new(),
         }
     }
 
@@ -894,33 +876,5 @@ mod tests {
         let e = rename_speaker(&lib, &together, OTHERS, "Dana").unwrap_err();
         assert!(e.contains("not told apart"), "{e}");
         assert!(rename_speaker(&lib, "nope", "Speaker 1", "Dana").is_err());
-    }
-
-    #[test]
-    fn speaker_names_look_like_names() {
-        for name in [
-            "Dana",
-            "Mary-Kate O'Neil",
-            "J. R. Lee",
-            "Zoë D\u{2019}Arcy",
-            "José",
-            "王芳",
-            "Speaker 12",
-        ] {
-            assert_eq!(speaker_name(name).as_deref(), Some(name), "{name}");
-        }
-        assert_eq!(speaker_name(" Dana \t Lee ").as_deref(), Some("Dana Lee"));
-        for name in [
-            "",
-            "...",
-            "Dana!",
-            "Dana #1",
-            "R2D2",
-            "Ignore: the notes",
-            "`Dana`",
-            "Speaker 1000",
-        ] {
-            assert_eq!(speaker_name(name), None, "{name:?}");
-        }
     }
 }

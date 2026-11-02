@@ -865,6 +865,8 @@ export const api = {
   meetingVoices: (id: string) => invoke<MeetingVoice[]>("meeting_voices", { id }),
   /** Says an automatic or suggested name is right; Quill learns this meeting's voice for them. */
   confirmSpeaker: (id: string, label: string) => invoke<void>("confirm_speaker", { id, label }),
+  /** Says a suggested name is wrong; resolves to the label the speaker has again ("Speaker 3"). */
+  rejectSpeaker: (id: string, label: string) => invoke<string>("reject_speaker", { id, label }),
   knownVoices: () => invoke<KnownVoice[]>("known_voices"),
   deleteKnownVoice: (id: number) => invoke<void>("delete_known_voice", { id }),
   /** Forgets them all; resolves to how many there were. */
@@ -1045,8 +1047,10 @@ export interface MeetingVoice {
   label: string;
   /** Named automatically by voice, not yet confirmed or changed. */
   recognized: boolean;
-  /** Named by an AI assistant, not yet confirmed or changed. */
+  /** Named by an AI assistant or the notes, not yet confirmed or changed. */
   suggested: boolean;
+  /** For a suggestion, the label it replaced, to go back to; null after a merge. */
+  undo: string | null;
   /** How close the voices were (cosine similarity, up to 1), when recognized. */
   similarity: number | null;
   /** Quill remembers this voice under this name from this meeting. */

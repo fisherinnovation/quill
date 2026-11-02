@@ -196,6 +196,7 @@ mod tests {
                 cost_usd: Some(cost),
                 latency_ms: 2000,
                 complete: true,
+                speakers: Vec::new(),
             }),
             scores: overall.map(|o| Scores {
                 completeness: o,

@@ -354,6 +354,12 @@ CREATE TABLE suggested_speakers (
     PRIMARY KEY (meeting_id, label)
 );
 ",
+    "
+-- The label a suggested name replaced (\"Speaker 3\"), so the user can put
+-- it back in one click (`Library::reject_suggested_speaker`). Null when the
+-- suggestion merged two speakers, which can't be pulled apart again.
+ALTER TABLE suggested_speakers ADD COLUMN was TEXT;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -380,6 +386,10 @@ pub enum LibraryError {
     NotFound(String),
     #[error("{0}")]
     Move(String),
+    /// A suggested name that can't be put back
+    /// (`Library::reject_suggested_speaker`), and why.
+    #[error("{0}")]
+    CantUndo(String),
 }
 
 /// A meeting as shown in the list.
@@ -974,6 +984,70 @@ impl Library {
         self.rename_speaker_as(id, from, to, false, true)
     }
 
+    /// Suggests the names meeting `id`'s notes gave numbered speakers
+    /// (`Summary::speakers`), as [`Library::suggest_speaker_name`] does for
+    /// an assistant: shown until the user confirms or changes them. Only
+    /// for speakers still numbered, and names nobody in the transcript has
+    /// (the user may have renamed someone while the notes were written).
+    /// Returns how many were named.
+    pub fn suggest_speaker_names(
+        &self,
+        id: &str,
+        names: &[crate::summary::SpeakerName],
+    ) -> Result<usize, LibraryError> {
+        let labels: Vec<String> = {
+            let conn = self.conn();
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT speaker FROM segments WHERE meeting_id = ?1 AND speaker IS NOT NULL",
+            )?;
+            stmt.query_map([id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?
+        };
+        let mut named = 0;
+        for n in names {
+            let free = !labels.iter().any(|l| l.eq_ignore_ascii_case(&n.name));
+            if free && labels.contains(&n.label) && !crate::speakers::rememberable(&n.label) {
+                self.suggest_speaker_name(id, &n.label, &n.name)?;
+                named += 1;
+            }
+        }
+        Ok(named)
+    }
+
+    /// The user says a suggested name is wrong: the speaker gets back the
+    /// label the suggestion replaced ("Speaker 3"), which is returned.
+    /// Nothing is learned or forgotten about anyone's voice. An error if
+    /// `label` isn't a suggestion that can be undone (one that merged two
+    /// speakers can't), or its old label is someone else's now.
+    pub fn reject_suggested_speaker(&self, id: &str, label: &str) -> Result<String, LibraryError> {
+        let was: Option<String> = self
+            .conn()
+            .query_row(
+                "SELECT was FROM suggested_speakers WHERE meeting_id = ?1 AND label = ?2",
+                params![id, label],
+                |r| r.get(0),
+            )
+            .optional()?
+            .flatten();
+        let Some(was) = was else {
+            return Err(LibraryError::CantUndo(format!(
+                "{label} can't be put back: it isn't a suggestion, or it joined two speakers"
+            )));
+        };
+        let taken: bool = self.conn().query_row(
+            "SELECT EXISTS (SELECT 1 FROM segments WHERE meeting_id = ?1 AND speaker = ?2)",
+            params![id, was],
+            |r| r.get(0),
+        )?;
+        if taken {
+            return Err(LibraryError::CantUndo(format!(
+                "{label} can't go back to {was}: someone else has that label now"
+            )));
+        }
+        self.rename_speaker_as(id, label, &was, false, false)?;
+        Ok(was)
+    }
+
     fn rename_speaker_as(
         &self,
         id: &str,
@@ -987,6 +1061,16 @@ impl Library {
         if !exists(&tx, id)? {
             return Err(LibraryError::NotFound(id.to_string()));
         }
+        // What the suggestion replaces, to put back if the user says no: the
+        // label before any earlier suggestion. Nothing for a merge.
+        let was: Option<String> = tx.query_row(
+            "SELECT CASE WHEN EXISTS (SELECT 1 FROM segments WHERE meeting_id = ?1 AND speaker = ?3)
+                         THEN NULL
+                         ELSE COALESCE((SELECT was FROM suggested_speakers
+                                        WHERE meeting_id = ?1 AND label = ?2), ?2) END",
+            params![id, from, to],
+            |r| r.get(0),
+        )?;
         // Merging into someone the user named keeps their name as they gave
         // it, rather than making it a suggestion.
         let into_named = suggested
@@ -1018,8 +1102,8 @@ impl Library {
         )?;
         if suggested && !into_named {
             tx.execute(
-                "INSERT INTO suggested_speakers (meeting_id, label) VALUES (?1, ?2)",
-                params![id, to],
+                "INSERT INTO suggested_speakers (meeting_id, label, was) VALUES (?1, ?2, ?3)",
+                params![id, to, was],
             )?;
         }
         tx.commit()?;
@@ -1793,6 +1877,7 @@ mod tests {
             cost_usd: Some(0.001),
             latency_ms: 1500,
             complete: true,
+            speakers: Vec::new(),
         }
     }
 
@@ -2414,5 +2499,109 @@ mod tests {
             Some("\"say\" \"\"\"hi\"\"\"*")
         );
         assert_eq!(fts_query(""), None);
+    }
+
+    #[test]
+    fn names_from_the_notes_are_suggested_for_numbered_speakers_only() {
+        use crate::summary::SpeakerName;
+        let (lib, _dir) = library();
+        let m = lib.create_meeting().unwrap();
+        let line = |speaker: &str| Segment {
+            start_ms: 0,
+            end_ms: 1000,
+            text: "Hi.".into(),
+            speaker: Some(speaker.into()),
+            words: Vec::new(),
+        };
+        lib.save_transcript(
+            &m.id,
+            &[line("Speaker 1"), line("Speaker 2"), line("Priya")],
+        )
+        .unwrap();
+        let name = |label: &str, name: &str| SpeakerName {
+            label: label.into(),
+            name: name.into(),
+        };
+        let named = lib
+            .suggest_speaker_names(
+                &m.id,
+                &[
+                    name("Speaker 1", "Dana"),
+                    name("Speaker 2", "priya"), // someone else's name already
+                    name("Priya", "Sam"),       // named by the user
+                    name("Speaker 7", "Alex"),  // not in this transcript
+                ],
+            )
+            .unwrap();
+        assert_eq!(named, 1);
+        let voices = lib.meeting_voices(&m.id).unwrap();
+        let suggested: Vec<_> = voices
+            .iter()
+            .filter(|v| v.suggested)
+            .map(|v| v.label.as_str())
+            .collect();
+        assert_eq!(suggested, ["Dana"]);
+    }
+
+    #[test]
+    fn a_wrong_suggestion_goes_back_to_its_number() {
+        let (lib, _dir) = library();
+        let m = lib.create_meeting().unwrap();
+        let line = |speaker: &str| Segment {
+            start_ms: 0,
+            end_ms: 1000,
+            text: "Hi.".into(),
+            speaker: Some(speaker.into()),
+            words: Vec::new(),
+        };
+        lib.save_transcript(
+            &m.id,
+            &[line("Speaker 1"), line("Speaker 2"), line("Speaker 3")],
+        )
+        .unwrap();
+        let undo = |label: &str| {
+            lib.meeting_voices(&m.id)
+                .unwrap()
+                .into_iter()
+                .find(|v| v.label == label)
+                .and_then(|v| v.undo)
+        };
+        // Suggested twice over: still goes back to the number.
+        lib.suggest_speaker_name(&m.id, "Speaker 1", "Dana")
+            .unwrap();
+        lib.suggest_speaker_name(&m.id, "Dana", "Dan").unwrap();
+        assert_eq!(undo("Dan").as_deref(), Some("Speaker 1"));
+        assert_eq!(
+            lib.reject_suggested_speaker(&m.id, "Dan").unwrap(),
+            "Speaker 1"
+        );
+        let labels: Vec<_> = lib
+            .get(&m.id)
+            .unwrap()
+            .segments
+            .into_iter()
+            .filter_map(|s| s.speaker)
+            .collect();
+        assert_eq!(labels, ["Speaker 1", "Speaker 2", "Speaker 3"]);
+        assert!(
+            lib.meeting_voices(&m.id)
+                .unwrap()
+                .iter()
+                .all(|v| !v.suggested)
+        );
+
+        // A merge can't be pulled apart again; nor can a name the user gave.
+        lib.suggest_speaker_name(&m.id, "Speaker 3", "Speaker 2")
+            .unwrap();
+        assert!(matches!(
+            lib.reject_suggested_speaker(&m.id, "Speaker 2"),
+            Err(LibraryError::CantUndo(_))
+        ));
+        lib.rename_speaker(&m.id, "Speaker 1", "Priya", false)
+            .unwrap();
+        assert!(matches!(
+            lib.reject_suggested_speaker(&m.id, "Priya"),
+            Err(LibraryError::CantUndo(_))
+        ));
     }
 }

@@ -217,6 +217,7 @@ mod tests {
             cost_usd: Some(0.0),
             latency_ms: 0,
             complete: true,
+            speakers: Vec::new(),
         }
     }
 
