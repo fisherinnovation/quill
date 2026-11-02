@@ -51,6 +51,12 @@ pub trait Context: Send + Sync + 'static {
     fn may_tick_action_items(&self) -> bool;
     /// Told after an assistant ticked one, so the host can show it.
     fn action_items_changed(&self) {}
+    /// Whether the user lets assistants name the people on a meeting's
+    /// call (`Settings::assistant_speakers`). Asked on every request.
+    fn may_name_speakers(&self) -> bool;
+    /// Told after an assistant named someone in meeting `id`, so the host
+    /// can show it.
+    fn speakers_changed(&self, _id: &str) {}
 }
 
 /// What an assistant is told when access is off.
@@ -63,6 +69,10 @@ pub const VOCABULARY_LOCKED: &str = "Quill doesn't let AI assistants change the 
 
 /// What an assistant is told when it may read action items but not tick them.
 pub const ACTION_ITEMS_LOCKED: &str = "Quill doesn't let AI assistants tick off action items.      The user can turn it on in Quill: Settings → Meetings → Let them tick off action items.";
+
+/// What an assistant is told when it may read speakers but not name them.
+pub const SPEAKERS_LOCKED: &str = "Quill doesn't let AI assistants name the people on calls. \
+     The user can turn it on in Quill: Settings → Meetings → Let them suggest names for speakers.";
 
 /// What `quill-cli mcp` says when asked to change the vocabulary: the app
 /// keeps its settings in memory and would later save over the change.
@@ -111,6 +121,7 @@ pub(crate) mod testing {
         pub vocabulary: Mutex<Vec<String>>,
         pub vocabulary_editable: AtomicBool,
         pub action_items_editable: AtomicBool,
+        pub speakers_editable: AtomicBool,
         _dir: tempfile::TempDir,
     }
 
@@ -138,21 +149,29 @@ pub(crate) mod testing {
         fn may_tick_action_items(&self) -> bool {
             self.action_items_editable.load(Ordering::SeqCst)
         }
+        fn may_name_speakers(&self) -> bool {
+            self.speakers_editable.load(Ordering::SeqCst)
+        }
     }
 
-    /// The context, and the id of its one meeting: Priya on pricing.
+    /// The context, and the id of its one meeting: Priya, whom the user
+    /// named, and Speaker 1 on pricing.
     pub fn context() -> (Arc<TestContext>, String) {
         let dir = tempfile::tempdir().unwrap();
         let library = Library::open(dir.path(), &dir.path().join("recordings")).unwrap();
         let id = library.create_meeting().unwrap().id;
-        let line = Segment {
-            start_ms: 0,
-            end_ms: 4_000,
-            text: "We should raise prices in March.".into(),
-            speaker: Some("Priya".into()),
+        let line = |start_ms, speaker: &str, text: &str| Segment {
+            start_ms,
+            end_ms: start_ms + 4_000,
+            text: text.into(),
+            speaker: Some(speaker.into()),
             words: Vec::new(),
         };
-        library.save_transcript(&id, &[line]).unwrap();
+        let lines = [
+            line(0, "Priya", "We should raise prices in March."),
+            line(4_000, "Speaker 1", "March works for us."),
+        ];
+        library.save_transcript(&id, &lines).unwrap();
         let notes = "# Pricing — 2026-10-20\n\n## Decisions\n- Raise prices in March.\n\n\
              ## Action items\n- **Priya** — email the customers\n";
         let summary = Summary {
@@ -173,6 +192,7 @@ pub(crate) mod testing {
             vocabulary: Mutex::new(vec!["Quill".into()]),
             vocabulary_editable: AtomicBool::new(false),
             action_items_editable: AtomicBool::new(false),
+            speakers_editable: AtomicBool::new(false),
             _dir: dir,
         };
         (Arc::new(context), id)

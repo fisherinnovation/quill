@@ -203,6 +203,8 @@ export interface Settings {
   assistant_vocabulary: boolean;
   /** Also let them tick action items off and back on. Off unless turned on. */
   assistant_action_items: boolean;
+  /** Also let them suggest names for the people on a call. Off unless turned on. */
+  assistant_speakers: boolean;
   /** The localhost port assistants connect to. */
   assistant_port: number;
   /** Which graphics card transcribes (Windows; quill_stt::GpuChoice). */
@@ -861,7 +863,7 @@ export const api = {
   installUpdate: () => invoke<void>("install_update"),
   /** The people on a meeting's call that Quill has voices for (src-tauri/src/voices.rs). */
   meetingVoices: (id: string) => invoke<MeetingVoice[]>("meeting_voices", { id }),
-  /** Says an automatic name is right; Quill learns this meeting's voice for them. */
+  /** Says an automatic or suggested name is right; Quill learns this meeting's voice for them. */
   confirmSpeaker: (id: string, label: string) => invoke<void>("confirm_speaker", { id, label }),
   knownVoices: () => invoke<KnownVoice[]>("known_voices"),
   deleteKnownVoice: (id: number) => invoke<void>("delete_known_voice", { id }),
@@ -898,6 +900,9 @@ export const events = {
   onTheme: (cb: (theme: Theme) => void): Promise<UnlistenFn> => listen<Theme>("theme", (e) => cb(e.payload)),
   /** An AI assistant ticked an action item off or back on. */
   onActionItemsChanged: (cb: () => void): Promise<UnlistenFn> => listen("action-items-changed", () => cb()),
+  /** An AI assistant named someone in a meeting; the meeting's id. */
+  onSpeakersChanged: (cb: (id: string) => void): Promise<UnlistenFn> =>
+    listen<string>("speakers-changed", (e) => cb(e.payload)),
   /** An AI assistant changed the vocabulary; the whole new list. */
   onVocabulary: (cb: (vocabulary: string[]) => void): Promise<UnlistenFn> =>
     listen<string[]>("vocabulary", (e) => cb(e.payload)),
@@ -1040,6 +1045,8 @@ export interface MeetingVoice {
   label: string;
   /** Named automatically by voice, not yet confirmed or changed. */
   recognized: boolean;
+  /** Named by an AI assistant, not yet confirmed or changed. */
+  suggested: boolean;
   /** How close the voices were (cosine similarity, up to 1), when recognized. */
   similarity: number | null;
   /** Quill remembers this voice under this name from this meeting. */

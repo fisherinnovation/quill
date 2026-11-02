@@ -5,6 +5,7 @@ import {
   api,
   clock,
   errorText,
+  events,
   fileManager,
   minutes,
   type MeetingDetail,
@@ -146,6 +147,17 @@ export function MeetingView({
       .then(setVoices)
       .catch(() => setVoices([]));
   }, [id, version]);
+
+  // An AI assistant named someone here: show it, and that the notes are older.
+  useEffect(() => {
+    const unlisten = events.onSpeakersChanged((changed) => {
+      if (changed !== id) return;
+      setSpeakersEditedAt(Date.now());
+      void api.getMeeting(id).then(setDetail, () => undefined);
+      void api.meetingVoices(id).then(setVoices, () => undefined);
+    });
+    return () => void unlisten.then((f) => f());
+  }, [id]);
 
   if (error) {
     return (
@@ -722,6 +734,7 @@ function SpeakerBar({
   const people = callSpeakers(segments);
   const colors = speakerColors(segments);
   const recognized = new Set(voices.filter((v) => v.recognized).map((v) => v.label));
+  const suggested = new Set(voices.filter((v) => v.suggested).map((v) => v.label));
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -756,11 +769,15 @@ function SpeakerBar({
               }
             }}
           />
-        ) : recognized.has(p.name) ? (
+        ) : recognized.has(p.name) || suggested.has(p.name) ? (
           <span key={p.name} className="speaker-chip-pair">
             <button
               className="speaker-chip recognized"
-              title={`Recognized by voice. Click to rename if it's someone else.`}
+              title={
+                recognized.has(p.name)
+                  ? `Recognized by voice. Click to rename if it's someone else.`
+                  : `Suggested by an AI assistant. Click to rename if it's someone else.`
+              }
               disabled={busy}
               onClick={() => setEditing(p.name)}
             >
@@ -768,7 +785,7 @@ function SpeakerBar({
                 {initial(p.name)}
               </span>
               {p.name}
-              <Icon name="sparkle" size={11} />
+              <Icon name={recognized.has(p.name) ? "sparkle" : "bolt"} size={11} />
               <span className="talk">{talkTime(p.talkMs)}</span>
             </button>
             <button
@@ -805,6 +822,11 @@ function SpeakerBar({
       {recognized.size > 0 && editing === null && (
         <span className="muted speaker-note">
           <Icon name="sparkle" size={11} /> Recognized by voice
+        </span>
+      )}
+      {suggested.size > 0 && editing === null && (
+        <span className="muted speaker-note">
+          <Icon name="bolt" size={11} /> Suggested by an AI assistant
         </span>
       )}
       {error && <span className="muted">{error}</span>}

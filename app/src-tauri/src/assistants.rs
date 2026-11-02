@@ -26,6 +26,9 @@ pub const ASSISTANT_EVENT: &str = "assistant-server";
 pub const VOCABULARY_EVENT: &str = "vocabulary";
 /// An assistant ticked an action item off or back on: lists reload.
 pub const ACTION_ITEMS_EVENT: &str = "action-items-changed";
+/// An assistant named someone in a meeting (its id): an open meeting
+/// reloads.
+pub const SPEAKERS_EVENT: &str = "speakers-changed";
 
 /// Kept in Tauri's state.
 #[derive(Default)]
@@ -193,6 +196,16 @@ impl quill_mcp::Context for AppContext {
     fn action_items_changed(&self) {
         if let Err(e) = self.0.emit(ACTION_ITEMS_EVENT, ()) {
             tracing::warn!("could not emit action items changed: {e}");
+        }
+    }
+
+    fn may_name_speakers(&self) -> bool {
+        lock(&self.0.state::<AppState>().settings).assistant_speakers
+    }
+
+    fn speakers_changed(&self, id: &str) {
+        if let Err(e) = self.0.emit(SPEAKERS_EVENT, id) {
+            tracing::warn!("could not emit speakers changed: {e}");
         }
     }
 }

@@ -343,6 +343,17 @@ UPDATE summaries SET complete = 0 WHERE completion_tokens = 4096;
 ALTER TABLE action_items ADD COLUMN source_ms INTEGER;
 ALTER TABLE action_items ADD COLUMN committed INTEGER NOT NULL DEFAULT 1;
 ",
+    "
+-- Names an AI assistant gave speakers (`Library::suggest_speaker_name`), by
+-- their label in the transcript: suggestions until the user confirms or
+-- renames them. Like an automatic name, one teaches Quill nothing about a
+-- voice by itself. Cleared with the transcript's labels.
+CREATE TABLE suggested_speakers (
+    meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    label      TEXT NOT NULL,
+    PRIMARY KEY (meeting_id, label)
+);
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -914,6 +925,7 @@ impl Library {
         tx.execute("DELETE FROM segments_fts WHERE meeting_id = ?1", [id])?;
         // Their labels go with the old transcript (see `save_meeting_voices`).
         tx.execute("DELETE FROM meeting_voices WHERE meeting_id = ?1", [id])?;
+        tx.execute("DELETE FROM suggested_speakers WHERE meeting_id = ?1", [id])?;
         // The meaning index is of the old text: index it again.
         crate::semantic::forget(&tx, id)?;
         for (i, s) in (0_i64..).zip(segments) {
@@ -946,11 +958,49 @@ impl Library {
         to: &str,
         remember_voice: bool,
     ) -> Result<usize, LibraryError> {
+        self.rename_speaker_as(id, from, to, remember_voice, false)
+    }
+
+    /// An AI assistant names a speaker (`crate::assistants::rename_speaker`):
+    /// as [`Library::rename_speaker`] does, but the name is only suggested
+    /// (`MeetingVoice::suggested`) until the user confirms it, and Quill
+    /// learns nothing about the voice from it.
+    pub fn suggest_speaker_name(
+        &self,
+        id: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<usize, LibraryError> {
+        self.rename_speaker_as(id, from, to, false, true)
+    }
+
+    fn rename_speaker_as(
+        &self,
+        id: &str,
+        from: &str,
+        to: &str,
+        remember_voice: bool,
+        suggested: bool,
+    ) -> Result<usize, LibraryError> {
         let mut conn = self.conn();
         let tx = conn.transaction()?;
         if !exists(&tx, id)? {
             return Err(LibraryError::NotFound(id.to_string()));
         }
+        // Merging into someone the user named keeps their name as they gave
+        // it, rather than making it a suggestion.
+        let into_named = suggested
+            && crate::speakers::rememberable(to)
+            && tx.query_row(
+                "SELECT EXISTS (SELECT 1 FROM segments WHERE meeting_id = ?1 AND speaker = ?2)
+                    AND NOT EXISTS (SELECT 1 FROM suggested_speakers
+                                    WHERE meeting_id = ?1 AND label = ?2)
+                    AND NOT EXISTS (SELECT 1 FROM meeting_voices
+                                    WHERE meeting_id = ?1 AND label = ?2
+                                      AND recognized IS NOT NULL)",
+                params![id, to],
+                |r| r.get::<_, bool>(0),
+            )?;
         let changed = tx.execute(
             "UPDATE segments SET speaker = ?3 WHERE meeting_id = ?1 AND speaker = ?2",
             params![id, from, to],
@@ -960,6 +1010,18 @@ impl Library {
             params![id, from, to],
         )?;
         crate::voices::renamed(&tx, id, from, to, remember_voice)?;
+        // A name the user gives is theirs; one an assistant gives is a
+        // suggestion.
+        tx.execute(
+            "DELETE FROM suggested_speakers WHERE meeting_id = ?1 AND label IN (?2, ?3)",
+            params![id, from, to],
+        )?;
+        if suggested && !into_named {
+            tx.execute(
+                "INSERT INTO suggested_speakers (meeting_id, label) VALUES (?1, ?2)",
+                params![id, to],
+            )?;
+        }
         tx.commit()?;
         Ok(changed)
     }
@@ -1902,6 +1964,7 @@ mod tests {
                  DROP TABLE known_voices;
                  DROP TABLE semantic_chunks;
                  DROP TABLE semantic_index;
+                 DROP TABLE suggested_speakers;
                  PRAGMA user_version = 7;",
             )
             .unwrap();
@@ -1949,6 +2012,7 @@ mod tests {
                  UPDATE action_items SET due_date = NULL WHERE task = 'send the deck';
                  ALTER TABLE action_items DROP COLUMN source_ms;
                  ALTER TABLE action_items DROP COLUMN committed;
+                 DROP TABLE suggested_speakers;
                  PRAGMA user_version = 14;",
             )
             .unwrap();

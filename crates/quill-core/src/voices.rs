@@ -14,8 +14,10 @@
 //! Only what the user says teaches Quill a voice: naming a speaker, merging
 //! two, or confirming an automatic name. An automatic match never adds a
 //! sample by itself, so a wrong match can't reinforce itself; renaming it
-//! takes the meeting's sample away from the wrong person. The mic track
-//! ("Me") is never a call voice, so it's never remembered.
+//! takes the meeting's sample away from the wrong person. Nor does a name an
+//! AI assistant suggests (`Library::suggest_speaker_name`), until the user
+//! confirms it. The mic track ("Me") is never a call voice, so it's never
+//! remembered.
 //!
 //! Embeddings are biometric-like data: they stay in the local library, are
 //! never logged, and are deleted with Settings → Known voices.
@@ -52,6 +54,8 @@ pub struct MeetingVoice {
     pub label: String,
     /// Named automatically by voice; the user hasn't confirmed or changed it.
     pub recognized: bool,
+    /// Named by an AI assistant; the user hasn't confirmed or changed it.
+    pub suggested: bool,
     /// How close the voices were, when recognised (cosine, up to 1).
     pub similarity: Option<f32>,
     /// Quill remembers this voice under this name from this meeting.
@@ -164,21 +168,29 @@ impl Library {
         Ok(())
     }
 
-    /// The people on a meeting's call that Quill has voices for.
+    /// The people on a meeting's call that Quill has voices for, and any an
+    /// assistant named that it has none for.
     pub fn meeting_voices(&self, id: &str) -> Result<Vec<MeetingVoice>, LibraryError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT m.label, m.recognized IS NOT NULL, m.similarity, m.speech_ms,
                     EXISTS (SELECT 1 FROM voice_samples s JOIN known_voices v ON v.id = s.voice_id
                             WHERE s.meeting_id = m.meeting_id AND v.name = m.label
-                              AND v.voice_model = m.voice_model)
-             FROM meeting_voices m WHERE m.meeting_id = ?1",
+                              AND v.voice_model = m.voice_model),
+                    EXISTS (SELECT 1 FROM suggested_speakers g
+                            WHERE g.meeting_id = m.meeting_id AND g.label = m.label)
+             FROM meeting_voices m WHERE m.meeting_id = ?1
+             UNION ALL
+             SELECT g.label, 0, NULL, 0, 0, 1 FROM suggested_speakers g
+             WHERE g.meeting_id = ?1 AND NOT EXISTS (
+                 SELECT 1 FROM meeting_voices m WHERE m.meeting_id = ?1 AND m.label = g.label)",
         )?;
         let rows = stmt.query_map([id], |r| {
             let speech_ms = u64::try_from(r.get::<_, i64>(3)?).unwrap_or(0);
             Ok(MeetingVoice {
                 label: r.get(0)?,
                 recognized: r.get(1)?,
+                suggested: r.get(5)?,
                 similarity: r.get::<_, Option<f64>>(2)?.map(|s| s as f32),
                 remembered: r.get(4)?,
                 enough_speech: speech_ms >= MIN_SPEECH_TO_REMEMBER_MS,
@@ -187,8 +199,9 @@ impl Library {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    /// The user says an automatic name is right. With `remember_voice`, this
-    /// meeting's voice is added to what Quill knows of them.
+    /// The user says an automatic or suggested name is right. With
+    /// `remember_voice`, this meeting's voice is added to what Quill knows
+    /// of them.
     pub fn confirm_speaker(
         &self,
         id: &str,
@@ -200,6 +213,10 @@ impl Library {
         tx.execute(
             "UPDATE meeting_voices SET recognized = NULL, similarity = NULL
              WHERE meeting_id = ?1 AND label = ?2",
+            params![id, label],
+        )?;
+        tx.execute(
+            "DELETE FROM suggested_speakers WHERE meeting_id = ?1 AND label = ?2",
             params![id, label],
         )?;
         if remember_voice {

@@ -7,7 +7,8 @@
 //! summaries. Dictations are left out, even from search: they're often
 //! private messages typed into other apps, not meeting content. Read-only,
 //! except that the user may also let assistants change the vocabulary
-//! ([`crate::vocabulary`]) and tick off action items.
+//! ([`crate::vocabulary`]), tick off action items, and suggest names for the
+//! people on a call ([`rename_speaker`]).
 //!
 //! [`Settings::assistant_access`]: crate::settings::Settings::assistant_access
 
@@ -19,6 +20,7 @@ use serde::Serialize;
 
 use crate::daily::local_day;
 use crate::library::{ActionItem, Library, LibraryError, Meeting, SearchHit};
+use crate::meeting::{ME, OTHERS};
 use crate::search::{ActionHit, Group, MeetingHit, NoteHit, Scope};
 use crate::semantic::SemanticError;
 
@@ -256,6 +258,159 @@ pub fn meeting_markdown(
         let _ = writeln!(out, "More follows: ask again from line {to}.");
     }
     Ok(out)
+}
+
+/// Who a speaker is, as far as Quill knows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Naming {
+    /// "Me": the user, on their own microphone.
+    User,
+    /// "Others": everyone on the call, not told apart.
+    Everyone,
+    /// "Speaker 2": told apart by voice, not named.
+    Unnamed,
+    /// Named automatically by voice; the user hasn't confirmed it.
+    Recognized,
+    /// Named by an AI assistant; the user hasn't confirmed it.
+    Suggested,
+    /// Named, or confirmed, by the user.
+    Named,
+}
+
+/// One person in a meeting's transcript.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Speaker {
+    /// Their label on the transcript's lines.
+    pub label: String,
+    pub naming: Naming,
+    pub lines: usize,
+    /// Seconds they speak for, over all their lines.
+    pub talk_seconds: u64,
+    /// When their first line starts and their last ends, `H:MM:SS` into
+    /// the recording.
+    pub first: String,
+    pub last: String,
+}
+
+/// Everyone in meeting `id`'s transcript, in order of their first line.
+pub fn speakers(library: &Library, id: &str) -> Result<Vec<Speaker>, LibraryError> {
+    let segments = library.get(id)?.segments;
+    let voices = library.meeting_voices(id)?;
+    let mut out: Vec<(Speaker, u64, u64)> = Vec::new();
+    for s in &segments {
+        let label = s.speaker.as_deref().unwrap_or("Unknown");
+        let talk = s.end_ms.saturating_sub(s.start_ms);
+        match out.iter_mut().find(|(p, _, _)| p.label == label) {
+            Some((p, talk_ms, last)) => {
+                p.lines += 1;
+                *talk_ms += talk;
+                *last = (*last).max(s.end_ms);
+            }
+            None => {
+                let voice = voices.iter().find(|v| v.label == label);
+                let naming = if label == ME {
+                    Naming::User
+                } else if label == OTHERS {
+                    Naming::Everyone
+                } else if voice.is_some_and(|v| v.recognized) {
+                    Naming::Recognized
+                } else if voice.is_some_and(|v| v.suggested) {
+                    Naming::Suggested
+                } else if crate::speakers::rememberable(label) {
+                    Naming::Named
+                } else {
+                    Naming::Unnamed
+                };
+                let speaker = Speaker {
+                    label: label.to_string(),
+                    naming,
+                    lines: 1,
+                    talk_seconds: 0,
+                    first: clock(s.start_ms),
+                    last: String::new(),
+                };
+                out.push((speaker, talk, s.end_ms));
+            }
+        }
+    }
+    Ok(out
+        .into_iter()
+        .map(|(p, talk_ms, last)| Speaker {
+            talk_seconds: (talk_ms + 500) / 1000,
+            last: clock(last),
+            ..p
+        })
+        .collect())
+}
+
+/// Names a speaker in meeting `id` for an AI assistant: `from` becomes
+/// `name` on every line, merging into whoever already has that name. The
+/// name is a suggestion ([`Library::suggest_speaker_name`]) the user can
+/// confirm. Refused for the user's own lines, for "Others" (the call not
+/// told apart) and for anyone the user named, so an assistant can't undo
+/// what the user said. Returns everyone in the meeting afterwards, or a
+/// message the assistant can act on.
+pub fn rename_speaker(
+    library: &Library,
+    id: &str,
+    from: &str,
+    name: &str,
+) -> Result<Vec<Speaker>, String> {
+    let people = speakers(library, id).map_err(|e| e.to_string())?;
+    let labels = || {
+        people
+            .iter()
+            .map(|p| format!("{:?}", p.label))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let speaker = people.iter().find(|p| p.label == from).ok_or_else(|| {
+        format!(
+            "no speaker {from:?} in this meeting; its speakers are {}",
+            labels()
+        )
+    })?;
+    match speaker.naming {
+        Naming::User => {
+            return Err(format!(
+                "{from:?} is the user, on their own microphone; only they can rename it"
+            ));
+        }
+        Naming::Named => {
+            return Err(format!(
+                "the user named {from:?}; only they can change it, in Quill"
+            ));
+        }
+        Naming::Everyone => {
+            return Err(format!(
+                "{from:?} is everyone on the call, not told apart; the user can tell them apart \
+                 in Quill (Transcript tab), then name each one"
+            ));
+        }
+        _ => {}
+    }
+    let to = crate::vocabulary::clean(name).ok_or_else(|| {
+        format!(
+            "{name:?} isn't a name: use one line of at most {} words and {} characters",
+            crate::vocabulary::MAX_TERM_WORDS,
+            crate::vocabulary::MAX_TERM_CHARS
+        )
+    })?;
+    if [ME, OTHERS, "You"]
+        .iter()
+        .any(|r| to.eq_ignore_ascii_case(r))
+    {
+        return Err(format!(
+            "{to:?} is kept for the user's own lines and the call as a whole"
+        ));
+    }
+    if to != from {
+        library
+            .suggest_speaker_name(id, from, &to)
+            .map_err(|e| e.to_string())?;
+    }
+    speakers(library, id).map_err(|e| e.to_string())
 }
 
 /// An RFC 3339 time (as stored, in UTC) as RFC 3339 with the local offset,
@@ -610,5 +765,107 @@ mod tests {
         assert_eq!(duration(44 * 60_000 + 40_000), "45 min");
         assert_eq!(duration(65 * 60_000), "1 h 05 min");
         assert_eq!(clock(3_723_000), "1:02:03");
+    }
+
+    #[test]
+    fn assistants_suggest_names_and_never_undo_the_users() {
+        use crate::speakers::{CallVoice, Voice};
+        let (lib, _dir) = library();
+        let lines = [
+            segment(0, ME, "Shall we start?"),
+            segment(1, "Speaker 1", "Over to you, Dana."),
+            segment(2, "Speaker 2", "Thanks. The dates first."),
+            segment(3, "Priya", "Sounds good."),
+            segment(4, "Speaker 2", "Friday, then."),
+        ];
+        let id = meeting(&lib, "2026-10-20T15:00:00Z", &lines);
+        let voice = |axis: usize| Voice {
+            embedding: (0..4).map(|i| if i == axis { 1.0 } else { 0.0 }).collect(),
+            speech_ms: 60_000,
+        };
+        let call = |label: &str, axis| CallVoice {
+            label: label.into(),
+            voice: voice(axis),
+            recognized: None,
+        };
+        lib.save_meeting_voices(
+            &id,
+            "voice-test",
+            &[call("Speaker 1", 0), call("Speaker 2", 1), call("Priya", 2)],
+        )
+        .unwrap();
+
+        let people = speakers(&lib, &id).unwrap();
+        let summary: Vec<_> = people
+            .iter()
+            .map(|p| (p.label.as_str(), p.naming, p.lines))
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (ME, Naming::User, 1),
+                ("Speaker 1", Naming::Unnamed, 1),
+                ("Speaker 2", Naming::Unnamed, 2),
+                ("Priya", Naming::Named, 1),
+            ]
+        );
+        assert_eq!(
+            (
+                people[2].talk_seconds,
+                people[2].first.as_str(),
+                people[2].last.as_str()
+            ),
+            (8, "0:00:10", "0:00:24")
+        );
+
+        // A suggestion: shown as one, and nothing learned about the voice.
+        let people = rename_speaker(&lib, &id, "Speaker 2", " Dana ").unwrap();
+        assert_eq!(people[2].label, "Dana");
+        assert_eq!(people[2].naming, Naming::Suggested);
+        assert!(lib.known_voices().unwrap().is_empty());
+        // The user confirms it: now it's theirs, and the voice is learned.
+        lib.confirm_speaker(&id, "Dana", true).unwrap();
+        let people = speakers(&lib, &id).unwrap();
+        assert_eq!(people[2].naming, Naming::Named);
+        assert_eq!(lib.known_voices().unwrap().len(), 1);
+
+        // Merging into someone the user named keeps their name as given.
+        let people = rename_speaker(&lib, &id, "Speaker 1", "Priya").unwrap();
+        let labels: Vec<_> = people
+            .iter()
+            .map(|p| (p.label.as_str(), p.naming))
+            .collect();
+        assert_eq!(
+            labels,
+            [
+                (ME, Naming::User),
+                ("Priya", Naming::Named),
+                ("Dana", Naming::Named)
+            ]
+        );
+
+        // What the user said stands; bad requests say how to do better.
+        for (from, name, refusal) in [
+            (ME, "Matt", "the user, on their own microphone"),
+            ("Dana", "Dan", "the user named"),
+            ("Speaker 9", "Dan", "its speakers are"),
+            ("Priya", "Dan", "the user named"),
+        ] {
+            let e = rename_speaker(&lib, &id, from, name).unwrap_err();
+            assert!(e.contains(refusal), "{from} → {name}: {e}");
+        }
+        let other = meeting(
+            &lib,
+            "2026-10-21T15:00:00Z",
+            &[segment(0, "Speaker 1", "Hi.")],
+        );
+        for (name, refusal) in [("a\nb", "isn't a name"), ("me", "kept for")] {
+            let e = rename_speaker(&lib, &other, "Speaker 1", name).unwrap_err();
+            assert!(e.contains(refusal), "{name}: {e}");
+        }
+        let together = meeting(&lib, "2026-10-22T15:00:00Z", &[segment(0, OTHERS, "Hi.")]);
+        let e = rename_speaker(&lib, &together, OTHERS, "Dana").unwrap_err();
+        assert!(e.contains("not told apart"), "{e}");
+        assert!(rename_speaker(&lib, "nope", "Speaker 1", "Dana").is_err());
     }
 }

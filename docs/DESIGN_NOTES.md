@@ -1394,3 +1394,19 @@ gives it the library, the search model and the setting through
   items live in SQLite, which both share safely, not in the app's
   in-memory settings. The app emits `action-items-changed` so its lists
   reload; a tick from the CLI shows the next time they load.
+- **Naming speakers (rename_speaker).** An assistant reading a transcript
+  often knows who "Speaker 3" is ("over to you, Dana" and Dana answers),
+  but couldn't say so, and the notes and transcript disagreed. Behind its
+  own setting (off by default), `rename_speaker` renames a label in one
+  meeting, merging into a name already there; `speakers` lists who speaks
+  and how each was named. Its names are suggestions, kept in
+  `suggested_speakers` by label rather than in `meeting_voices`, since
+  many speakers (older meetings, people who said little) have no voice
+  row. The Transcript tab shows them with a ✓ as it does voice matches,
+  and confirming teaches Quill the voice; an assistant's name never does,
+  so a wrong guess can't spread to later meetings. It can't rename "Me",
+  "Others" or anyone the user named, so it can't undo what the user said;
+  merging into someone the user named keeps their name as given. The
+  notes aren't rewritten: summarizing again spends the user's model
+  credit, so that stays the user's call, and the app flags the notes as
+  older than the names.

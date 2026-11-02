@@ -112,6 +112,14 @@ results.
 - With **Let them tick off action items** also on (off by default,
   re-checked on every request), it can tick an action item off or back on
   by its id, through either way in. That only sets when the item was done.
+- With **Let them suggest names for speakers** also on (off by default,
+  re-checked on every request), it can rename a speaker in one meeting's
+  transcript, through either way in: someone left as "Speaker 2", a name
+  recognized by voice or one it suggested before. Not "Me", not the call
+  as a whole, and not anyone the user named. A name is one line of at most
+  six words and 60 characters, since transcripts go into the prompt that
+  writes notes. Its names are marked as suggestions until the user
+  confirms them, and Quill learns no voice from them until then.
 
 `quill-cli mcp` serves the same tools over stdin/stdout for an assistant
 that starts it itself, with no port or token. It refuses to start while the

@@ -166,6 +166,26 @@ pub struct ItemArgs {
 
 #[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+pub struct SpeakersArgs {
+    /// The meeting's id, from search or list_meetings.
+    meeting_id: String,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct RenameArgs {
+    /// The meeting's id, from search or list_meetings.
+    meeting_id: String,
+    /// The speaker's label now, as speakers or the transcript shows it,
+    /// e.g. "Speaker 2".
+    speaker: String,
+    /// Their name, as it should be spelled, e.g. "Dana Lee": one line of at
+    /// most six words.
+    name: String,
+}
+
+#[derive(Debug, Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
 pub struct TermsArgs {
     /// Names and terms as they should be spelled, each one line of at most
     /// six words, e.g. ["Simant Shrivastava", "OpenRouter"].
@@ -255,6 +275,60 @@ impl Server {
                 limit: args.limit,
             };
             json(&assistants::action_items(context.library(), &filter).map_err(message)?)
+        })
+        .await
+    }
+
+    /// Who speaks in one meeting, in order of their first line: each one's
+    /// label in the transcript, how they got it (naming: "user" is the user
+    /// on their own microphone, "Me"; "everyone" is the whole call, not
+    /// told apart; "unnamed" was told apart by voice, as "Speaker 2";
+    /// "recognized" was named automatically by voice and "suggested" by an
+    /// assistant, neither confirmed yet; "named" was named or confirmed by
+    /// the user), their lines, seconds of speech, and when they first and
+    /// last speak. A label with only a line or two is often part of
+    /// someone else, split off by mistake.
+    #[tool(annotations(read_only_hint = true, open_world_hint = false))]
+    async fn speakers(&self, Parameters(args): Parameters<SpeakersArgs>) -> Result<String, String> {
+        self.answer("speakers", move |context| {
+            json(&assistants::speakers(context.library(), &args.meeting_id).map_err(message)?)
+        })
+        .await
+    }
+
+    /// Name a person in one meeting's transcript, e.g. "Speaker 2" as
+    /// "Dana", when the transcript makes clear who it is: they're handed the
+    /// floor by name ("over to you, Dana") and answer, or introduce
+    /// themselves. Not on a mention alone ("thanks, Dana"). Every line of
+    /// theirs changes. Giving the name of another speaker in the meeting
+    /// merges the two, for one person split into two labels. The name shows
+    /// in Quill as a suggestion until the user confirms it. It can't rename
+    /// the user ("Me"), the whole call ("Others") or anyone the user named.
+    /// The notes keep their wording until the meeting is summarized again in
+    /// Quill. Works only if the user allows it in Quill. Returns the
+    /// meeting's speakers.
+    #[tool(annotations(
+        read_only_hint = false,
+        destructive_hint = true,
+        idempotent_hint = true,
+        open_world_hint = false
+    ))]
+    async fn rename_speaker(
+        &self,
+        Parameters(args): Parameters<RenameArgs>,
+    ) -> Result<String, String> {
+        self.answer("rename_speaker", move |context| {
+            if !context.may_name_speakers() {
+                return Err(crate::SPEAKERS_LOCKED.into());
+            }
+            let people = assistants::rename_speaker(
+                context.library(),
+                &args.meeting_id,
+                &args.speaker,
+                &args.name,
+            )?;
+            context.speakers_changed(&args.meeting_id);
+            json(&people)
         })
         .await
     }
@@ -384,7 +458,8 @@ fn tick(context: &dyn crate::Context, id: i64, done: bool) -> Result<String, Str
         transcribed on their computer. Use it to answer questions about what was said or \
         decided in meetings: search first, then read the meetings that match. Quote the \
         notes or transcript and name the meeting and its date when you rely on them. Names \
-        Quill keeps mishearing can go in its vocabulary, if the user allows it."
+        Quill keeps mishearing can go in its vocabulary, and people on a call left as \
+        \"Speaker 2\" can be named, if the user allows it."
 )]
 impl ServerHandler for Server {}
 
@@ -489,8 +564,10 @@ mod tests {
                 "get_meeting",
                 "list_meetings",
                 "remove_vocabulary",
+                "rename_speaker",
                 "reopen_action_item",
                 "search",
+                "speakers",
                 "vocabulary"
             ]
         );
@@ -601,6 +678,31 @@ mod tests {
             failed && missing.contains("no action item with id"),
             "{missing}"
         );
+
+        // Speakers: readable; named only once allowed, and never someone the
+        // user named.
+        let (people, failed) = client.tool("speakers", json!({"meeting_id": id})).await;
+        assert!(
+            !failed && people.contains("\"naming\": \"unnamed\""),
+            "{people}"
+        );
+        let rename =
+            |speaker: &str, name: &str| json!({"meeting_id": id, "speaker": speaker, "name": name});
+        let (refused, failed) = client
+            .tool("rename_speaker", rename("Speaker 1", "Dana"))
+            .await;
+        assert!(failed && refused.contains("suggest names"), "{refused}");
+        context.speakers_editable.store(true, Ordering::SeqCst);
+        let (people, failed) = client
+            .tool("rename_speaker", rename("Speaker 1", "Dana"))
+            .await;
+        assert!(
+            !failed && people.contains("\"label\": \"Dana\""),
+            "{people}"
+        );
+        assert!(people.contains("\"naming\": \"suggested\""), "{people}");
+        let (refused, failed) = client.tool("rename_speaker", rename("Priya", "Dana")).await;
+        assert!(failed && refused.contains("the user named"), "{refused}");
 
         // Turned off in Settings while connected: nothing more is served.
         context.allowed.store(false, Ordering::SeqCst);
