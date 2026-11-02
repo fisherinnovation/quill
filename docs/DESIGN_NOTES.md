@@ -231,10 +231,14 @@ decision someone might otherwise undo.
   by name and answering, or saying who they are; not a mention or thanks)
   and lists the links after the notes in a `<speakers>` block, which
   `summary` strips: map-reduce parts each give theirs, and reduce never
-  sees them. Quill keeps a link only if the name is said in that
-  speaker's turn or the one just before it (within 15 s), the label is
-  still a numbered one, the name is letters only and nobody else's label,
-  and the model didn't give that label or name twice. Kept links become
+  sees them. Quill keeps a link only if part of the name is said in that
+  speaker's turn or the one just before it (within 15 s), every word of
+  it is said somewhere in the transcript (so a name adds nothing to later
+  prompts that wasn't in them), the label is still a numbered one, the
+  name is letters only and nobody else's label, and the model didn't give
+  that label or name twice. Angle brackets in transcript lines become
+  ‹ › in prompts, so a line can't close `<transcript>` or fake a
+  `<speakers>` block (both from code scanning review). Kept links become
   suggestions (`suggested_speakers`), as an assistant's do: shown with a
   ✓, learned as a voice only once confirmed. On a synthetic all-hands with
   traps (`eval/transcripts/all-hands-names.json`: a handoff by name, a
