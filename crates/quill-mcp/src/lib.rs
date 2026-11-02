@@ -150,6 +150,7 @@ pub(crate) mod testing {
             end_ms: 4_000,
             text: "We should raise prices in March.".into(),
             speaker: Some("Priya".into()),
+            words: Vec::new(),
         };
         library.save_transcript(&id, &[line]).unwrap();
         let notes = "# Pricing — 2026-10-20\n\n## Decisions\n- Raise prices in March.\n\n\

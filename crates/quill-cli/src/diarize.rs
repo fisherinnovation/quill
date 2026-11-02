@@ -34,6 +34,12 @@ pub struct Args {
     /// Segmentation window step as a fraction of its 10 s; larger is faster
     #[arg(long, default_value_t = quill_diarize::DEFAULT_WINDOW_SHIFT)]
     window_shift: f32,
+    /// Join one speaker's turns less than this many seconds apart
+    #[arg(long, default_value_t = quill_diarize::DEFAULT_MIN_GAP_MS as f64 / 1000.0)]
+    min_gap: f64,
+    /// Drop turns shorter than this many seconds
+    #[arg(long, default_value_t = quill_diarize::DEFAULT_MIN_TURN_MS as f64 / 1000.0)]
+    min_turn: f64,
     /// CPU threads per model [default: up to 8]
     #[arg(long)]
     threads: Option<usize>,
@@ -112,6 +118,8 @@ pub fn run(args: Args, models_dir: &Path) -> anyhow::Result<()> {
     };
     config.min_speaker_ms = (args.min_speaker * 1000.0) as u64;
     config.window_shift = args.window_shift;
+    config.min_gap_ms = (args.min_gap * 1000.0) as u64;
+    config.min_turn_ms = (args.min_turn * 1000.0) as u64;
     if let Some(threads) = args.threads {
         config.threads = threads;
     }

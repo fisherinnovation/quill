@@ -443,6 +443,7 @@ mod tests {
             end_ms: 1,
             text: text.into(),
             speaker: Some(speaker.into()),
+            words: Vec::new(),
         };
         let segments = [
             seg("Me", "Let's ship it Friday."),

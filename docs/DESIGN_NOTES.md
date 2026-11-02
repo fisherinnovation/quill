@@ -151,6 +151,20 @@ decision someone might otherwise undo.
   18.8%. Confusion is 4–6%; the rest is segmentation. Tune with
   `eval/diarization` on real audio, not only synthetic voices.
 - **Speed:** about 35× real time on the M3 Pro CPU.
+- **Lines split where the speaker changes** (November 2026): each line
+  used to go whole to whoever spoke most of it, so a reply that started as
+  the question ended was credited to the asker, or the reverse. Whisper's
+  token timestamps (meetings only) and Parakeet's token times now give
+  each segment its words' times, kept in `transcript.json` for re-splitting;
+  each word goes to whoever is speaking then, and a line is cut where that
+  changes. sherpa-onnx's turn defaults also hid quick answers: one
+  person's turns were joined across gaps under 0.5 s and turns under 0.3 s
+  dropped; now 0.2 s and 0.1 s. Line confusion on AMI: 3.8/4.9/7.0% →
+  3.0/4.2/2.5%; changes of speaker placed within a word on a scripted call:
+  15 → 21 of 23; DER no worse (21.1% → 20.7%). Meetings told apart before
+  keep their cached turns and have no word times, so re-splitting them
+  works as before. See eval/diarization/README.md ("Who said each line").
+- **Lines without words** ("-", "...") are dropped as they're transcribed.
 
 ## Summaries and prompts
 

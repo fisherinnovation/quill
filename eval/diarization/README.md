@@ -12,6 +12,7 @@ The test audio is not committed; the scripts rebuild it into `data/`
 | `make_tts_meeting.py ten_people.txt data/ten_people_call --codec` | A 5-minute, 10-person call read by macOS voices, through Opus 24 kbit/s. Very uneven participation; two short overlapping interjections. |
 | `fetch_ami.sh` | Three AMI test meetings (ES2004a, IS1009a, TS3003a): real, spontaneous 4-person meetings, headset mix. CC BY 4.0. References from pyannote's AMI setup. |
 | `make_mix.py data/ami_mix10 data/ami_ES2004a data/ami_IS1009a data/ami_TS3003a --speakers 10 --codec` | A 10-person "call" stitched from real clean turns of 10 of the 12 AMI speakers, through Opus. Three people say only 4–5 s in total. |
+| `make_tts_meeting.py handoffs.txt data/handoffs --codec` | A 90-second, 2-person call with no pause at each change of speaker: one-word answers, replies as the question ends, finishing each other's sentences. Windows voices (on macOS, add `--voice Zira=Samantha --voice David=Daniel`). |
 
 Score one file with `quill-cli diarize <wav> --reference <rttm>`. Add
 `--sweep` to run the models once and print the score at a range of
@@ -21,7 +22,9 @@ voice models.
 ## How it works
 
 1. sherpa-onnx runs pyannote segmentation-3.0 over 10 s windows (stepping
-   2.5 s) and produces speaker turns, using its own clustering.
+   2.5 s) and produces speaker turns, using its own clustering. Turns
+   shorter than 0.1 s are dropped, and one speaker's turns less than 0.2 s
+   apart are joined (`--min-turn`, `--min-gap`).
 2. Quill splits those turns where they overlap someone else and into pieces
    of at most 6 s. It computes a voice embedding for each clean piece of at
    least 1 s.
@@ -77,6 +80,51 @@ takes under two minutes.
 - **Segmentation step:** a 0.25 step (2.5 s) was as accurate as pyannote's
   default of 0.1, at under half the time. A 0.5 step lost about 2 points.
 - **Opus at 24 kbit/s** made no visible difference to the TTS results.
+
+## Who said each line
+
+`score_lines.py` scores a labelled transcript (`quill-cli transcribe <dir>
+--diarize -f json`, the audio as the folder's `system.wav`) rather than the
+turns: what readers and the notes see. Against a `make_tts_meeting.py`
+script it aligns the words and counts changes of speaker placed within one
+word; against an RTTM it measures **line confusion**, the share of the time
+one person speaks, inside a line, that the line gives to someone else.
+
+```sh
+mkdir -p data/handoffs_call && cp data/handoffs.wav data/handoffs_call/system.wav
+quill-cli transcribe data/handoffs_call --diarize --speakers 2 -l en -f json > out.json
+python -I score_lines.py out.json --script handoffs.txt
+```
+
+### Results (November 2026, Windows, RTX 4070 SUPER, Whisper turbo)
+
+Whisper's lines often run across a change of speaker, and each line used
+to go whole to whoever spoke most of it. Now each word goes to whoever is
+speaking when it's said (Whisper's token timestamps; Parakeet's own), and
+a line is split where that changes.
+
+| | Before | Turns 0.1 s / 0.2 s | And lines split between words |
+|---|---|---|---|
+| Handoffs: changes placed within a word | 15 / 23 | 21 / 23 | 21 / 23 |
+| AMI ES2004a: line confusion | 3.8% | 3.7% | 3.0% |
+| AMI IS1009a | 4.9% | 5.0% | 4.2% |
+| AMI TS3003a | 7.0% | 7.0% | 2.5% |
+
+- **On the TTS call, the turns were the problem.** Whisper ends a line at
+  every change between two synthetic voices; the misses were one-word
+  answers. sherpa-onnx's defaults joined one person's turns across a gap of
+  up to 0.5 s ("Monday, right?" · "Yes." · "And…" became one turn for the
+  asker) and dropped turns under 0.3 s ("No."). With 0.2 s and 0.1 s, the
+  two misses left are answers segmentation never heard.
+- **On real meetings, the lines were.** TS3003a's 108 lines (21 words each,
+  the median) often held two or three people; split, it has 159.
+- **Turn settings and AMI DER** (mean of the three meetings): 21.1% at
+  sherpa's 0.5 s / 0.3 s, 21.5% at 0.2 s / 0.3 s, 20.9% at 0.2 s / 0.2 s,
+  20.7% at 0.2 s / 0.1 s. Small differences, but no loss.
+- Token timestamps don't change Whisper's text (the same words on all three
+  meetings) or its speed. Their times are rough: the first few words of a
+  line often share its start time. Good enough to split lines; whisper.cpp's
+  DTW timestamps would be better, at a cost in memory.
 
 ## Known voices (recognising people across meetings)
 

@@ -22,7 +22,7 @@ pub mod voices;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use quill_stt::Segment;
+use quill_stt::{Segment, Word};
 use serde::{Deserialize, Serialize};
 use sherpa_onnx::{
     FastClusteringConfig, OfflineSpeakerDiarization, OfflineSpeakerDiarizationConfig,
@@ -49,6 +49,18 @@ pub const DEFAULT_VOICE_MODEL: &str = "voice-titanet-small";
 
 /// Default for [`DiarizerConfig::min_speaker_ms`].
 pub const DEFAULT_MIN_SPEAKER_MS: u64 = 4000;
+
+/// Default for [`DiarizerConfig::min_gap_ms`]. sherpa-onnx's own, 0.5 s,
+/// joined one person's turns across someone else's quick answer ("Monday,
+/// right?" "Yes." "And…"), which then went to the wrong person. 0.2 s with
+/// [`DEFAULT_MIN_TURN_MS`] placed 21 of 23 changes of speaker on a scripted
+/// call (15 before) and didn't hurt AMI (DER 21.1% → 20.7%). See
+/// eval/diarization/README.md.
+pub const DEFAULT_MIN_GAP_MS: u64 = 200;
+
+/// Default for [`DiarizerConfig::min_turn_ms`]. sherpa-onnx's own, 0.3 s,
+/// dropped one-word answers ("No.").
+pub const DEFAULT_MIN_TURN_MS: u64 = 100;
 
 /// How the voice embeddings are grouped into speakers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,6 +122,11 @@ pub struct DiarizerConfig {
     /// 0.1 (pyannote's default) embeds every second of audio ~10 times.
     /// 0.25 was as accurate in eval/diarization at under half the time.
     pub window_shift: f32,
+    /// One speaker's turns closer together than this are joined into one,
+    /// across whatever was said in between.
+    pub min_gap_ms: u64,
+    /// Turns shorter than this are dropped.
+    pub min_turn_ms: u64,
     /// CPU threads for each model.
     pub threads: usize,
 }
@@ -123,6 +140,8 @@ impl DiarizerConfig {
             threshold: DEFAULT_THRESHOLD,
             min_speaker_ms: DEFAULT_MIN_SPEAKER_MS,
             window_shift: DEFAULT_WINDOW_SHIFT,
+            min_gap_ms: DEFAULT_MIN_GAP_MS,
+            min_turn_ms: DEFAULT_MIN_TURN_MS,
             threads: std::thread::available_parallelism().map_or(4, |n| n.get().min(8)),
         }
     }
@@ -180,7 +199,8 @@ impl Diarizer {
                 },
                 ..Default::default()
             },
-            ..Default::default()
+            min_duration_off: config.min_gap_ms as f32 / 1000.0,
+            min_duration_on: config.min_turn_ms as f32 / 1000.0,
         };
         let inner = OfflineSpeakerDiarization::create(&sherpa).ok_or(DiarizeError::Load)?;
         let rate = inner.sample_rate();
@@ -508,43 +528,106 @@ pub fn speaker_count(turns: &[Turn]) -> usize {
     turns.iter().map(|t| t.speaker + 1).max().unwrap_or(0)
 }
 
-/// Labels each transcript segment with the speaker who talks most during
-/// it, using `name(speaker)` for the label. A segment no turn overlaps takes
-/// the nearest turn within a second; otherwise its label is left alone.
+/// Labels transcript segments with who was speaking, using
+/// `name(speaker)` for the label, and splits a segment where the speaker
+/// changes.
 ///
-/// Whisper's segments can straddle a change of speaker; the majority
-/// speaker wins, so a quick interjection inside someone else's sentence
-/// is lost.
-pub fn label_segments(segments: &mut [Segment], turns: &[Turn], name: impl Fn(usize) -> String) {
+/// Whisper's segments often straddle a change of speaker: a quick answer,
+/// or a reply that starts as the question ends. A segment with
+/// [`Segment::words`] is cut between words: each word goes to whoever
+/// talks most while it's said, and a word nobody is heard saying (or only
+/// punctuation) stays with the word before it. Without word times, whoever
+/// talks most during the segment gets all of it. A segment no turn overlaps
+/// takes the nearest turn within a second; otherwise its label is left
+/// alone.
+pub fn label_segments(
+    segments: &[Segment],
+    turns: &[Turn],
+    name: impl Fn(usize) -> String,
+) -> Vec<Segment> {
     const NEAREST_MS: u64 = 1000;
-    let speakers = speaker_count(turns);
-    let mut talk = vec![0_u64; speakers];
+    let mut out = Vec::with_capacity(segments.len());
     for segment in segments {
-        talk.fill(0);
-        for turn in turns {
-            let overlap = turn
-                .end_ms
-                .min(segment.end_ms)
-                .saturating_sub(turn.start_ms.max(segment.start_ms));
-            talk[turn.speaker] += overlap;
-        }
-        let best = talk
+        let near: Vec<&Turn> = turns
             .iter()
-            .enumerate()
-            .filter(|&(_, &ms)| ms > 0)
-            .max_by_key(|&(_, &ms)| ms)
-            .map(|(speaker, _)| speaker)
-            .or_else(|| {
-                turns
-                    .iter()
-                    .map(|t| (gap(t, segment), t.speaker))
-                    .filter(|&(gap, _)| gap <= NEAREST_MS)
-                    .min_by_key(|&(gap, _)| gap)
-                    .map(|(_, speaker)| speaker)
-            });
-        if let Some(speaker) = best {
-            segment.speaker = Some(name(speaker));
+            .filter(|t| gap(t, segment) <= NEAREST_MS)
+            .collect();
+        let whole = most_talk(&near, segment.start_ms, segment.end_ms, None).or_else(|| {
+            near.iter()
+                .min_by_key(|t| gap(t, segment))
+                .map(|t| t.speaker)
+        });
+        let Some(whole) = whole else {
+            out.push(segment.clone());
+            continue;
+        };
+        // Runs of words by one speaker.
+        let mut runs: Vec<(usize, Vec<&Word>)> = Vec::new();
+        let mut current = whole;
+        for word in &segment.words {
+            let heard = word.text.chars().any(char::is_alphanumeric);
+            // A word timed to an instant still counts where it falls.
+            let end_ms = word.end_ms.max(word.start_ms + 1);
+            if heard && let Some(s) = most_talk(&near, word.start_ms, end_ms, Some(current)) {
+                current = s;
+            }
+            match runs.last_mut() {
+                Some((s, run)) if *s == current => run.push(word),
+                _ => runs.push((current, vec![word])),
+            }
         }
+        if runs.len() < 2 {
+            let speaker = runs.first().map_or(whole, |(s, _)| *s);
+            out.push(Segment {
+                speaker: Some(name(speaker)),
+                ..segment.clone()
+            });
+            continue;
+        }
+        let last = runs.len() - 1;
+        for (i, (speaker, run)) in runs.into_iter().enumerate() {
+            let text: Vec<&str> = run.iter().map(|w| w.text.as_str()).collect();
+            out.push(Segment {
+                start_ms: if i == 0 {
+                    segment.start_ms
+                } else {
+                    run[0].start_ms
+                },
+                end_ms: if i == last {
+                    segment.end_ms
+                } else {
+                    run[run.len() - 1].end_ms
+                },
+                text: text.join(" "),
+                speaker: Some(name(speaker)),
+                words: run.into_iter().cloned().collect(),
+            });
+        }
+    }
+    out
+}
+
+/// Who talks most between `start_ms` and `end_ms`, if anyone does; on a
+/// tie (two turns covering it all, say), `prefer` if it's one of them.
+fn most_talk(turns: &[&Turn], start_ms: u64, end_ms: u64, prefer: Option<usize>) -> Option<usize> {
+    let mut talk: Vec<(usize, u64)> = Vec::new();
+    for turn in turns {
+        let overlap = turn
+            .end_ms
+            .min(end_ms)
+            .saturating_sub(turn.start_ms.max(start_ms));
+        if overlap == 0 {
+            continue;
+        }
+        match talk.iter_mut().find(|(s, _)| *s == turn.speaker) {
+            Some((_, ms)) => *ms += overlap,
+            None => talk.push((turn.speaker, overlap)),
+        }
+    }
+    let most = talk.iter().map(|&(_, ms)| ms).max()?;
+    match prefer {
+        Some(p) if talk.contains(&(p, most)) => Some(p),
+        _ => talk.iter().find(|&&(_, ms)| ms == most).map(|&(s, _)| s),
     }
 }
 
@@ -575,6 +658,7 @@ mod tests {
             end_ms,
             text: String::new(),
             speaker: None,
+            words: Vec::new(),
         }
     }
 
@@ -694,13 +778,13 @@ mod tests {
     #[test]
     fn segments_take_the_majority_speaker() {
         let turns = [turn(0, 4000, 0), turn(4000, 5000, 1), turn(9000, 12_000, 1)];
-        let mut segments = [
+        let segments = [
             segment(500, 4600),
             segment(3500, 5000),
             segment(7000, 8500),
             segment(20_000, 21_000),
         ];
-        label_segments(&mut segments, &turns, |s| format!("Speaker {}", s + 1));
+        let segments = label_segments(&segments, &turns, |s| format!("Speaker {}", s + 1));
         let labels: Vec<_> = segments.iter().map(|s| s.speaker.as_deref()).collect();
         assert_eq!(
             labels,
@@ -712,5 +796,85 @@ mod tests {
                 None,
             ]
         );
+    }
+
+    fn timed(words: &[(&str, u64, u64)]) -> Segment {
+        let words: Vec<Word> = words
+            .iter()
+            .map(|&(text, start_ms, end_ms)| Word {
+                text: text.into(),
+                start_ms,
+                end_ms,
+            })
+            .collect();
+        let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
+        Segment {
+            start_ms: words[0].start_ms,
+            end_ms: words[words.len() - 1].end_ms,
+            text: text.join(" "),
+            speaker: None,
+            words,
+        }
+    }
+
+    fn lines(segments: &[Segment]) -> Vec<(u64, u64, &str, &str)> {
+        segments
+            .iter()
+            .map(|s| {
+                let speaker = s.speaker.as_deref().unwrap_or("");
+                (s.start_ms, s.end_ms, speaker, s.text.as_str())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn segments_split_where_the_speaker_changes() {
+        // A question, then the answer with no pause, in one segment.
+        let segment = timed(&[
+            ("Monday,", 0, 400),
+            ("right?", 400, 800),
+            ("Yes.", 900, 1200),
+            ("And", 1300, 1500),
+            ("you?", 1500, 1800),
+        ]);
+        let turns = [turn(0, 850, 0), turn(850, 1250, 1), turn(1250, 1900, 0)];
+        let out = label_segments(&[segment], &turns, |s| format!("S{s}"));
+        assert_eq!(
+            lines(&out),
+            [
+                (0, 800, "S0", "Monday, right?"),
+                (900, 1200, "S1", "Yes."),
+                (1300, 1800, "S0", "And you?"),
+            ]
+        );
+        assert_eq!(out[1].words.len(), 1);
+    }
+
+    #[test]
+    fn a_word_goes_to_whoever_says_most_of_it() {
+        let segment = timed(&[("so", 0, 300), ("would", 300, 600), ("you", 600, 1000)]);
+        // The change comes 100 ms into "you".
+        let turns = [turn(0, 700, 0), turn(700, 1000, 1)];
+        let out = label_segments(&[segment], &turns, |s| format!("S{s}"));
+        assert_eq!(
+            lines(&out),
+            [(0, 600, "S0", "so would"), (600, 1000, "S1", "you")]
+        );
+    }
+
+    #[test]
+    fn unheard_words_stay_with_the_speaker_before() {
+        // "-" is only punctuation; "um" falls in a gap between turns; and
+        // two turns covering "both" equally don't change who's speaking.
+        let segment = timed(&[
+            ("We", 0, 300),
+            ("-", 300, 600),
+            ("um", 1000, 1200),
+            ("both", 1500, 1800),
+            ("agree.", 1800, 2100),
+        ]);
+        let turns = [turn(0, 900, 0), turn(1300, 2100, 0), turn(1400, 1900, 1)];
+        let out = label_segments(&[segment], &turns, |s| format!("S{s}"));
+        assert_eq!(lines(&out), [(0, 2100, "S0", "We - um both agree.")]);
     }
 }

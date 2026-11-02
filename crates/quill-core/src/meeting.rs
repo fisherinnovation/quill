@@ -304,6 +304,7 @@ pub fn turns(segments: &[Segment]) -> Vec<Segment> {
             last.text.push(' ');
             last.text.push_str(&s.text);
             last.end_ms = last.end_ms.max(s.end_ms);
+            last.words.extend(s.words.iter().cloned());
             continue;
         }
         out.push(s.clone());
@@ -357,6 +358,7 @@ mod tests {
             end_ms,
             text: text.into(),
             speaker: None,
+            words: Vec::new(),
         }
     }
 

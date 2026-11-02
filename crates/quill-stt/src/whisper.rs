@@ -10,7 +10,8 @@ use whisper_rs::{
 };
 
 use crate::{
-    GpuChoice, ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, gpu, vad,
+    GpuChoice, ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, Word, gpu,
+    has_words, vad,
 };
 
 /// Load-time settings for a Whisper model.
@@ -163,6 +164,10 @@ impl Transcriber for WhisperTranscriber {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
+        // A time for each token, for `Segment::words`. Meetings only: it
+        // doesn't change the text, and dictation has no use for it.
+        let want_words = !opts.short_clip;
+        params.set_token_timestamps(want_words);
         if let Some(progress) = &opts.progress {
             let percent = progress.clone();
             params.set_progress_callback_safe(move |p: i32| {
@@ -233,23 +238,43 @@ impl Transcriber for WhisperTranscriber {
         state.full(params, &audio)?;
 
         let mut segments = Vec::new();
+        let eot = self.ctx.token_eot();
         for segment in state.as_iter() {
             let text = segment.to_str_lossy()?.trim().to_string();
-            if text.is_empty() {
+            if !has_words(&text) {
                 continue;
             }
-            // whisper.cpp timestamps are in centiseconds (10 ms units).
-            let start = centis_to_ms(segment.start_timestamp());
-            let end = centis_to_ms(segment.end_timestamp());
-            let (start_ms, end_ms) = match &regions {
+            let to_audio = |start: u64, end: u64| match &regions {
                 Some(regions) => vad::map_segment(start, end, regions),
                 None => (start, end),
             };
+            // whisper.cpp timestamps are in centiseconds (10 ms units).
+            let (start_ms, end_ms) = to_audio(
+                centis_to_ms(segment.start_timestamp()),
+                centis_to_ms(segment.end_timestamp()),
+            );
+            let mut words = Vec::new();
+            if want_words {
+                let tokens = (0..segment.n_tokens()).filter_map(|i| segment.get_token(i));
+                let timed = tokens.filter(|t| t.token_id() < eot).filter_map(|t| {
+                    let data = t.token_data();
+                    Some((t.to_bytes().ok()?.to_vec(), data.t0, data.t1))
+                });
+                for word in words_of(timed) {
+                    let (start, end) = to_audio(word.start_ms, word.end_ms);
+                    words.push(Word {
+                        start_ms: start.clamp(start_ms, end_ms),
+                        end_ms: end.clamp(start_ms, end_ms),
+                        ..word
+                    });
+                }
+            }
             segments.push(Segment {
                 start_ms,
                 end_ms,
                 text,
                 speaker: None,
+                words,
             });
         }
         if fit {
@@ -323,6 +348,38 @@ const MAX_WORDS_PER_SEC: f32 = 8.0;
 /// with this and 3.0% with the full window.
 const FIT_MARGIN_FRAMES: usize = 150;
 
+/// Whisper's tokens (their bytes, and start and end in centiseconds) as
+/// words: a token starting with a space starts a word, and others (the
+/// rest of a word, punctuation) join the one before. Bytes, not text, since
+/// a token can end partway through a character.
+fn words_of(tokens: impl Iterator<Item = (Vec<u8>, i64, i64)>) -> Vec<Word> {
+    let mut words = Vec::new();
+    let mut current: Option<(Vec<u8>, i64, i64)> = None;
+    let mut finish = |word: Option<(Vec<u8>, i64, i64)>| {
+        if let Some((bytes, start, end)) = word {
+            let text = String::from_utf8_lossy(&bytes).trim().to_string();
+            if !text.is_empty() {
+                words.push(Word {
+                    text,
+                    start_ms: centis_to_ms(start),
+                    end_ms: centis_to_ms(end.max(start)),
+                });
+            }
+        }
+    };
+    for (bytes, start, end) in tokens {
+        match &mut current {
+            Some((text, _, last)) if !bytes.starts_with(b" ") => {
+                text.extend_from_slice(&bytes);
+                *last = end;
+            }
+            _ => finish(current.replace((bytes, start, end))),
+        }
+    }
+    finish(current);
+    words
+}
+
 fn centis_to_ms(centis: i64) -> u64 {
     u64::try_from(centis).unwrap_or(0) * 10
 }
@@ -337,6 +394,7 @@ mod tests {
             end_ms,
             text: text.into(),
             speaker: None,
+            words: Vec::new(),
         }
     }
 
@@ -419,5 +477,32 @@ mod tests {
             segment(4_000, 5_000, "There I'll be."),
         ];
         assert_eq!(without_repeats(segments.clone()), segments);
+    }
+
+    #[test]
+    fn tokens_are_grouped_into_words() {
+        let token = |text: &[u8], t0, t1| (text.to_vec(), t0, t1);
+        // "é" split across two tokens, as byte-level BPE does.
+        let tokens = [
+            token(b" Mon", 10, 30),
+            token(b"day", 30, 50),
+            token(b",", 50, 52),
+            token(b" caf", 60, 80),
+            token(&[0xC3], 80, 85),
+            token(&[0xA9, b'?'], 85, 90),
+            token(b" Yes", 120, 140),
+        ];
+        let words: Vec<_> = words_of(tokens.into_iter())
+            .into_iter()
+            .map(|w| (w.text, w.start_ms, w.end_ms))
+            .collect();
+        assert_eq!(
+            words,
+            [
+                ("Monday,".to_string(), 100, 520),
+                ("café?".to_string(), 600, 900),
+                ("Yes".to_string(), 1200, 1400),
+            ]
+        );
     }
 }

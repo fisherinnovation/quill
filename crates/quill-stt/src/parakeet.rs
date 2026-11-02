@@ -21,7 +21,7 @@ use whisper_rs::WhisperVadContext;
 
 use crate::models::ParakeetModel;
 use crate::vad::{self, SAMPLES_PER_MS};
-use crate::{ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber};
+use crate::{ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, Word, has_words};
 
 /// Load-time settings for a Parakeet model.
 #[derive(Debug, Clone)]
@@ -246,9 +246,19 @@ impl Transcriber for ParakeetTranscriber {
             }
             segments.extend(found);
         }
-        if let Some(regions) = &regions {
-            for s in &mut segments {
+        for s in &mut segments {
+            if opts.short_clip {
+                s.words.clear();
+            }
+            if let Some(regions) = &regions {
                 (s.start_ms, s.end_ms) = vad::map_segment(s.start_ms, s.end_ms, regions);
+                for w in &mut s.words {
+                    let (start, end) = vad::map_segment(w.start_ms, w.end_ms, regions);
+                    (w.start_ms, w.end_ms) = (
+                        start.clamp(s.start_ms, s.end_ms),
+                        end.clamp(s.start_ms, s.end_ms),
+                    );
+                }
             }
         }
         Ok(segments)
@@ -321,6 +331,7 @@ struct Token {
 fn sentences(tokens: &[Token], pauses: &[(u64, bool)]) -> Vec<Segment> {
     let mut segments = Vec::new();
     let mut text = String::new();
+    let mut words: Vec<Word> = Vec::new();
     let mut start = None;
     let mut last_end = 0;
     // Where the last word started. Not the last token: Parakeet often
@@ -335,13 +346,14 @@ fn sentences(tokens: &[Token], pauses: &[(u64, bool)]) -> Vec<Segment> {
         if new_word
             && let Some(&(_, long)) = paused
             && (long || punctuated)
-            && !text.trim().is_empty()
+            && has_words(&text)
         {
             segments.push(Segment {
                 start_ms: start.unwrap_or(token.start_ms),
                 end_ms: last_end,
                 text: text.trim().to_string(),
                 speaker: None,
+                words: std::mem::take(&mut words),
             });
             text.clear();
             start = None;
@@ -352,19 +364,35 @@ fn sentences(tokens: &[Token], pauses: &[(u64, bool)]) -> Vec<Segment> {
         }
         start.get_or_insert(token.start_ms);
         text.push_str(&token.text);
+        match words.last_mut() {
+            Some(word) if !new_word => {
+                word.text.push_str(&token.text);
+                // Not to a late punctuation mark's time (see above).
+                if has_words(&token.text) {
+                    word.end_ms = token.end_ms;
+                }
+            }
+            _ => words.push(Word {
+                text: token.text.trim_start().to_string(),
+                start_ms: token.start_ms,
+                end_ms: token.end_ms,
+            }),
+        }
         let ends = token.text.trim_end().ends_with(['.', '?', '!']);
         let next_starts_word = tokens.get(i + 1).is_none_or(|t| t.text.starts_with(' '));
         if ends && next_starts_word || i + 1 == tokens.len() {
             let trimmed = text.trim();
-            if !trimmed.is_empty() {
+            if has_words(trimmed) {
                 segments.push(Segment {
                     start_ms: start.unwrap_or(token.start_ms),
                     end_ms: token.end_ms,
                     text: trimmed.to_string(),
                     speaker: None,
+                    words: std::mem::take(&mut words),
                 });
             }
             text.clear();
+            words.clear();
             start = None;
         }
     }
@@ -445,6 +473,22 @@ mod tests {
         // A pause after the comma ends the turn; one mid-phrase doesn't,
         // unless it was long.
         let pauses = [(1_400, false), (2_500, false), (3_800, true)];
+        let found = sentences(&tokens, &pauses);
+        // Each word keeps its own time, not the late comma's.
+        let words: Vec<_> = found[0]
+            .words
+            .iter()
+            .map(|w| (w.text.as_str(), w.start_ms, w.end_ms))
+            .collect();
+        assert_eq!(
+            words,
+            [
+                ("What", 0, 200),
+                ("are", 200, 400),
+                ("you", 400, 600),
+                ("hearing,", 600, 900)
+            ]
+        );
         let texts: Vec<_> = sentences(&tokens, &pauses)
             .into_iter()
             .map(|s| s.text)

@@ -1,0 +1,32 @@
+# Two people handing the floor back and forth with no pause, for checking
+# that a change of speaker in the middle of a transcript line lands on the
+# right word: quick one-word answers, replies that start as the question
+# ends, and one person finishing the other's sentence. Whisper tends to keep
+# these in one segment, unlike a change of speaker after a full stop.
+# "Voice|line" as in ten_people.txt; a line starting with ">" follows the one
+# before it with no pause. Written for the Windows voices; on macOS pass e.g.
+# --voice Zira=Samantha --voice David=Daniel.
+Zira|Thanks for joining. Today we need to settle the release dates and who covers support, so would you
+>David|like me to start with the dates? Sure. On Friday we freeze the code, and the build goes to testers on
+>Zira|Monday, right?
+>David|Yes.
+>Zira|And how long do the testers get, a week or
+>David|one week, and if nothing serious comes up we ship the following Tuesday.
+>Zira|That sounds tight, but okay. Who is writing the release notes this time?
+>David|Me.
+>Zira|Great. I'll send you the list of fixes on Tuesday, in a spreadsheet if that's
+>David|fine, yes, a spreadsheet is fine.
+>Zira|Next, support. We had three people on call last time, which was
+>David|too many, I agree. Two is enough as long as one of them knows the payment code. Do you know it?
+>Zira|No.
+>David|Then let's ask the billing team for someone who
+>Zira|knows it well, yes. I'll ask them today. Anything else?
+>David|Just the phone number, it still forwards to my desk. Can you
+>Zira|ask the office manager? Sure, that's easy.
+>David|Thanks. And the website banner still shows the old price. Change it now or
+>Zira|wait for the release. Changing it early will confuse people.
+>David|Okay.
+>Zira|So, code freeze on Friday, testers on Monday, and release the Tuesday after, with notes from
+>David|me, once I have your list.
+>Zira|Right. Talk on Thursday?
+>David|Sure. Bye.

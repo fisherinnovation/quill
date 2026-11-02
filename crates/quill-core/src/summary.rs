@@ -401,6 +401,7 @@ mod tests {
                 end_ms: i as u64 * 5_000 + 4_000,
                 text: format!("Sentence number {i} about the quarterly roadmap and hiring."),
                 speaker: Some(if i % 2 == 0 { "Me" } else { "Others" }.into()),
+                words: Vec::new(),
             })
             .collect()
     }

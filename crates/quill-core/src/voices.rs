@@ -394,6 +394,7 @@ mod tests {
             end_ms: start_s * 1000 + 3000,
             text: "words".into(),
             speaker: Some(speaker.into()),
+            words: Vec::new(),
         }
     }
 

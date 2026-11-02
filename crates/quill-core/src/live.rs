@@ -356,6 +356,7 @@ mod tests {
                     end_ms: 0,
                     text: String::new(),
                     speaker: None,
+                    words: Vec::new(),
                 });
                 seg.end_ms = end - from;
                 seg.text = format!("{} {word}", seg.text).trim().to_string();
@@ -486,6 +487,7 @@ mod tests {
                 end_ms,
                 text: text.into(),
                 speaker: None,
+                words: Vec::new(),
             };
             Ok(vec![
                 segment(

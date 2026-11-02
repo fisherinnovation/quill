@@ -241,6 +241,7 @@ mod tests {
                 end_ms: minutes * 60_000,
                 text: "We agreed to ship on Friday.".into(),
                 speaker: Some("Me".into()),
+                words: Vec::new(),
             }],
         }
     }

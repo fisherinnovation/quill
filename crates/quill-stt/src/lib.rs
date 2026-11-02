@@ -26,6 +26,26 @@ pub struct Segment {
     /// diarization; the transcriber itself leaves it `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speaker: Option<String>,
+    /// When each word was said, for splitting the segment where the speaker
+    /// changes. Meetings only (see [`TranscribeOptions::short_clip`]), and
+    /// only as the engine gives it: empty otherwise.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<Word>,
+}
+
+/// One word of a [`Segment`], with the punctuation that goes with it
+/// ("Monday," "right?").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Word {
+    pub text: String,
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
+/// Whether `text` has anything to read: a letter or a digit. Whisper
+/// sometimes writes a lone "-" or "..." for a noise.
+pub(crate) fn has_words(text: &str) -> bool {
+    text.chars().any(char::is_alphanumeric)
 }
 
 /// Whether Whisper knows this ISO 639-1 language code (e.g. `"en"`).
@@ -46,9 +66,9 @@ pub struct TranscribeOptions {
     /// `initial_prompt` instead, so it ignores this.
     pub vocabulary: Vec<String>,
     /// Tune for a clip of a few seconds (dictation) rather than a recording:
-    /// greedy decoding, VAD trimming only the outer silence, and on Metal an
-    /// encoder sized to the clip, with repeated segments dropped. Leave off
-    /// for meetings.
+    /// greedy decoding, VAD trimming only the outer silence, on Metal an
+    /// encoder sized to the clip, with repeated segments dropped, and no
+    /// [`Segment::words`]. Leave off for meetings.
     pub short_clip: bool,
     /// Don't retry at higher temperatures when the decode looks unsure.
     /// For live dictation's passes over audio that ends mid-word, where

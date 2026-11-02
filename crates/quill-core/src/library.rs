@@ -1157,6 +1157,7 @@ impl Library {
                     end_ms: from_i64(r.get(1)?),
                     speaker: r.get(2)?,
                     text: r.get(3)?,
+                    words: Vec::new(),
                 })
             })?
             .collect::<Result<_, _>>()?;
@@ -1715,6 +1716,7 @@ mod tests {
             end_ms: start_s * 1000 + 3000,
             text: text.into(),
             speaker: Some(speaker.into()),
+            words: Vec::new(),
         }
     }
 
