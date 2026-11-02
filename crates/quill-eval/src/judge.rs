@@ -287,6 +287,7 @@ mod tests {
                 end_ms: 1000,
                 text: "hi".into(),
                 speaker: None,
+                words: Vec::new(),
             }],
         };
         let mut results = vec![

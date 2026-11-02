@@ -188,7 +188,9 @@ impl Labelled {
 /// Like [`label`], and gives anyone whose voice matches one of `known` that
 /// person's name (see [`quill_diarize::voices::match_voices`]). Speakers
 /// who aren't recognised are numbered "Speaker 1", "Speaker 2"… among
-/// themselves, by who speaks first.
+/// themselves, by who speaks first. A line where the speaker changes is
+/// split there, if its words are timed (see
+/// [`quill_diarize::label_segments`]).
 pub fn label_and_recognize(
     segments: &[Segment],
     analysis: &Analysis,
@@ -197,17 +199,31 @@ pub fn label_and_recognize(
     options: &MatchOptions,
 ) -> Labelled {
     let (turns, voices) = analysis.speakers_with_voices(&ClusterOptions::new(speakers));
+    // Label the call's lines with the raw speaker index first (named below),
+    // keeping where they are among the user's.
     let is_others = |s: &Segment| s.speaker.as_deref() == Some(OTHERS);
-    let mut theirs: Vec<Segment> = segments.iter().filter(|s| is_others(s)).cloned().collect();
-    // Label with the raw speaker index first; named below.
-    quill_diarize::label_segments(&mut theirs, &turns, |i| i.to_string());
+    let mut out: Vec<Segment> = Vec::with_capacity(segments.len());
+    let mut theirs: Vec<usize> = Vec::new();
+    for s in segments {
+        if is_others(s) {
+            let from = out.len();
+            out.extend(quill_diarize::label_segments(
+                std::slice::from_ref(s),
+                &turns,
+                |i| i.to_string(),
+            ));
+            theirs.extend(from..out.len());
+        } else {
+            out.push(s.clone());
+        }
+    }
 
     // Speakers in order of first appearance in the transcript, so a voice
     // with no transcribed words doesn't leave a gap ("Speaker 1, 2, 4").
     let raw = |s: &Segment| s.speaker.as_deref().and_then(|l| l.parse::<usize>().ok());
     let mut order: Vec<usize> = Vec::new();
-    for s in &theirs {
-        if let Some(i) = raw(s)
+    for &k in &theirs {
+        if let Some(i) = raw(&out[k])
             && !order.contains(&i)
         {
             order.push(i);
@@ -242,24 +258,13 @@ pub fn label_and_recognize(
             }
         })
         .collect();
-    for s in &mut theirs {
-        if let Some(i) = raw(s)
+    for &k in &theirs {
+        if let Some(i) = raw(&out[k])
             && let Some(pos) = order.iter().position(|&o| o == i)
         {
-            s.speaker = Some(call[pos].label.clone());
+            out[k].speaker = Some(call[pos].label.clone());
         }
     }
-    let mut theirs = theirs.into_iter();
-    let out = segments
-        .iter()
-        .map(|s| {
-            if is_others(s) {
-                theirs.next().unwrap_or_else(|| s.clone())
-            } else {
-                s.clone()
-            }
-        })
-        .collect();
     Labelled {
         segments: out,
         speakers: order.len(),
@@ -292,6 +297,7 @@ mod tests {
             end_ms,
             text: "words".into(),
             speaker: Some(speaker.into()),
+            words: Vec::new(),
         }
     }
 
@@ -351,6 +357,39 @@ mod tests {
                 .iter()
                 .all(|s| s.speaker.as_deref() != Some("Speaker 2"))
         );
+    }
+
+    #[test]
+    fn a_line_is_split_where_the_speaker_changes() {
+        // One call line runs from the end of the first voice's turn into
+        // the second's; the user speaks before it.
+        let word = |text: &str, start_ms, end_ms| quill_stt::Word {
+            text: text.into(),
+            start_ms,
+            end_ms,
+        };
+        let call = Segment {
+            start_ms: 4000,
+            end_ms: 6800,
+            text: "Ready? Yes.".into(),
+            speaker: Some(OTHERS.into()),
+            words: vec![word("Ready?", 4000, 4800), word("Yes.", 6200, 6800)],
+        };
+        let segments = [seg(0, 1000, "Me"), call];
+        let (labelled, count) = label(&segments, &analysis(), None);
+        let lines: Vec<_> = labelled
+            .iter()
+            .map(|s| (s.speaker.as_deref().unwrap(), s.text.as_str()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                ("Me", "words"),
+                ("Speaker 1", "Ready?"),
+                ("Speaker 2", "Yes.")
+            ]
+        );
+        assert_eq!(count, 2);
     }
 
     #[test]

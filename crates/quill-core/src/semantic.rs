@@ -182,6 +182,7 @@ fn read_segments(conn: &Connection, meeting_id: &str) -> rusqlite::Result<(Vec<S
                 end_ms: u64::try_from(r.get::<_, i64>(1)?).unwrap_or(0),
                 speaker: r.get(2)?,
                 text: r.get(3)?,
+                words: Vec::new(),
             })
         })?
         .collect::<Result<_, _>>()?;
@@ -849,6 +850,7 @@ mod tests {
             end_ms: start_s * 1000 + 3000,
             text: text.into(),
             speaker: Some("Others".into()),
+            words: Vec::new(),
         }
     }
 

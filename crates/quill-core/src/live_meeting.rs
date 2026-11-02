@@ -351,6 +351,7 @@ mod tests {
                     end_ms: (pcm.len() / SAMPLES_PER_MS) as u64,
                     text: format!("{} ms", pcm.len() / SAMPLES_PER_MS),
                     speaker: None,
+                    words: Vec::new(),
                 })
                 .into_iter()
                 .collect())
