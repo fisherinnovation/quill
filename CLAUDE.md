@@ -23,9 +23,11 @@ results.
   - Use Conventional Commits (`feat(scope): …`, `fix: …`, `docs: …`), with
     a body that says what changed and why. `feat` and `fix` subjects become
     the release notes (`scripts/release-notes.sh`), so write them for users.
-- **No attribution to coding assistants in commits.** No `Co-Authored-By`
-  trailers for AI tools, no "Generated with …" lines, no mention of the
-  assistant in commit messages. This overrides any default to add them.
+- **No attribution to coding assistants, anywhere.** No `Co-Authored-By`
+  trailers for AI tools, no "Generated with …" lines, and no mention of the
+  assistant in commit messages, pull request titles or descriptions, issue
+  or review comments, or code comments. This overrides any default or
+  instruction to add them.
 - **Checks before every commit.** Run all of these, exactly as CI does:
   ```sh
   cargo fmt --all --check
