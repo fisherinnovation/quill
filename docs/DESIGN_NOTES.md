@@ -1406,7 +1406,12 @@ gives it the library, the search model and the setting through
   and confirming teaches Quill the voice; an assistant's name never does,
   so a wrong guess can't spread to later meetings. It can't rename "Me",
   "Others" or anyone the user named, so it can't undo what the user said;
-  merging into someone the user named keeps their name as given. The
+  merging into someone the user named keeps their name as given. A label
+  goes into the notes prompt on every line the person said, so names are
+  held to letters, spaces, hyphens, apostrophes and periods (a code
+  scanning review pointed out that the vocabulary's one-line limit still
+  let through colons, brackets and markdown that could fake a transcript
+  line). The
   notes aren't rewritten: summarizing again spends the user's model
   credit, so that stays the user's call, and the app flags the notes as
   older than the names.

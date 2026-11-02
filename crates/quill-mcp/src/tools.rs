@@ -179,8 +179,9 @@ pub struct RenameArgs {
     /// The speaker's label now, as speakers or the transcript shows it,
     /// e.g. "Speaker 2".
     speaker: String,
-    /// Their name, as it should be spelled, e.g. "Dana Lee": one line of at
-    /// most six words.
+    /// Their name, as it should be spelled, e.g. "Dana Lee": letters,
+    /// spaces, hyphens, apostrophes and periods, at most six words. Or
+    /// another speaker's label, such as "Speaker 4", to merge into them.
     name: String,
 }
 
