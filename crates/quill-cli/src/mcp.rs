@@ -87,4 +87,9 @@ impl quill_mcp::Context for CliContext {
     fn may_tick_action_items(&self) -> bool {
         Settings::load(&self.data_dir).is_ok_and(|s| s.assistant_action_items)
     }
+
+    /// Speakers' names live in the library too.
+    fn may_name_speakers(&self) -> bool {
+        Settings::load(&self.data_dir).is_ok_and(|s| s.assistant_speakers)
+    }
 }

@@ -13,7 +13,8 @@
 // new version waiting to be installed, ?backlog for enough older
 // meetings and dictations to need "Show more", ?voices for a meeting
 // where Quill recognised someone by voice (Speaker 3 named Priya),
-// ?nosearch for search by meaning without its model yet, and ?indexing
+// ?suggested for one where an AI assistant named someone (Speaker 2 as
+// Dana), ?nosearch for search by meaning without its model yet, and ?indexing
 // for meetings being indexed for it.
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
@@ -99,7 +100,8 @@ let actionItems = flags.has("empty")
     ];
 
 // ?others: the call side as one "Others" track, as before speakers are told apart.
-const other = (n: number) => (flags.has("others") ? "Others" : `Speaker ${n}`);
+const other = (n: number) =>
+  flags.has("others") ? "Others" : n === 2 && flags.has("suggested") ? "Dana" : `Speaker ${n}`;
 let SEGMENTS = [
   [0, 6, "Me", "Okay, let's get started. Main things today are the onboarding launch and the analytics problem."],
   [7, 15, other(1), "Sure. So the usability study came back and completion went from forty-one to fifty-eight percent."],
@@ -121,16 +123,21 @@ let SEGMENTS = [
 
 // Known voices (quill_core::voices): who's on the sample call, and who
 // Quill remembers.
-const callVoice = (label: string, recognized = false) => ({
+const callVoice = (label: string, recognized = false, suggested = false) => ({
   label,
   recognized,
+  suggested,
   similarity: recognized ? 0.78 : null,
   remembered: false,
   enough_speech: true,
 });
 let meetingVoices = flags.has("others")
   ? []
-  : [callVoice("Speaker 1"), callVoice("Speaker 2"), flags.has("voices") ? callVoice("Priya", true) : callVoice("Speaker 3")];
+  : [
+      callVoice("Speaker 1"),
+      flags.has("suggested") ? callVoice("Dana", false, true) : callVoice("Speaker 2"),
+      flags.has("voices") ? callVoice("Priya", true) : callVoice("Speaker 3"),
+    ];
 const knownVoice = (id: number, name: string, meetings: number, daysAgo: number) => ({
   id,
   name,
@@ -324,6 +331,7 @@ const settings = {
   assistant_access: flags.has("assistants"),
   assistant_vocabulary: false,
   assistant_action_items: false,
+  assistant_speakers: false,
   assistant_port: 47321,
   gpu: { kind: "automatic" },
   dictation: {
@@ -1073,7 +1081,9 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   meeting_voices: () => meetingVoices,
   confirm_speaker: ({ label }) => {
-    meetingVoices = meetingVoices.map((v) => (v.label === label ? { ...v, recognized: false, similarity: null, remembered: true } : v));
+    meetingVoices = meetingVoices.map((v) =>
+      v.label === label ? { ...v, recognized: false, suggested: false, similarity: null, remembered: true } : v,
+    );
     rememberVoice(String(label));
   },
   known_voices: () => knownVoices,

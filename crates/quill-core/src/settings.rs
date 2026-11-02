@@ -78,6 +78,10 @@ pub struct Settings {
     /// Also let them tick action items off and back on (`quill_mcp`). Off
     /// unless the user turns it on; checked on every request.
     pub assistant_action_items: bool,
+    /// Also let them name the people on a meeting's call
+    /// (`quill_core::assistants::rename_speaker`), as suggestions the user
+    /// confirms. Off unless the user turns it on; checked on every request.
+    pub assistant_speakers: bool,
     /// The localhost port the app serves assistants on.
     pub assistant_port: u16,
     // Tables must come after plain values in TOML, so keep these last.
@@ -240,6 +244,7 @@ impl Default for Settings {
             assistant_access: false,
             assistant_vocabulary: false,
             assistant_action_items: false,
+            assistant_speakers: false,
             assistant_port: DEFAULT_ASSISTANT_PORT,
             gpu: GpuChoice::Automatic,
             live_notes_place: LiveNotesPlace::default(),

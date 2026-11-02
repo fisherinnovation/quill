@@ -134,6 +134,19 @@ export function AssistantRows({
         </Row>
       )}
 
+      {settings.assistant_access && (
+        <Row
+          label="Let them suggest names for speakers"
+          hint="Assistants can name people on a call left as Speaker 1, 2… when the transcript shows who they are, or merge two who are the same person. Their names show as suggestions until you confirm them, and never replace names you gave."
+        >
+          <Switch
+            label="Let them suggest names for speakers"
+            checked={settings.assistant_speakers}
+            onChange={(on) => update({ assistant_speakers: on })}
+          />
+        </Row>
+      )}
+
       {settings.assistant_access && server?.error && (
         <Row label="Not available" hint={server.error}>
           {null}

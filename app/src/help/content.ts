@@ -259,6 +259,7 @@ Items are read from the notes when they're written. If you re-summarize, items s
 Beside it, each person has a lane, solid while they're talking. When someone starts while another person is still talking, their line branches off that person's lane and is marked **over** them, and the line they cut into goes on after them (a hollow dot). Where the cut falls inside a sentence is Quill's estimate.
 
 - **Click a speaker's name** to rename them. The notes use the names once you re-summarize.
+- **A name with a ✓** was given by Quill (recognized by voice) or by an AI assistant you let suggest names. Click ✓ if it's right, or the name to change it.
 - **Type an existing name** to merge two speakers who are really the same person.
 - **People on the call**: if Quill found too few or too many people, choose how many there were and it splits the voices again, instantly.
 
@@ -309,7 +310,9 @@ Voices are stored as fingerprints (lists of numbers, not audio) in your library 
 
 **Your vocabulary.** Assistants can read your vocabulary (**Settings → Dictation → Words**). Turn on **Let them change your vocabulary** and they can also add names and terms Quill keeps mishearing, or take wrong ones out, so later notes spell them right. Changes go through the address Quill serves while it's open; \`quill-cli mcp\` can only read the vocabulary.
 
-**Your action items.** Turn on **Let them tick off action items** and an assistant can mark items done, or undo that: useful when you track your to-dos somewhere else and want Quill to keep up. The vocabulary and ticks are all assistants can change.
+**Your action items.** Turn on **Let them tick off action items** and an assistant can mark items done, or undo that: useful when you track your to-dos somewhere else and want Quill to keep up.
+
+**Names on the call.** Turn on **Let them suggest names for speakers** and an assistant can name someone left as Speaker 2 when the transcript shows who it is ("over to you, Dana"), or merge two speakers who are the same person. Its names show on the Transcript tab with a ⚡ and a ✓ to confirm; Quill only learns the voice once you do. It can't rename you or anyone you named. The vocabulary, ticks and suggested names are all assistants can change.
 
 **What's shared.** Whatever the assistant reads goes to that assistant's provider (for Claude, Anthropic), like anything else you show it, so turn this on only if you're happy for your meetings to go there. It reads only when you ask it something. Turning the setting off stops it at once, even mid-conversation.
 
