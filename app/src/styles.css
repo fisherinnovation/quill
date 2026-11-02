@@ -1741,6 +1741,11 @@ mark {
   color: var(--text);
 }
 
+/* A suggestion has a ✗ after its ✓, to put the old label back. */
+.speaker-confirm:not(:last-child) {
+  border-radius: 0;
+}
+
 .speaker-note {
   display: inline-flex;
   align-items: center;

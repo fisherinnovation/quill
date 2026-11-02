@@ -127,6 +127,7 @@ const callVoice = (label: string, recognized = false, suggested = false) => ({
   label,
   recognized,
   suggested,
+  undo: suggested ? "Speaker 2" : null,
   similarity: recognized ? 0.78 : null,
   remembered: false,
   enough_speech: true,
@@ -1080,9 +1081,18 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     rememberVoice(String(to));
   },
   meeting_voices: () => meetingVoices,
+  reject_speaker: ({ label }) => {
+    const voice = meetingVoices.find((v) => v.label === label);
+    const was = voice?.undo ?? String(label);
+    SEGMENTS = SEGMENTS.map((seg) => (seg.speaker === label ? { ...seg, speaker: was } : seg));
+    meetingVoices = meetingVoices.map((v) => (v.label === label ? callVoice(was) : v));
+    return was;
+  },
   confirm_speaker: ({ label }) => {
     meetingVoices = meetingVoices.map((v) =>
-      v.label === label ? { ...v, recognized: false, suggested: false, similarity: null, remembered: true } : v,
+      v.label === label
+        ? { ...v, recognized: false, suggested: false, undo: null, similarity: null, remembered: true }
+        : v,
     );
     rememberVoice(String(label));
   },

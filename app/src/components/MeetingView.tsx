@@ -190,6 +190,13 @@ export function MeetingView({
     setVoices(await api.meetingVoices(id).catch(() => voices));
   }
 
+  async function rejectSpeaker(label: string) {
+    const was = await api.rejectSpeaker(id, label);
+    setDetail((d) => d && { ...d, segments: d.segments.map((s) => (s.speaker === label ? { ...s, speaker: was } : s)) });
+    setSpeakersEditedAt(Date.now());
+    setVoices(await api.meetingVoices(id).catch(() => voices));
+  }
+
   function splitSpeakers(count: number | null) {
     setSpeakersEditedAt(Date.now());
     void api.splitSpeakers(id, count).catch((e) => setError(errorText(e)));
@@ -422,6 +429,7 @@ export function MeetingView({
           busy={busy}
           onRename={renameSpeaker}
           onConfirm={confirmSpeaker}
+          onReject={rejectSpeaker}
           onSplit={splitSpeakers}
         />
       )}
@@ -722,6 +730,7 @@ function SpeakerBar({
   busy,
   onRename,
   onConfirm,
+  onReject,
   onSplit,
 }: {
   segments: MeetingDetail["segments"];
@@ -729,12 +738,15 @@ function SpeakerBar({
   busy: boolean;
   onRename: (from: string, to: string) => Promise<void>;
   onConfirm: (label: string) => Promise<void>;
+  onReject: (label: string) => Promise<void>;
   onSplit: (count: number | null) => void;
 }) {
   const people = callSpeakers(segments);
   const colors = speakerColors(segments);
   const recognized = new Set(voices.filter((v) => v.recognized).map((v) => v.label));
   const suggested = new Set(voices.filter((v) => v.suggested).map((v) => v.label));
+  // What a suggestion can go back to ("Speaker 3"), if it didn't merge two people.
+  const undo = new Map(voices.filter((v) => v.suggested && v.undo).map((v) => [v.label, v.undo as string]));
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -802,6 +814,22 @@ function SpeakerBar({
             >
               <Icon name="check" size={12} />
             </button>
+            {undo.has(p.name) && (
+              <button
+                className="speaker-confirm"
+                title={`Not ${p.name}: back to ${undo.get(p.name)}`}
+                aria-label={`Not ${p.name}`}
+                disabled={busy}
+                onClick={() => {
+                  onReject(p.name).then(
+                    () => setError(null),
+                    (e) => setError(errorText(e)),
+                  );
+                }}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            )}
           </span>
         ) : (
           <button

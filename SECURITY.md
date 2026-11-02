@@ -155,7 +155,8 @@ call who were handed the floor by name or said who they are; Quill checks
 the name was said by or just before that person and that every word of it
 was said in the meeting, holds it to letters,
 spaces, hyphens, apostrophes and periods, and shows it in the transcript
-only as a suggestion until you confirm it.
+only as a suggestion until you confirm it (✓) or put the speaker's number
+back (✗).
 Daily summaries are kept in `quill.sqlite`, one per day; since each holds
 its meetings' content, deleting any of that day's meetings deletes it.
 Search (Ctrl+K / ⌘K) keeps a word index in `quill.sqlite` holding a copy

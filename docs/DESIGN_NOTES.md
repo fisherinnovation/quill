@@ -238,7 +238,15 @@ decision someone might otherwise undo.
   name is letters only and nobody else's label, and the model didn't give
   that label or name twice. Angle brackets in transcript lines become
   ‹ › in prompts, so a line can't close `<transcript>` or fake a
-  `<speakers>` block (both from code scanning review). Kept links become
+  `<speakers>` block (both from code scanning review). A suggestion still
+  renames the label straight away, so the notes and transcript agree, but
+  it remembers the label it replaced (`suggested_speakers.was`) and a ✗
+  beside the ✓ puts it back in one click, for names from the notes and
+  from assistants alike. Code scanning flagged model output changing the
+  transcript unasked; the alternative, leaving "Speaker 3" until the user
+  confirms, would keep the notes and transcript apart until then. A
+  suggestion that merged two speakers has no ✗: they can't be pulled
+  apart again. Kept links become
   suggestions (`suggested_speakers`), as an assistant's do: shown with a
   ✓, learned as a voice only once confirmed. On a synthetic all-hands with
   traps (`eval/transcripts/all-hands-names.json`: a handoff by name, a

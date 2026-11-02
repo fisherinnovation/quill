@@ -54,8 +54,12 @@ pub struct MeetingVoice {
     pub label: String,
     /// Named automatically by voice; the user hasn't confirmed or changed it.
     pub recognized: bool,
-    /// Named by an AI assistant; the user hasn't confirmed or changed it.
+    /// Named by an AI assistant or the notes; the user hasn't confirmed or
+    /// changed it.
     pub suggested: bool,
+    /// For a suggestion, the label it replaced, which the user can go back
+    /// to (`Library::reject_suggested_speaker`); `None` after a merge.
+    pub undo: Option<String>,
     /// How close the voices were, when recognised (cosine, up to 1).
     pub similarity: Option<f32>,
     /// Quill remembers this voice under this name from this meeting.
@@ -178,10 +182,12 @@ impl Library {
                             WHERE s.meeting_id = m.meeting_id AND v.name = m.label
                               AND v.voice_model = m.voice_model),
                     EXISTS (SELECT 1 FROM suggested_speakers g
-                            WHERE g.meeting_id = m.meeting_id AND g.label = m.label)
+                            WHERE g.meeting_id = m.meeting_id AND g.label = m.label),
+                    (SELECT g.was FROM suggested_speakers g
+                     WHERE g.meeting_id = m.meeting_id AND g.label = m.label)
              FROM meeting_voices m WHERE m.meeting_id = ?1
              UNION ALL
-             SELECT g.label, 0, NULL, 0, 0, 1 FROM suggested_speakers g
+             SELECT g.label, 0, NULL, 0, 0, 1, g.was FROM suggested_speakers g
              WHERE g.meeting_id = ?1 AND NOT EXISTS (
                  SELECT 1 FROM meeting_voices m WHERE m.meeting_id = ?1 AND m.label = g.label)",
         )?;
@@ -191,6 +197,7 @@ impl Library {
                 label: r.get(0)?,
                 recognized: r.get(1)?,
                 suggested: r.get(5)?,
+                undo: r.get(6)?,
                 similarity: r.get::<_, Option<f64>>(2)?.map(|s| s as f32),
                 remembered: r.get(4)?,
                 enough_speech: speech_ms >= MIN_SPEECH_TO_REMEMBER_MS,
