@@ -164,6 +164,9 @@ decision someone might otherwise undo.
   15 → 21 of 23; DER no worse (21.1% → 20.7%). Meetings told apart before
   keep their cached turns and have no word times, so re-splitting them
   works as before. See eval/diarization/README.md ("Who said each line").
+  The lines are sorted by start time after splitting: a cut line's second
+  half can start after something the user said over it, and was listed
+  before it (issue #62).
 - **Lines without words** ("-", "...") are dropped as they're transcribed.
 
 ## Summaries and prompts
