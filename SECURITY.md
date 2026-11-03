@@ -49,7 +49,7 @@ where reality differs.
   Quill's update key (the public half is built into the app) for the version
   it claims to be. Debug builds never check on their own.
 
-Quill opens a network port only while **Settings → Meetings → Let AI
+Quill opens a network port only while **Settings → AI assistants → Let AI
 assistants read your meetings** is on (off by default): a server for AI
 assistants on `127.0.0.1` (port 47321 unless changed), which other computers
 can't reach (see below).

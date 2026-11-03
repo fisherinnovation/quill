@@ -1,6 +1,6 @@
 //! The tools over MCP's Streamable HTTP transport at
 //! `http://127.0.0.1:<port>/mcp`, for an assistant to connect to by URL.
-//! The app runs it while Settings → Meetings → Let AI assistants read your
+//! The app runs it while Settings → AI assistants → Let AI assistants read your
 //! meetings is on.
 //!
 //! Anything on the computer can reach a localhost port, web pages in a
@@ -164,7 +164,7 @@ async fn respond(request: Request<Incoming>, mcp: &Mcp, token: &RwLock<String>) 
         tracing::info!("assistant request turned away: no valid token");
         let mut response = plain(
             StatusCode::UNAUTHORIZED,
-            "Quill needs the token from Settings → Meetings → AI assistants, as \
+            "Quill needs the token from Settings → AI assistants, as \
              'Authorization: Bearer <token>'.",
         );
         response

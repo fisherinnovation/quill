@@ -85,7 +85,7 @@ enum Command {
     Search(search::Args),
     /// Let AI assistants such as Claude read the meeting library: an MCP
     /// server on stdin/stdout, for the assistant to start. Serves only while
-    /// Settings → Meetings → Let AI assistants read your meetings is on
+    /// Settings → AI assistants → Let AI assistants read your meetings is on
     Mcp,
 }
 
