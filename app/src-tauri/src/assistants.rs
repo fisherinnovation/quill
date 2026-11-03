@@ -1,5 +1,5 @@
 //! Serving the library to AI assistants (`quill_mcp::http`) on
-//! `http://127.0.0.1:<port>/mcp` while Settings → Meetings → Let AI
+//! `http://127.0.0.1:<port>/mcp` while Settings → AI assistants → Let AI
 //! assistants read your meetings is on: started when it's turned on or
 //! Quill starts with it on, stopped when it's turned off or Quill quits.
 //! No restart is needed either way. The UI asks for confirmation before

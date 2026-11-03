@@ -17,14 +17,14 @@ import {
   type Theme,
 } from "../api";
 import { AccessCheck } from "./AccessCheck";
-import { AssistantRows } from "./Assistants";
+import { AssistantSettingsTab } from "./Assistants";
 import { DictationSettingsTab } from "./DictationSettings";
 import { Icon } from "./Icon";
 import { KnownVoicesRows } from "./KnownVoices";
 import { Group, LANGUAGES, Row, SaveIndicator, type SaveState, Switch, useAutosave } from "./ui";
 import { UpdateRows } from "./Updates";
 
-export type SettingsTab = "general" | "meetings" | "dictation" | "models" | "storage";
+export type SettingsTab = "general" | "meetings" | "dictation" | "assistants" | "models" | "storage";
 
 const THEMES: [Theme, string][] = [
   ["system", "System"],
@@ -36,6 +36,7 @@ const TABS: [SettingsTab, string][] = [
   ["general", "General"],
   ["meetings", "Meetings"],
   ["dictation", "Dictation"],
+  ["assistants", "AI assistants"],
   ["models", "Models"],
   ["storage", "Storage"],
 ];
@@ -271,11 +272,6 @@ export function SettingsView({
           />
         </Row>
       </Group>
-
-      <Group title="AI assistants">
-        <AssistantRows settings={settings} update={update} />
-      </Group>
-
         </>
       )}
 
@@ -288,6 +284,8 @@ export function SettingsView({
           onReviewSamples={onReviewSamples}
         />
       )}
+
+      {tab === "assistants" && <AssistantSettingsTab settings={settings} update={update} />}
 
       {tab === "models" && (
         <ModelsGroup settings={current} update={update} onChanged={() => setDiskVersion((v) => v + 1)} />

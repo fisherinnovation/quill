@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { type AssistantServer, api, errorText, events, type Settings } from "../api";
-import { Banner, Row, Switch } from "./ui";
+import { Banner, Group, Row, Switch } from "./ui";
 
 /**
- * Settings → Meetings: letting AI assistants such as Claude read the
+ * Settings → AI assistants: letting AI assistants such as Claude read the
  * library (quill_mcp). Turning it on asks first; then Quill serves them on
  * a localhost URL, shown here with the token and a command to connect
  * Claude Code, until it's turned off.
  */
-export function AssistantRows({
+export function AssistantSettingsTab({
   settings,
   update,
 }: {
@@ -64,155 +64,156 @@ export function AssistantRows({
 
   return (
     <>
-      <Row
-        label="Let AI assistants read your meetings"
-        hint="An assistant such as Claude Code can search your meetings and read their notes, transcripts and action items, to answer what you ask it. Dictations are never shared."
-      >
-        <Switch
+      <Group title="Access">
+        <Row
           label="Let AI assistants read your meetings"
-          checked={settings.assistant_access || confirming}
-          onChange={(on) => {
-            if (on) {
-              setConfirming(true);
-            } else {
-              setConfirming(false);
-              update({ assistant_access: false });
-            }
-          }}
-        />
-      </Row>
-
-      {confirming && !settings.assistant_access && (
-        <Banner
-          kind="warning"
-          icon="lock"
-          action={
-            <div className="assistant-confirm">
-              <button
-                className="primary"
-                onClick={() => {
-                  setConfirming(false);
-                  update({ assistant_access: true });
-                }}
-              >
-                Turn on
-              </button>
-              <button onClick={() => setConfirming(false)}>Cancel</button>
-            </div>
-          }
-        >
-          <strong>Share your meetings with AI assistants?</strong> Assistants you connect will be able to read every
-          meeting's notes, transcript and action items. What they read is sent to that assistant's provider (for
-          Claude, Anthropic). While Quill is open it serves them at an address on this computer only, with a token they
-          must have, until you turn this off.
-        </Banner>
-      )}
-
-      {settings.assistant_access && (
-        <Row
-          label="Let them change your vocabulary"
-          hint="Assistants can add names and terms to Settings → Dictation → Words, and take them out, so meeting notes and dictations spell them right. Only through the address below, while Quill is open."
+          hint="An assistant such as Claude Code can search your meetings and read their notes, transcripts and action items, to answer what you ask it. Dictations are never shared."
         >
           <Switch
-            label="Let them change your vocabulary"
-            checked={settings.assistant_vocabulary}
-            onChange={(on) => update({ assistant_vocabulary: on })}
-          />
-        </Row>
-      )}
-
-      {settings.assistant_access && (
-        <Row
-          label="Let them tick off action items"
-          hint="Assistants can mark your action items done, and undo that, so a to-do list kept elsewhere stays in step with Quill."
-        >
-          <Switch
-            label="Let them tick off action items"
-            checked={settings.assistant_action_items}
-            onChange={(on) => update({ assistant_action_items: on })}
-          />
-        </Row>
-      )}
-
-      {settings.assistant_access && (
-        <Row
-          label="Let them suggest names for speakers"
-          hint="Assistants can name people on a call left as Speaker 1, 2… when the transcript shows who they are, or merge two who are the same person. Their names show as suggestions until you confirm them, and never replace names you gave."
-        >
-          <Switch
-            label="Let them suggest names for speakers"
-            checked={settings.assistant_speakers}
-            onChange={(on) => update({ assistant_speakers: on })}
-          />
-        </Row>
-      )}
-
-      {settings.assistant_access && server?.error && (
-        <Row label="Not available" hint={server.error}>
-          {null}
-        </Row>
-      )}
-
-      {running && (
-        <>
-          <Row label="Address" hint="Where assistants connect. Only this computer can reach it.">
-            <code className="assistant-value">{server.url}</code>
-            <button onClick={() => void copy("url", server.url ?? "")}>{copied === "url" ? "Copied" : "Copy"}</button>
-          </Row>
-          <Row
-            label="Token"
-            hint="Assistants send it with every request. Anyone with it can read your meetings while this is on: a new token locks out everything set up with the old one."
-          >
-            {confirmRenew ? (
-              <div className="confirm">
-                Lock out connected assistants?
-                <button className="danger" onClick={() => void renew()}>
-                  New token
-                </button>
-                <button onClick={() => setConfirmRenew(false)}>Cancel</button>
-              </div>
-            ) : (
-              <>
-                <code className="assistant-value">{showToken ? server.token : "•".repeat(16)}</code>
-                <button onClick={() => setShowToken((s) => !s)}>{showToken ? "Hide" : "Show"}</button>
-                <button onClick={() => void copy("token", server.token ?? "")}>
-                  {copied === "token" ? "Copied" : "Copy"}
-                </button>
-                <button onClick={() => setConfirmRenew(true)}>New token…</button>
-              </>
-            )}
-          </Row>
-          <Row
-            label="Connect Claude Code"
-            hint="Run this once in a terminal. It includes the token. Other assistants take the address and the token as an Authorization: Bearer header; see Help for Claude Desktop."
-          >
-            <button onClick={() => void copy("command", command)}>
-              {copied === "command" ? "Copied" : "Copy command"}
-            </button>
-          </Row>
-        </>
-      )}
-
-      {settings.assistant_access && (
-        <Row label="Port" hint="Change it if another app uses this one. Assistants need the new address.">
-          <input
-            className="assistant-port"
-            inputMode="numeric"
-            aria-label="Port for AI assistants"
-            value={port}
-            onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
-            onBlur={commitPort}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitPort();
+            label="Let AI assistants read your meetings"
+            checked={settings.assistant_access || confirming}
+            onChange={(on) => {
+              if (on) {
+                setConfirming(true);
+              } else {
+                setConfirming(false);
+                update({ assistant_access: false });
+              }
             }}
           />
         </Row>
+
+        {confirming && !settings.assistant_access && (
+          <Banner
+            kind="warning"
+            icon="lock"
+            action={
+              <div className="assistant-confirm">
+                <button
+                  className="primary"
+                  onClick={() => {
+                    setConfirming(false);
+                    update({ assistant_access: true });
+                  }}
+                >
+                  Turn on
+                </button>
+                <button onClick={() => setConfirming(false)}>Cancel</button>
+              </div>
+            }
+          >
+            <strong>Share your meetings with AI assistants?</strong> Assistants you connect will be able to read every
+            meeting's notes, transcript and action items. What they read is sent to that assistant's provider (for
+            Claude, Anthropic). While Quill is open it serves them at an address on this computer only, with a token
+            they must have, until you turn this off.
+          </Banner>
+        )}
+
+        {settings.assistant_access && server?.error && (
+          <Row label="Not available" hint={server.error}>
+            {null}
+          </Row>
+        )}
+
+        {error && (
+          <Row label="AI assistants" hint={error}>
+            {null}
+          </Row>
+        )}
+      </Group>
+
+      {settings.assistant_access && (
+        <Group title="What they can change">
+          <Row
+            label="Let them change your vocabulary"
+            hint="Assistants can add names and terms to Settings → Dictation → Words, and take them out, so meeting notes and dictations spell them right. Only through the address below, while Quill is open."
+          >
+            <Switch
+              label="Let them change your vocabulary"
+              checked={settings.assistant_vocabulary}
+              onChange={(on) => update({ assistant_vocabulary: on })}
+            />
+          </Row>
+          <Row
+            label="Let them tick off action items"
+            hint="Assistants can mark your action items done, and undo that, so a to-do list kept elsewhere stays in step with Quill."
+          >
+            <Switch
+              label="Let them tick off action items"
+              checked={settings.assistant_action_items}
+              onChange={(on) => update({ assistant_action_items: on })}
+            />
+          </Row>
+          <Row
+            label="Let them suggest names for speakers"
+            hint="Assistants can name people on a call left as Speaker 1, 2… when the transcript shows who they are, or merge two who are the same person. Their names show as suggestions until you confirm them, and never replace names you gave."
+          >
+            <Switch
+              label="Let them suggest names for speakers"
+              checked={settings.assistant_speakers}
+              onChange={(on) => update({ assistant_speakers: on })}
+            />
+          </Row>
+        </Group>
       )}
 
-      {error && (
-        <Row label="AI assistants" hint={error}>
-          {null}
-        </Row>
+      {settings.assistant_access && (
+        <Group title="Connecting">
+          {running && (
+            <>
+              <Row label="Address" hint="Where assistants connect. Only this computer can reach it.">
+                <code className="assistant-value">{server.url}</code>
+                <button onClick={() => void copy("url", server.url ?? "")}>
+                  {copied === "url" ? "Copied" : "Copy"}
+                </button>
+              </Row>
+              <Row
+                label="Token"
+                hint="Assistants send it with every request. Anyone with it can read your meetings while this is on: a new token locks out everything set up with the old one."
+              >
+                {confirmRenew ? (
+                  <div className="confirm">
+                    Lock out connected assistants?
+                    <button className="danger" onClick={() => void renew()}>
+                      New token
+                    </button>
+                    <button onClick={() => setConfirmRenew(false)}>Cancel</button>
+                  </div>
+                ) : (
+                  <>
+                    <code className="assistant-value">{showToken ? server.token : "•".repeat(16)}</code>
+                    <button onClick={() => setShowToken((s) => !s)}>{showToken ? "Hide" : "Show"}</button>
+                    <button onClick={() => void copy("token", server.token ?? "")}>
+                      {copied === "token" ? "Copied" : "Copy"}
+                    </button>
+                    <button onClick={() => setConfirmRenew(true)}>New token…</button>
+                  </>
+                )}
+              </Row>
+              <Row
+                label="Connect Claude Code"
+                hint="Run this once in a terminal. It includes the token. Other assistants take the address and the token as an Authorization: Bearer header; see Help for Claude Desktop."
+              >
+                <button onClick={() => void copy("command", command)}>
+                  {copied === "command" ? "Copied" : "Copy command"}
+                </button>
+              </Row>
+            </>
+          )}
+          <Row label="Port" hint="Change it if another app uses this one. Assistants need the new address.">
+            <input
+              className="assistant-port"
+              inputMode="numeric"
+              aria-label="Port for AI assistants"
+              value={port}
+              onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
+              onBlur={commitPort}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitPort();
+              }}
+            />
+          </Row>
+        </Group>
       )}
     </>
   );

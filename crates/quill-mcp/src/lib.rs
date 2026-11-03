@@ -61,24 +61,24 @@ pub trait Context: Send + Sync + 'static {
 
 /// What an assistant is told when access is off.
 pub const TURNED_OFF: &str = "Quill isn't sharing meetings with AI assistants. The user can turn \
-     it on in Quill: Settings → Meetings → Let AI assistants read your meetings.";
+     it on in Quill: Settings → AI assistants → Let AI assistants read your meetings.";
 
 /// What an assistant is told when it may read the vocabulary but not change it.
 pub const VOCABULARY_LOCKED: &str = "Quill doesn't let AI assistants change the vocabulary. \
-     The user can turn it on in Quill: Settings → Meetings → Let them change your vocabulary.";
+     The user can turn it on in Quill: Settings → AI assistants → Let them change your vocabulary.";
 
 /// What an assistant is told when it may read action items but not tick them.
-pub const ACTION_ITEMS_LOCKED: &str = "Quill doesn't let AI assistants tick off action items.      The user can turn it on in Quill: Settings → Meetings → Let them tick off action items.";
+pub const ACTION_ITEMS_LOCKED: &str = "Quill doesn't let AI assistants tick off action items.      The user can turn it on in Quill: Settings → AI assistants → Let them tick off action items.";
 
 /// What an assistant is told when it may read speakers but not name them.
 pub const SPEAKERS_LOCKED: &str = "Quill doesn't let AI assistants name the people on calls. \
-     The user can turn it on in Quill: Settings → Meetings → Let them suggest names for speakers.";
+     The user can turn it on in Quill: Settings → AI assistants → Let them suggest names for speakers.";
 
 /// What `quill-cli mcp` says when asked to change the vocabulary: the app
 /// keeps its settings in memory and would later save over the change.
 pub const VOCABULARY_APP_ONLY: &str = "This connection (quill-cli mcp) can only read the \
      vocabulary. Change it through the Quill app's own connection, while the app is open: \
-     its address is in Settings → Meetings.";
+     its address is in Settings → AI assistants.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum McpError {

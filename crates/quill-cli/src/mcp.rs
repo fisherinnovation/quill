@@ -2,7 +2,7 @@
 //! assistant that starts it itself (`claude mcp add quill -- quill-cli mcp`).
 //! The app serves the same tools on a localhost URL instead.
 //!
-//! It serves only while Settings → Meetings → Let AI assistants read your
+//! It serves only while Settings → AI assistants → Let AI assistants read your
 //! meetings is on, which it reads from `settings.toml` on every request.
 //! stdout carries the protocol, so logs go to stderr, as always in the CLI.
 

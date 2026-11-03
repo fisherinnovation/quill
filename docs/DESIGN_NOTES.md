@@ -1384,11 +1384,16 @@ gives it the library, the search model and the setting through
   - It's served with `hyper` directly rather than axum. hyper was already in
     the tree through reqwest, and one route needs no router.
 - **Off unless the user turns it on, in the app.** `assistant_access` is
-  switched in Settings → Meetings, never by the CLI. The app keeps settings
+  switched in Settings → AI assistants, never by the CLI. The app keeps settings
   in memory and writes the whole file when anything changes, so a flag set
   from the CLI would be undone by the app's next save. Each request
   re-checks the setting as well as the server stopping, so nothing is
   served after it's off.
+- **Their own Settings tab** (November 2026). The switches started under
+  Settings → Meetings, but grew to four switches, the address, token and
+  port: buried at the bottom of Meetings. Now Settings → AI assistants:
+  Access, What they can change, Connecting; only Access shows until it's
+  on. Messages that point assistants to a setting name the new place.
 - **Read-only, meetings only.** Tools: `search`, `list_meetings`,
   `get_meeting`, `action_items`, `daily_summary`. Dictations are left out,
   even from search (`assistants::search` drops them from
