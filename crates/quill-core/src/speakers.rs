@@ -190,7 +190,7 @@ impl Labelled {
 /// who aren't recognised are numbered "Speaker 1", "Speaker 2"… among
 /// themselves, by who speaks first. A line where the speaker changes is
 /// split there, if its words are timed (see
-/// [`quill_diarize::label_segments`]).
+/// [`quill_diarize::label_segments`]), and the lines stay in time order.
 pub fn label_and_recognize(
     segments: &[Segment],
     analysis: &Analysis,
@@ -265,6 +265,10 @@ pub fn label_and_recognize(
             out[k].speaker = Some(call[pos].label.clone());
         }
     }
+    // A split line's later half can start after a line of the user's that
+    // came next: put them back in time order. (Stable, as in
+    // `meeting::merge_tracks`.)
+    out.sort_by_key(|s| s.start_ms);
     Labelled {
         segments: out,
         speakers: order.len(),
@@ -409,6 +413,28 @@ mod tests {
             ]
         );
         assert_eq!(count, 2);
+
+        // The user speaks between the two halves: the lines stay in time
+        // order.
+        let segments = [
+            segments[0].clone(),
+            segments[1].clone(),
+            seg(5500, 5900, "Me"),
+        ];
+        let (labelled, _) = label(&segments, &analysis(), None);
+        let lines: Vec<_> = labelled
+            .iter()
+            .map(|s| (s.start_ms, s.speaker.as_deref().unwrap()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                (0, "Me"),
+                (4000, "Speaker 1"),
+                (5500, "Me"),
+                (6200, "Speaker 2")
+            ]
+        );
     }
 
     #[test]
