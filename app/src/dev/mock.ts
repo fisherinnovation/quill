@@ -327,6 +327,7 @@ const settings = {
   offer_to_record_calls: true,
   live_notes: true,
   notify_notes_ready: true,
+  your_name: null,
   recognize_voices: true,
   semantic_search: true,
   assistant_access: flags.has("assistants"),

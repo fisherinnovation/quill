@@ -59,6 +59,9 @@ pub struct Settings {
     /// A system notification when a meeting's notes are ready (or couldn't
     /// be written), if Quill isn't in front.
     pub notify_notes_ready: bool,
+    /// What meeting notes call the user, for notes pasted elsewhere; `None`
+    /// is "you" (see `quill_core::summary::your_name`).
+    pub your_name: Option<String>,
     /// Remember the voices of people the user names on calls, and name them
     /// automatically in later meetings (`quill_core::voices`).
     pub recognize_voices: bool,
@@ -239,6 +242,7 @@ impl Default for Settings {
             offer_to_record_calls: true,
             live_notes: true,
             notify_notes_ready: true,
+            your_name: None,
             recognize_voices: true,
             semantic_search: true,
             assistant_access: false,

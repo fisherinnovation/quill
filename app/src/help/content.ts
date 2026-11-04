@@ -223,7 +223,7 @@ The search box opens [search](#search), narrowed to meetings: their titles and e
       {
         id: "summary-tab",
         title: "Notes: the Summary tab",
-        keywords: "summary notes tldr action items decisions export markdown copy re-summarize",
+        keywords: "summary notes tldr action items decisions export markdown copy re-summarize your name you",
         body: `Open a meeting to see its notes: a TL;DR, decisions, action items with owners, the discussion by topic and open questions. Long meetings are summarized in parts and combined. Action items can be ticked off right in the notes; see [Action items](#action-items).
 
 - **Re-summarize** writes the notes again, for example after naming speakers or choosing another model.
@@ -231,6 +231,7 @@ The search box opens [search](#search), narrowed to meetings: their titles and e
 - **Copy** puts the notes on your clipboard as Markdown, ready for a doc or a message.
 - **Export** saves them as a \`.md\` file.
 - Click the title to rename the meeting.
+- Notes call you "you". To be named instead, say for notes you paste elsewhere, set **Settings → Meetings → Your name in notes**. Notes written from then on use it, and action items owned by that name are still yours.
 
 If notes weren't written (no model set up, or **Summarize automatically** is off), the Summary tab has **Summarize** to write them.`,
       },

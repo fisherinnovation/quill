@@ -278,6 +278,30 @@ decision someone might otherwise undo.
   Haiku 5.5 named exactly the three right people in 3 runs of 3, and the
   notes called the unnamed ones "host" and "another participant".
 
+- **summary-v7: you, and the other person in a 1:1.** From the notes
+  fidelity feedback (tickets 7, 9 and 11): notes wrote "Me said…", using
+  the transcript's label as a name; a 1:1 called the other person "the
+  other participant" throughout though the user said their name; a title
+  called the other person a new hire when the user was; and "Speaker
+  unclear" was used for people only mentioned. The notes model now sees
+  the user's lines labelled "You", never "Me", so there's no label to copy,
+  and is told what to call them: "you", or the name in **Settings →
+  Meetings → Your name in notes** (`Settings::your_name`, letters only and
+  not a transcript label, `summary::your_name`). The name goes in every
+  request, single, part and combining, and is saved with the notes
+  (`summaries.you_as`, migration 20): action items owned by it are the
+  user's, by the latest notes' name, so changing it later doesn't take
+  older items away. When only one other person speaks, the name the user
+  calls them by is theirs; roles aren't guessed; "speaker unclear" is only
+  for a line whose speaker is in doubt. On a scripted 1:1
+  (`eval/transcripts/one-on-one-names.json`: "Others" for the other
+  person, named once, in the small talk; the user is the new hire; a
+  "Dan" who's only mentioned), Haiku 5.5 with v6 called her "the other
+  participant" in 2 runs of 3, and with v7 named her in 3 of 3. Neither
+  wrote "Me" as a name, a role in the title or "speaker unclear". With
+  `--your-name Sam`, 3 of 3 gave Sam's items to "Sam" and never said
+  "you". Not yet compared on real meetings.
+
 ## Daily summaries
 
 On the Meetings page, a day with two or more meetings that have notes gets

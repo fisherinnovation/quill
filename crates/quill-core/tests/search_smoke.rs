@@ -100,6 +100,7 @@ fn finds_notes_action_items_and_dictations_by_meaning() {
             latency_ms: 0,
             complete: true,
             speakers: Vec::new(),
+            you_as: None,
         },
     )
     .unwrap();

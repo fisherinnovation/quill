@@ -308,14 +308,16 @@ fn is_placeholder(task: &str) -> bool {
 }
 
 /// Whether the owner is the person recording: "You" (or "Me", in older
-/// notes), alone or with others.
-pub fn is_mine(owner: Option<&str>) -> bool {
+/// notes), or `you_as`, the name the notes call them by, alone or with
+/// others.
+pub fn is_mine(owner: Option<&str>, you_as: Option<&str>) -> bool {
+    let name = you_as.map(str::to_lowercase);
     owner.is_some_and(|o| {
         o.to_lowercase()
             .split([',', '&', '/', '(', ')'])
             .flat_map(|part| part.split(" and "))
             .map(str::trim)
-            .any(|who| who == "you" || who == "me")
+            .any(|who| who == "you" || who == "me" || name.as_deref() == Some(who))
     })
 }
 
@@ -723,13 +725,18 @@ mod tests {
 
     #[test]
     fn knows_your_items_from_others() {
-        assert!(is_mine(Some("You")));
-        assert!(is_mine(Some("You and Priya")));
-        assert!(is_mine(Some("Priya, you")));
-        assert!(is_mine(Some("Me")));
-        assert!(!is_mine(Some("Priya")));
-        assert!(!is_mine(Some("Yousef")));
-        assert!(!is_mine(None));
+        assert!(is_mine(Some("You"), None));
+        assert!(is_mine(Some("You and Priya"), None));
+        assert!(is_mine(Some("Priya, you"), None));
+        assert!(is_mine(Some("Me"), None));
+        assert!(!is_mine(Some("Priya"), None));
+        assert!(!is_mine(Some("Yousef"), None));
+        assert!(!is_mine(None, None));
+        // Notes that call the user by name.
+        assert!(is_mine(Some("Sam Lee"), Some("Sam Lee")));
+        assert!(is_mine(Some("Priya and sam lee"), Some("Sam Lee")));
+        assert!(!is_mine(Some("Sam"), Some("Sam Lee")));
+        assert!(!is_mine(Some("Priya"), Some("Sam Lee")));
     }
 
     #[test]

@@ -30,6 +30,10 @@ pub struct SummaryPrompts {
     /// naming numbered speakers, for Quill to suggest (not part of the
     /// notes). From v6.
     pub speaker_names: bool,
+    /// Whether the transcript labels the recorder "You" (not "Me"), and
+    /// `single`, `chunk` and `reduce` take `you`: how to refer to them in
+    /// the notes (see [`you_note`]). From v7.
+    pub you: bool,
 }
 
 // `concat!(env!("CARGO_MANIFEST_DIR"), ...)` builds an absolute path at
@@ -52,6 +56,7 @@ pub const SUMMARY_V1: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v1/reduce.md"),
     vocabulary: false,
     speaker_names: false,
+    you: false,
 };
 
 /// v2: resolves "I/you/we" relative to each speaker (v1 once reversed who
@@ -65,6 +70,7 @@ pub const SUMMARY_V2: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v2/reduce.md"),
     vocabulary: false,
     speaker_names: false,
+    you: false,
 };
 
 /// v3: understands voice-separated speakers ("Speaker 1", …) and names the
@@ -77,6 +83,7 @@ pub const SUMMARY_V3: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v3/reduce.md"),
     vocabulary: false,
     speaker_names: false,
+    you: false,
 };
 
 /// v4: given the user's vocabulary (names and terms speech recognition
@@ -89,6 +96,7 @@ pub const SUMMARY_V4: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v4/reduce.md"),
     vocabulary: true,
     speaker_names: false,
+    you: false,
 };
 
 /// v5: decisions split into decided, direction given and proposed; action
@@ -103,6 +111,7 @@ pub const SUMMARY_V5: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v5/reduce.md"),
     vocabulary: true,
     speaker_names: false,
+    you: false,
 };
 
 /// v6: links a name to a numbered speaker only when they're handed the
@@ -117,16 +126,47 @@ pub const SUMMARY_V6: SummaryPrompts = SummaryPrompts {
     reduce: prompt!("summary-v6/reduce.md"),
     vocabulary: true,
     speaker_names: true,
+    you: false,
+};
+
+/// v7: the recorder is labelled "You", so the notes have no "Me" to copy
+/// as a name, and called "you" or by the name the user gives. In a 1:1 the
+/// other person is the one the recorder calls by name. No guessed roles,
+/// and "speaker unclear" only for lines whose speaker is in doubt.
+pub const SUMMARY_V7: SummaryPrompts = SummaryPrompts {
+    version: "summary-v7",
+    system: prompt!("summary-v7/system.md"),
+    single: prompt!("summary-v7/single.md"),
+    chunk: prompt!("summary-v7/chunk.md"),
+    reduce: prompt!("summary-v7/reduce.md"),
+    vocabulary: true,
+    speaker_names: true,
+    you: true,
 };
 
 /// The version used by default.
-pub const SUMMARY: SummaryPrompts = SUMMARY_V6;
+pub const SUMMARY: SummaryPrompts = SUMMARY_V7;
 
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
 pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[
-    SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5, SUMMARY_V6,
+    SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5, SUMMARY_V6, SUMMARY_V7,
 ];
+
+/// The `you` value for summary prompts that take one: how the notes refer
+/// to the recorder, "you" or `name`, as a paragraph ending in a blank line.
+pub fn you_note(name: Option<&str>) -> String {
+    match name {
+        None => "In the notes, refer to the person labelled \"You\" as \"you\" \
+                 (\"You proposed…\", \"**You** — send the draft\").\n\n"
+            .to_string(),
+        Some(name) => format!(
+            "The person labelled \"You\" is {name}. In the notes, refer to them \
+             as {name}, never as \"you\" (\"{name} proposed…\", \"**{name}** — \
+             send the draft\").\n\n"
+        ),
+    }
+}
 
 /// The `vocabulary` value for summary prompts that take one: the user's
 /// names and terms as a paragraph, ready to sit above the transcript, or
@@ -350,11 +390,14 @@ mod tests {
     }
 
     fn check_summary_templates(p: &SummaryPrompts) {
-        // `vocabulary` too, for the versions that take it.
+        // `vocabulary` and `you` too, for the versions that take them.
         let with = |vars: &[(&'static str, &'static str)]| {
             let mut vars = vars.to_vec();
             if p.vocabulary {
                 vars.push(("vocabulary", "v"));
+            }
+            if p.you {
+                vars.push(("you", "y"));
             }
             vars
         };
@@ -393,6 +436,14 @@ mod tests {
         assert!(note.ends_with(": Prall, Shrivastava.\n\n"), "{note}");
     }
 
+    #[test]
+    fn you_note_says_you_or_the_name() {
+        assert!(you_note(None).contains("as \"you\""));
+        let named = you_note(Some("Sam Lee"));
+        assert!(named.contains("is Sam Lee") && named.contains("**Sam Lee**"));
+        assert!(named.ends_with("\n\n"));
+    }
+
     /// Golden file for the live-notes prompt; regenerate like the others.
     #[test]
     fn live_prompt_golden() {
@@ -426,6 +477,7 @@ mod tests {
     #[test]
     fn single_prompt_golden() {
         let vocabulary = vocabulary_note(&["Quill".into(), "OpenRouter".into()]);
+        let you = you_note(Some("Sam"));
         let rendered = render(
             SUMMARY.single,
             &[
@@ -433,9 +485,10 @@ mod tests {
                 ("duration", "2 min"),
                 (
                     "transcript",
-                    "[00:00] Me: Shall we ship Friday?\n[00:04] Others: Yes, Friday works.",
+                    "[00:00] You: Shall we ship Friday?\n[00:04] Others: Yes, Friday works.",
                 ),
                 ("vocabulary", &vocabulary),
+                ("you", &you),
             ],
         )
         .unwrap();
