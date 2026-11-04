@@ -373,6 +373,11 @@ On the Meetings page, a day with two or more meetings that have notes gets
   around them, else the words inside; and owners that name no one are
   `None`. Migration 15 reads every meeting's items again from its latest
   notes, keeping ticks, so libraries are fixed without re-summarizing.
+- **Hedged and quoted due dates** (notes fidelity feedback, ticket 6):
+  "hopefully by the end of this week", written in quotes, had no
+  `due_date` over MCP. Hedges ("hopefully", "ideally", "probably",
+  "maybe", "around", "roughly", "sometime") and double quotes are now
+  dropped before reading the date; migration 19 reads items again.
 
 ## Dictation
 
