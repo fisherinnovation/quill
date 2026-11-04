@@ -273,6 +273,7 @@ pub async fn summarize_day(
         latency_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         complete: !response.truncated,
         speakers: Vec::new(),
+        you_as: None,
     })
 }
 
@@ -408,6 +409,7 @@ mod tests {
             latency_ms: 0,
             complete: true,
             speakers: Vec::new(),
+            you_as: None,
         }
     }
 

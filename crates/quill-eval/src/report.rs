@@ -197,6 +197,7 @@ mod tests {
                 latency_ms: 2000,
                 complete: true,
                 speakers: Vec::new(),
+                you_as: None,
             }),
             scores: overall.map(|o| Scores {
                 completeness: o,

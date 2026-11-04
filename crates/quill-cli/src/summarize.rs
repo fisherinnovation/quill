@@ -32,6 +32,10 @@ pub struct Args {
     /// OpenRouter: allow providers that may store or train on the transcript
     #[arg(long)]
     allow_data_collection: bool,
+    /// What the notes call you instead of "you" [default: Settings →
+    /// Meetings → Your name in notes]
+    #[arg(long, conflicts_with = "incomplete")]
+    your_name: Option<String>,
 }
 
 pub fn run(args: Args) -> anyhow::Result<()> {
@@ -73,6 +77,11 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         &segments,
         &date,
         &vocabulary(),
+        match &args.your_name {
+            Some(name) => summary::your_name(name),
+            None => your_name(),
+        }
+        .as_deref(),
     ))?;
 
     println!("{}", summary.markdown);
@@ -109,6 +118,7 @@ fn again_where_incomplete(
     }
     eprintln!("{} meeting(s) with incomplete notes.", ids.len());
     let vocabulary = vocabulary();
+    let you = your_name();
     let mut still = 0;
     for id in &ids {
         let detail = library.get(id)?;
@@ -122,6 +132,7 @@ fn again_where_incomplete(
                 &detail.segments,
                 &date,
                 &vocabulary,
+                you.as_deref(),
             ))
             .with_context(|| format!("summarizing {id}"))?;
         library.save_summary(id, &summary)?;
@@ -148,6 +159,15 @@ fn vocabulary() -> Vec<String> {
     crate::library::settings()
         .map(|s| s.dictation.vocabulary)
         .unwrap_or_default()
+}
+
+/// What the notes call the user (Settings → Meetings), if anything but "you".
+fn your_name() -> Option<String> {
+    crate::library::settings()
+        .ok()?
+        .your_name
+        .as_deref()
+        .and_then(summary::your_name)
 }
 
 fn read_transcript(path: &Path) -> anyhow::Result<Vec<Segment>> {

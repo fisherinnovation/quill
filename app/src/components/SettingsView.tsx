@@ -258,6 +258,7 @@ export function SettingsView({
             onChange={(notify_notes_ready) => update({ notify_notes_ready })}
           />
         </Row>
+        <YourName name={settings.your_name} onChange={(your_name) => update({ your_name })} />
       </Group>
 
       <Group title="Search">
@@ -293,6 +294,34 @@ export function SettingsView({
 
       {tab === "storage" && <Storage version={diskVersion} />}
     </div>
+  );
+}
+
+/** What notes call you, saved when you leave the box; empty is "you". */
+function YourName({ name, onChange }: { name: string | null; onChange: (name: string | null) => void }) {
+  const [text, setText] = useState(name ?? "");
+  const commit = () => {
+    const trimmed = text.trim().replace(/\s+/g, " ");
+    setText(trimmed);
+    if ((trimmed || null) !== name) onChange(trimmed || null);
+  };
+  return (
+    <Row
+      label="Your name in notes"
+      hint={`Notes and action items call you ${text.trim() ? `"${text.trim()}"` : '"you"'}, handy when you paste them elsewhere. Applies to notes written from now on. Leave it empty for "you".`}
+    >
+      <input
+        aria-label="Your name in notes"
+        placeholder="you"
+        maxLength={60}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+      />
+    </Row>
   );
 }
 

@@ -193,6 +193,8 @@ export interface Settings {
   live_notes: boolean;
   /** A system notification when a meeting's notes are ready, if Quill isn't in front. */
   notify_notes_ready: boolean;
+  /** What meeting notes call you instead of "you"; null is "you". */
+  your_name: string | null;
   /** Remember the voices of people named on calls and name them in later meetings. */
   recognize_voices: boolean;
   /** Search by meaning as well as words, once the model is downloaded. */

@@ -774,6 +774,7 @@ mod tests {
             latency_ms: 0,
             complete: true,
             speakers: Vec::new(),
+            you_as: None,
         }
     }
 

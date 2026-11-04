@@ -186,6 +186,7 @@ mod tests {
                 latency_ms: 1500,
                 complete: true,
                 speakers: Vec::new(),
+                you_as: None,
             }),
             scores: Some(Scores {
                 completeness: 8.0,

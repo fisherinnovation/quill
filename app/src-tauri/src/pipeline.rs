@@ -470,6 +470,11 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
         &detail.segments,
         &date,
         &settings.dictation.vocabulary,
+        settings
+            .your_name
+            .as_deref()
+            .and_then(summary::your_name)
+            .as_deref(),
     )
     .await
     .map_err(|e| e.to_string())?;

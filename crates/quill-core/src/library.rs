@@ -365,6 +365,11 @@ ALTER TABLE suggested_speakers ADD COLUMN was TEXT;
 -- notes (see `Library::init`), now that \"hopefully by the end of this
 -- week\" and quoted due dates are dates.
 ",
+    "
+-- The name the notes call the user by (Settings → Meetings), when not
+-- \"you\": action items owned by that name are theirs.
+ALTER TABLE summaries ADD COLUMN you_as TEXT;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -514,18 +519,22 @@ pub struct ActionItem {
 }
 
 /// The columns [`action_item_row`] reads, in its order (`a` is
-/// `action_items`, `m` its meeting).
+/// `action_items`, `m` its meeting), and the name the meeting's latest
+/// notes, which the items were read from, call the user by.
 const ACTION_ITEM_COLUMNS: &str = "a.id, a.meeting_id, m.title, m.started_at, a.owner, a.task, \
-     a.due_text, a.due_date, a.done_at, a.committed, a.source_ms";
+     a.due_text, a.due_date, a.done_at, a.committed, a.source_ms, \
+     (SELECT s.you_as FROM summaries s WHERE s.meeting_id = a.meeting_id \
+      ORDER BY s.id DESC LIMIT 1)";
 
 fn action_item_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ActionItem> {
     let owner: Option<String> = r.get(4)?;
+    let you_as: Option<String> = r.get(11)?;
     Ok(ActionItem {
         id: r.get(0)?,
         meeting_id: r.get(1)?,
         meeting_title: r.get(2)?,
         meeting_started_at: r.get(3)?,
-        mine: action_items::is_mine(owner.as_deref()),
+        mine: action_items::is_mine(owner.as_deref(), you_as.as_deref()),
         owner,
         task: r.get(5)?,
         due_text: r.get(6)?,
@@ -1126,8 +1135,8 @@ impl Library {
         }
         tx.execute(
             "INSERT INTO summaries (meeting_id, markdown, model, prompt_version, prompt_tokens,
-                completion_tokens, cost_usd, latency_ms, created_at, complete)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                completion_tokens, cost_usd, latency_ms, created_at, complete, you_as)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 id,
                 summary.markdown,
@@ -1139,6 +1148,7 @@ impl Library {
                 to_i64(summary.latency_ms),
                 jiff::Timestamp::now().to_string(),
                 summary.complete,
+                summary.you_as,
             ],
         )?;
         if let Some(title) = title_from_markdown(&summary.markdown) {
@@ -1884,6 +1894,7 @@ mod tests {
             latency_ms: 1500,
             complete: true,
             speakers: Vec::new(),
+            you_as: None,
         }
     }
 
@@ -1964,6 +1975,33 @@ mod tests {
         assert_eq!(o.my_share, Some(0.5));
         let o = all.iter().find(|o| o.id == silent.id).unwrap();
         assert!(o.speaker.is_empty() && o.gist.is_none());
+    }
+
+    #[test]
+    fn action_items_are_yours_by_the_name_the_notes_call_you() {
+        let (lib, _dir) = library();
+        let m = lib.create_meeting().unwrap();
+        let mut named = summary(
+            "# Sync\n\n## Action items\n\
+             - **Sam Lee** — send the rollout plan\n\
+             - **Priya** — fix the signup events\n",
+        );
+        named.you_as = Some("Sam Lee".into());
+        lib.save_summary(&m.id, &named).unwrap();
+        let mine = |lib: &Library| -> Vec<bool> {
+            lib.action_items().unwrap().iter().map(|i| i.mine).collect()
+        };
+        assert_eq!(mine(&lib), [true, false]);
+
+        // Notes written later as "you" go by "you", not the old name.
+        let mut later = summary(
+            "# Sync\n\n## Action items\n\
+             - **You** — send the rollout plan\n\
+             - **Sam Lee** — fix the signup events\n",
+        );
+        later.you_as = None;
+        lib.save_summary(&m.id, &later).unwrap();
+        assert_eq!(mine(&lib), [true, false]);
     }
 
     #[test]
@@ -2056,6 +2094,7 @@ mod tests {
                  DROP TABLE semantic_chunks;
                  DROP TABLE semantic_index;
                  DROP TABLE suggested_speakers;
+                 ALTER TABLE summaries DROP COLUMN you_as;
                  PRAGMA user_version = 7;",
             )
             .unwrap();
@@ -2104,6 +2143,7 @@ mod tests {
                  ALTER TABLE action_items DROP COLUMN source_ms;
                  ALTER TABLE action_items DROP COLUMN committed;
                  DROP TABLE suggested_speakers;
+                 ALTER TABLE summaries DROP COLUMN you_as;
                  PRAGMA user_version = 14;",
             )
             .unwrap();

@@ -1,0 +1,17 @@
+[
+  {"start_ms": 0, "end_ms": 4200, "text": "Hey, can you hear me okay?", "speaker": "Me"},
+  {"start_ms": 4500, "end_ms": 9800, "text": "Yep, loud and clear. How was your weekend?", "speaker": "Others"},
+  {"start_ms": 10100, "end_ms": 16900, "text": "Good, we finally got the garden sorted. Anyway, thanks for making time, Priya.", "speaker": "Me"},
+  {"start_ms": 17200, "end_ms": 24800, "text": "Of course. So you're two weeks in now, how's it going so far?", "speaker": "Others"},
+  {"start_ms": 25100, "end_ms": 36400, "text": "Mostly good. I'm still finding my feet, honestly. The thing I'm least clear on is how billing fits with the rest of the platform.", "speaker": "Me"},
+  {"start_ms": 36800, "end_ms": 49500, "text": "That makes sense. I've owned billing since I joined in 2019, so I can walk you through it. The short version is that invoices are generated nightly from the usage tables.", "speaker": "Others"},
+  {"start_ms": 49800, "end_ms": 55300, "text": "Okay. And who decides when the billing release goes out?", "speaker": "Me"},
+  {"start_ms": 55600, "end_ms": 66900, "text": "Not me, actually. You should talk to Dan about the release calendar, he runs that. We stopped doing billing releases on Fridays last year after one went wrong.", "speaker": "Others"},
+  {"start_ms": 67200, "end_ms": 71800, "text": "That's fair. I'll ask Dan this week.", "speaker": "Me"},
+  {"start_ms": 72100, "end_ms": 84600, "text": "The other thing worth knowing is the on-call rotation. Billing has its own rotation, and you'll join it next month once you've shadowed a shift.", "speaker": "Others"},
+  {"start_ms": 84900, "end_ms": 91200, "text": "Got it. Is there something I should read before shadowing?", "speaker": "Me"},
+  {"start_ms": 91500, "end_ms": 101800, "text": "The billing runbook. It's long but the first three sections cover most incidents. I'll send you the on-call schedule tomorrow.", "speaker": "Others"},
+  {"start_ms": 102100, "end_ms": 108400, "text": "Great. I'll read the first three sections of the runbook by Friday.", "speaker": "Me"},
+  {"start_ms": 108700, "end_ms": 116900, "text": "Perfect. Let's do this again in two weeks and see where you are.", "speaker": "Others"},
+  {"start_ms": 117200, "end_ms": 120500, "text": "Sounds good. Thanks again.", "speaker": "Me"}
+]
