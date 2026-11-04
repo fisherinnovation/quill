@@ -144,13 +144,29 @@ pub const SUMMARY_V7: SummaryPrompts = SummaryPrompts {
     you: true,
 };
 
+/// v8: faithful to what was said: keeps the cause a speaker stressed, one
+/// concrete example per claim, tense and negation; adds no time frames;
+/// never joins two speakers' words into one claim. Resolves bare names
+/// against the vocabulary (listing ambiguous ones), acronyms and short
+/// years. Quotes lean to the other people and keep a stated mood.
+pub const SUMMARY_V8: SummaryPrompts = SummaryPrompts {
+    version: "summary-v8",
+    system: prompt!("summary-v8/system.md"),
+    single: prompt!("summary-v8/single.md"),
+    chunk: prompt!("summary-v8/chunk.md"),
+    reduce: prompt!("summary-v8/reduce.md"),
+    vocabulary: true,
+    speaker_names: true,
+    you: true,
+};
+
 /// The version used by default.
-pub const SUMMARY: SummaryPrompts = SUMMARY_V7;
+pub const SUMMARY: SummaryPrompts = SUMMARY_V8;
 
 /// Every summary prompt version this build knows, oldest first. Add new
 /// versions here (keep old ones so evals can compare against them).
 pub const SUMMARY_VERSIONS: &[SummaryPrompts] = &[
-    SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5, SUMMARY_V6, SUMMARY_V7,
+    SUMMARY_V1, SUMMARY_V2, SUMMARY_V3, SUMMARY_V4, SUMMARY_V5, SUMMARY_V6, SUMMARY_V7, SUMMARY_V8,
 ];
 
 /// The `you` value for summary prompts that take one: how the notes refer

@@ -302,6 +302,47 @@ decision someone might otherwise undo.
   `--your-name Sam`, 3 of 3 gave Sam's items to "Sam" and never said
   "you". Not yet compared on real meetings.
 
+- **summary-v8: faithful to what was said.** From the notes fidelity
+  feedback (tickets 1, 2, 5 and 8, and the prompt side of 3): notes kept a
+  broad answer and dropped the narrowed cause ("all of those, but mostly
+  X"), kept abstract claims without the anecdote behind them, reported a
+  practice the speaker said had stopped as current, added a time frame
+  nobody said, joined a talked-over sentence to the other person's words,
+  and left bare names, spoken acronyms and short years as heard. v8 tells
+  the model to keep stressed causes, one concrete example per claim, tense
+  and negation; to add no time frames or certainty; to read a sentence cut
+  by someone talking over it as one, and never join two people's words;
+  and to check each bullet against its cited lines. A first name or
+  surname alone that matches one vocabulary entry is written in full; one
+  matching several is listed under Open questions as "Unresolved names";
+  vocabulary acronyms stay acronyms; "into 27" is 2027. Notable quotes come
+  from the other people, including one stating how they feel, rather than
+  a separate sentiment line (the feedback asked for one; a quote in their
+  words says it without the model reading moods). A 1:1's title leads with
+  the other person's name. The rules live in v8's own system prompt, not
+  `vocabulary_note`, which v4–v7 share. Prompt examples are kept apart from
+  the eval fixtures, so the fixtures test the rules, not copying.
+  Two scripted fixtures: `one-on-one-fidelity.json` (a narrowed cause, an
+  example per claim, three "used to / now" contrasts and a "no longer", a
+  sentence talked over with a shared keyword, an agreement made in the
+  meeting, a closing mood, and a family-health aside in the small talk
+  that must stay out) and `team-names.json` with `team-names.vocabulary.txt`
+  (a surname and a first name with one match each, a "Dan" with two, "the
+  riff", "into 27", "back in 25"); `quill-cli eval` now reads a case's
+  vocabulary from `<case>.vocabulary.txt`. Haiku 5.5, v7 against v8:
+  over 10 runs of the 1:1, v7 joined the talked-over sentence to the
+  wrong speaker twice and v8 never; v7 quoted the closing mood in 5, v8 in
+  10. Over 4 runs of the names case, v8 wrote both short years, the
+  acronym, Marguerite Feeney and Dan Okafor right and listed the ambiguous
+  Dan every time, and Priya Raman in full in 3; v7 never listed Dan, got
+  the years in 2 and Marguerite's full name in 1. Both kept the stressed cause, the
+  examples and the tense in every run on these short fixtures (the
+  failures came from a 40-minute meeting, where they're likelier), and
+  neither leaked the small talk. In one v8 run of 15 a relayed request
+  ("Marguerite wants…") was put to the person relaying it. About 800 more
+  input tokens per request (~$0.0003 a summary). Not yet compared on real
+  meetings.
+
 ## Daily summaries
 
 On the Meetings page, a day with two or more meetings that have notes gets

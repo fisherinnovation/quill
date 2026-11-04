@@ -412,7 +412,7 @@ A sentence is typed with a space after it, so you can dictate a paragraph a sent
         keywords: "vocabulary names jargon spelling replacements custom words dictionary",
         body: `In **Settings → Dictation → Words**:
 
-- **Vocabulary**: names and terms to spell exactly, one per line ("Priya", "Kubernetes"). These steer both speech recognition (with Parakeet, as words it listens out for) and clean-up. Meeting notes use them too: the model writing the notes is told how to spell them. If you allow it, AI assistants can add to this list (see [AI assistants](#ai-assistants)).
+- **Vocabulary**: names and terms to spell exactly, one per line ("Priya", "Kubernetes"). These steer both speech recognition (with Parakeet, as words it listens out for) and clean-up. Meeting notes use them too: the model writing the notes is told how to spell them. Add people's full names: a first name or surname heard on its own is written in full when only one entry matches it, and when several do ("Dan" for Dan Ruiz and Dan Okafor), the notes list it under **Unresolved names** in Open questions. If you allow it, AI assistants can add to this list (see [AI assistants](#ai-assistants)).
 - **Replacements**: what you say → what to type, one per line ("open router → OpenRouter").`,
       },
       {

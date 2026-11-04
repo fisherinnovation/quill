@@ -30,6 +30,9 @@ pub struct Case {
     /// File stem, e.g. `product-sync`.
     pub name: String,
     pub segments: Vec<Segment>,
+    /// The user's names and terms for this meeting, from `<name>.vocabulary.txt`
+    /// next to the transcript (one per line), as Settings would give them.
+    pub vocabulary: Vec<String>,
 }
 
 impl Case {
@@ -64,7 +67,8 @@ pub enum EvalError {
 }
 
 /// Loads every `*.json` transcript in `dir` and in `dir/private/` (where
-/// real, gitignored meetings go), sorted by name.
+/// real, gitignored meetings go), sorted by name, each with its vocabulary
+/// file if it has one.
 pub fn load_cases(dir: &Path) -> Result<Vec<Case>, EvalError> {
     let mut paths = Vec::new();
     for d in [dir.to_path_buf(), dir.join("private")] {
@@ -93,7 +97,21 @@ pub fn load_cases(dir: &Path) -> Result<Vec<Case>, EvalError> {
         let name = path
             .file_stem()
             .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
-        cases.push(Case { name, segments });
+        let vocabulary = std::fs::read_to_string(path.with_extension("vocabulary.txt"))
+            .map(|terms| {
+                terms
+                    .lines()
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default();
+        cases.push(Case {
+            name,
+            segments,
+            vocabulary,
+        });
     }
     if cases.is_empty() {
         return Err(EvalError::NoCases(dir.to_path_buf()));
@@ -157,7 +175,7 @@ pub async fn run_summaries(
                 let outcome = match provider {
                     Ok((provider, id)) => {
                         tracing::info!(case = %case.name, model, prompt = prompts.version, "summarizing");
-                        summary::summarize(provider.as_ref(), id, prompts, &case.segments, date, &[], None)
+                        summary::summarize(provider.as_ref(), id, prompts, &case.segments, date, &case.vocabulary, None)
                             .await
                             .map_err(|e| e.to_string())
                     }
@@ -243,6 +261,7 @@ mod tests {
                 speaker: Some("Me".into()),
                 words: Vec::new(),
             }],
+            vocabulary: Vec::new(),
         }
     }
 
@@ -279,11 +298,15 @@ mod tests {
         std::fs::write(dir.path().join("b.json"), seg).unwrap();
         std::fs::create_dir(dir.path().join("private")).unwrap();
         std::fs::write(dir.path().join("private/a.json"), seg).unwrap();
+        let vocabulary = "Dan Ruiz\n\n RIF \n";
+        std::fs::write(dir.path().join("private/a.vocabulary.txt"), vocabulary).unwrap();
         std::fs::write(dir.path().join("notes.txt"), "ignored").unwrap();
 
         let cases = load_cases(dir.path()).unwrap();
 
         let names: Vec<_> = cases.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, ["b", "a"]); // sorted by path: b.json < private/a.json
+        assert!(cases[0].vocabulary.is_empty());
+        assert_eq!(cases[1].vocabulary, ["Dan Ruiz", "RIF"]);
     }
 }

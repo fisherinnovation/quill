@@ -1,0 +1,14 @@
+[
+  {"start_ms": 0, "end_ms": 2600, "text": "Hi Priya, thanks for jumping on.", "speaker": "Me"},
+  {"start_ms": 2900, "end_ms": 7100, "text": "No problem. I wanted to talk about headcount for next year.", "speaker": "Others"},
+  {"start_ms": 7400, "end_ms": 11200, "text": "Sure. Where are we after the riff in the spring?", "speaker": "Me"},
+  {"start_ms": 11500, "end_ms": 19100, "text": "We lost four roles in the riff. Marguerite wants two of them back before we start the platform rewrite.", "speaker": "Others"},
+  {"start_ms": 19400, "end_ms": 21600, "text": "When does the rewrite start?", "speaker": "Me"},
+  {"start_ms": 21900, "end_ms": 27500, "text": "Not until the second half. feeny said realistically it slips into 27.", "speaker": "Others"},
+  {"start_ms": 27800, "end_ms": 31200, "text": "Okay. Who's putting the business case together?", "speaker": "Me"},
+  {"start_ms": 31500, "end_ms": 35300, "text": "Dan said he'd draft it by the end of the month.", "speaker": "Others"},
+  {"start_ms": 35600, "end_ms": 38400, "text": "Great. And the budget's still flat?", "speaker": "Me"},
+  {"start_ms": 38700, "end_ms": 41100, "text": "Yes, same as back in 25.", "speaker": "Others"},
+  {"start_ms": 41400, "end_ms": 45600, "text": "Okay. I'll ask Okafor for the hiring numbers this week.", "speaker": "Me"},
+  {"start_ms": 45900, "end_ms": 47100, "text": "Sounds good.", "speaker": "Others"}
+]

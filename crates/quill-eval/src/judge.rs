@@ -291,6 +291,7 @@ mod tests {
                 speaker: None,
                 words: Vec::new(),
             }],
+            vocabulary: Vec::new(),
         };
         let mut results = vec![
             result("m3", "3 notes"),
