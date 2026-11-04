@@ -332,12 +332,20 @@ pub fn due_date(text: &str, on: Date) -> Option<Date> {
     }
     let mut t = strip_label(text.trim())
         .to_lowercase()
-        .replace(['.', ','], " ");
+        .replace(['.', ',', '"', '\u{201C}', '\u{201D}'], " ");
     t = t.split_whitespace().collect::<Vec<_>>().join(" ");
-    // Until none is left: "by end of day on Monday".
+    // Until none is left: "by end of day on Monday", "hopefully by the end
+    // of this week".
     loop {
         let before = t.len();
         for prefix in [
+            "hopefully ",
+            "ideally ",
+            "probably ",
+            "maybe ",
+            "around ",
+            "roughly ",
+            "sometime ",
             "due ",
             "by ",
             "before ",
@@ -694,6 +702,23 @@ mod tests {
             Some("2026-11-05")
         );
         assert_eq!(due("after the launch (soon)"), None);
+    }
+
+    #[test]
+    fn hedged_and_quoted_due_dates_resolve() {
+        // A Tuesday.
+        let on = jiff::civil::date(2026, 11, 3);
+        let due = |t: &str| due_date(t, on).map(|d| d.to_string());
+        assert_eq!(
+            due("\"hopefully by the end of this week\"").as_deref(),
+            Some("2026-11-06")
+        );
+        assert_eq!(
+            due("\u{201C}Ideally Thursday\u{201D}").as_deref(),
+            Some("2026-11-05")
+        );
+        assert_eq!(due("sometime next week").as_deref(), Some("2026-11-13"));
+        assert_eq!(due("hopefully soon"), None);
     }
 
     #[test]

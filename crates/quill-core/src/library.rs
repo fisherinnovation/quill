@@ -360,6 +360,11 @@ CREATE TABLE suggested_speakers (
 -- suggestion merged two speakers, which can't be pulled apart again.
 ALTER TABLE suggested_speakers ADD COLUMN was TEXT;
 ",
+    "
+-- No schema change. Action items are read again from each meeting's latest
+-- notes (see `Library::init`), now that \"hopefully by the end of this
+-- week\" and quoted due dates are dates.
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -369,8 +374,9 @@ const TRANSCRIBED_MIGRATION: i64 = 6;
 /// The latest migration after which action items are read again from the
 /// notes already in the library (see `Library::init`): 8 added them, 15
 /// fixed how due dates and owners are read, 16 added timestamps and
-/// suggested items. Ticks survive the re-read.
-const ACTION_ITEMS_MIGRATION: i64 = 16;
+/// suggested items, 19 read hedged and quoted due dates. Ticks survive the
+/// re-read.
+const ACTION_ITEMS_MIGRATION: i64 = 19;
 
 /// The migration that added `search_items`; each meeting's latest notes are
 /// read into it once (see `Library::init`).
