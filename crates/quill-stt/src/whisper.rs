@@ -269,13 +269,17 @@ impl Transcriber for WhisperTranscriber {
                     });
                 }
             }
-            segments.push(Segment {
+            let segment = Segment {
                 start_ms,
                 end_ms,
                 text,
                 speaker: None,
                 words,
-            });
+            };
+            match &regions {
+                Some(regions) => segments.extend(vad::split_at_long_pauses(segment, regions)),
+                None => segments.push(segment),
+            }
         }
         if fit {
             let before = segments.len();
