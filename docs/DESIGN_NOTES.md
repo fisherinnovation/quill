@@ -81,6 +81,26 @@ decision someone might otherwise undo.
   speech region it substantially overlaps. Whisper often starts a segment in
   the previous region's trailing silence, which put replies before the
   questions they answered.
+- **Long pauses end a line (meetings).** Packed with 0.1 s gaps, one
+  Whisper segment could hold speech from both sides of a long silence;
+  mapped back, it spanned the silence, which on a call is usually the other
+  person talking. A 40-minute 1:1 came to 63 minutes of talk time, and the
+  notes model saw one person's line wrapped around the other's (notes
+  fidelity feedback, tickets 3 and 4). Now a pause of 1 s or more is packed as 1 s
+  of silence, and a segment is cut between words either side of one
+  (`vad::split_at_long_pauses`). A scripted 73 s two-track 1:1 (Windows
+  TTS, 66 s of speech, short replies mid-sentence) went from 105 s of talk
+  time and 2 call lines spanning a "Me" line to 47 s and none, in the same
+  6.1 s. Whisper's token times (no DTW) can be a few words out around a
+  pause, so a word or three can land in that speaker's previous line, and
+  talk time now reads low. whisper.cpp's DTW timestamps would fix that,
+  but it turns flash attention off: measure on Metal before trying.
+- **Meetings get a punctuated initial prompt** ("Hi, thanks for joining.
+  Let's get started."). Whisper copies the style of what it has written,
+  and with no prompt a track sometimes came out all lowercase and
+  unpunctuated, the call track in a real meeting and the mic track in the
+  scripted one once long pauses changed the packing. It's English, so it's
+  only used when the language is English or detected.
 
 ## Capture and echo
 

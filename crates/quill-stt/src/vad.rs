@@ -13,12 +13,17 @@ use std::time::Duration;
 
 use whisper_rs::{WhisperVadContext, WhisperVadContextParams, WhisperVadParams};
 
-use crate::SttError;
+use crate::{Segment, SttError, Word};
 
 pub(crate) const SAMPLES_PER_MS: usize = 16;
 /// Silence inserted between packed speech regions, so words from separate
 /// regions don't run together.
 pub(crate) const GAP_SAMPLES: usize = 100 * SAMPLES_PER_MS;
+/// A pause between a meeting's stretches of speech this long always ends a
+/// segment (see [`split_at_long_pauses`]).
+pub(crate) const LONG_PAUSE_SAMPLES: usize = 1000 * SAMPLES_PER_MS;
+/// Silence packed in place of a long pause.
+const LONG_GAP_SAMPLES: usize = 1000 * SAMPLES_PER_MS;
 
 /// Where one stretch of speech sits in the original and the packed audio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,23 +95,27 @@ pub(crate) fn detect_speech(
         .collect())
 }
 
-/// Concatenates the speech ranges with short gaps between them.
+/// Concatenates the speech ranges with short gaps between them, and longer
+/// ones where the pause was long.
 pub(crate) fn pack(pcm: &[f32], ranges: &[(usize, usize)]) -> (Vec<f32>, Vec<Region>) {
-    pack_with_gap(pcm, ranges, GAP_SAMPLES)
+    pack_with_gap(pcm, ranges, GAP_SAMPLES, LONG_GAP_SAMPLES)
 }
 
-/// [`pack`] with `gap` samples of silence between the ranges.
+/// [`pack`] with `gap` samples of silence between the ranges, or `long_gap`
+/// after a pause of [`LONG_PAUSE_SAMPLES`] or more.
 pub(crate) fn pack_with_gap(
     pcm: &[f32],
     ranges: &[(usize, usize)],
     gap: usize,
+    long_gap: usize,
 ) -> (Vec<f32>, Vec<Region>) {
     let speech: usize = ranges.iter().map(|(s, e)| e - s).sum();
-    let mut packed = Vec::with_capacity(speech + ranges.len() * gap);
-    let mut regions = Vec::with_capacity(ranges.len());
-    for (i, &(start, end)) in ranges.iter().enumerate() {
-        if i > 0 {
-            packed.resize(packed.len() + gap, 0.0);
+    let mut packed = Vec::with_capacity(speech + ranges.len() * long_gap.max(gap));
+    let mut regions: Vec<Region> = Vec::with_capacity(ranges.len());
+    for &(start, end) in ranges {
+        if let Some(before) = regions.last() {
+            let long = start - before.orig_end >= LONG_PAUSE_SAMPLES;
+            packed.resize(packed.len() + if long { long_gap } else { gap }, 0.0);
         }
         regions.push(Region {
             orig_start: start,
@@ -221,6 +230,62 @@ pub(crate) fn map_segment(start_ms: u64, end_ms: u64, regions: &[Region]) -> (u6
     (ms(first.original_time(start)), ms(last.original_time(end)))
 }
 
+/// `segment` (mapped back onto the original audio, with timed words) cut
+/// between words on either side of a long pause between `regions`.
+///
+/// Whisper hears the packed speech, where every pause is 0.1 s, so one of
+/// its segments can hold speech from both sides of a long silence. Mapped
+/// back, it then spans the silence too: on a call, that's often the other
+/// person talking. The line sat among theirs as one turn, and its talk time
+/// counted the silence (a 40-minute 1:1 came to 63 minutes of talking).
+/// Without words, the segment is left whole.
+pub(crate) fn split_at_long_pauses(segment: Segment, regions: &[Region]) -> Vec<Segment> {
+    // Each long pause: where the speech before it ends and after it starts.
+    let pauses: Vec<(u64, u64)> = regions
+        .windows(2)
+        .filter(|w| w[1].orig_start - w[0].orig_end >= LONG_PAUSE_SAMPLES)
+        .map(|w| (ms(w[0].orig_end), ms(w[1].orig_start)))
+        .collect();
+    let apart = |a: &Word, b: &Word| {
+        pauses
+            .iter()
+            .any(|&(end, start)| a.start_ms <= end && b.start_ms >= start)
+    };
+    let mut runs: Vec<Vec<Word>> = Vec::new();
+    for word in &segment.words {
+        match runs.last_mut() {
+            Some(run) if !apart(&run[run.len() - 1], word) => run.push(word.clone()),
+            _ => runs.push(vec![word.clone()]),
+        }
+    }
+    if runs.len() < 2 {
+        return vec![segment];
+    }
+    let last = runs.len() - 1;
+    runs.into_iter()
+        .enumerate()
+        .map(|(i, words)| Segment {
+            start_ms: if i == 0 {
+                segment.start_ms
+            } else {
+                words[0].start_ms
+            },
+            end_ms: if i == last {
+                segment.end_ms
+            } else {
+                words[words.len() - 1].end_ms
+            },
+            text: words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" "),
+            speaker: segment.speaker.clone(),
+            words,
+        })
+        .collect()
+}
+
 fn ms(samples: usize) -> u64 {
     (samples / SAMPLES_PER_MS) as u64
 }
@@ -245,20 +310,36 @@ mod tests {
     #[test]
     fn packs_regions_with_gaps() {
         let pcm: Vec<f32> = (0..100_000).map(|i| i as f32).collect();
-        let (packed, regions) = pack(&pcm, &[(16_000, 32_000), (64_000, 72_000)]);
+        // A 0.5 s pause, then a 1 s one.
+        let (packed, regions) = pack(
+            &pcm,
+            &[(16_000, 32_000), (40_000, 56_000), (72_000, 80_000)],
+        );
 
-        assert_eq!(packed.len(), 16_000 + GAP_SAMPLES + 8_000);
+        assert_eq!(
+            packed.len(),
+            16_000 + GAP_SAMPLES + 16_000 + LONG_GAP_SAMPLES + 8_000
+        );
         assert_eq!(packed[0], 16_000.0);
         assert_eq!(packed[16_000..16_000 + GAP_SAMPLES], [0.0; GAP_SAMPLES]);
-        assert_eq!(packed[16_000 + GAP_SAMPLES], 64_000.0);
+        assert_eq!(packed[16_000 + GAP_SAMPLES], 40_000.0);
         assert_eq!(regions[1].packed_start, 16_000 + GAP_SAMPLES);
+        assert_eq!(
+            regions[2].packed_start,
+            32_000 + GAP_SAMPLES + LONG_GAP_SAMPLES
+        );
     }
 
     #[test]
     fn maps_segments_back_to_the_original_timeline() {
         // Speech at 1.0–2.0 s and 4.0–4.5 s of the original audio; packed,
         // region 2 starts at 1.1 s (1.0 s of speech + 100 ms gap).
-        let (_, regions) = pack(&vec![0.0; 100_000], &[(16_000, 32_000), (64_000, 72_000)]);
+        let (_, regions) = pack_with_gap(
+            &vec![0.0; 100_000],
+            &[(16_000, 32_000), (64_000, 72_000)],
+            GAP_SAMPLES,
+            GAP_SAMPLES,
+        );
         let map = |s, e| map_segment(s, e, &regions);
 
         // Inside one region: just shifted.
@@ -273,5 +354,57 @@ mod tests {
         assert_eq!(map(950, 1150), (4000, 4050));
         // Past the end: clamped to the last region.
         assert_eq!(map(1500, 9999), (4400, 4500));
+    }
+
+    #[test]
+    fn segments_are_cut_at_long_pauses_only() {
+        let word = |text: &str, start_ms, end_ms| Word {
+            text: text.into(),
+            start_ms,
+            end_ms,
+        };
+        let segment = |words: Vec<Word>| Segment {
+            start_ms: words[0].start_ms,
+            end_ms: words[words.len() - 1].end_ms,
+            text: words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" "),
+            speaker: None,
+            words,
+        };
+        // Speech at 1.0–2.0 s, 4.0–4.5 s (after a 2 s pause) and 5.0–6.0 s
+        // (after half a second).
+        let (_, regions) = pack(
+            &vec![0.0; 100_000],
+            &[(16_000, 32_000), (64_000, 72_000), (80_000, 96_000)],
+        );
+        let line = segment(vec![
+            word("It", 1000, 1300),
+            word("took", 1300, 1700),
+            word("three", 4000, 4200),
+            word("weeks.", 4200, 4500),
+            word("Yeah.", 5000, 5400),
+        ]);
+        let pieces = split_at_long_pauses(line, &regions);
+        let spans: Vec<_> = pieces
+            .iter()
+            .map(|s| (s.start_ms, s.end_ms, s.text.as_str(), s.words.len()))
+            .collect();
+        assert_eq!(
+            spans,
+            [
+                (1000, 1700, "It took", 2),
+                (4000, 5400, "three weeks. Yeah.", 3)
+            ]
+        );
+
+        // Without word times there's nowhere to cut.
+        let whole = Segment {
+            words: Vec::new(),
+            ..pieces[0].clone()
+        };
+        assert_eq!(split_at_long_pauses(whole.clone(), &regions), [whole]);
     }
 }

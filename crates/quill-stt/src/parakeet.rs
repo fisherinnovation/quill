@@ -20,7 +20,7 @@ use sherpa_onnx::{OfflineRecognizer, OfflineRecognizerConfig, OfflineTransducerM
 use whisper_rs::WhisperVadContext;
 
 use crate::models::ParakeetModel;
-use crate::vad::{self, SAMPLES_PER_MS};
+use crate::vad::{self, LONG_PAUSE_SAMPLES, SAMPLES_PER_MS};
 use crate::{ProgressEvent, Segment, SttError, TranscribeOptions, Transcriber, Word, has_words};
 
 /// Load-time settings for a Parakeet model.
@@ -58,9 +58,6 @@ const MAX_WINDOW_SAMPLES: usize = 30 * 1000 * SAMPLES_PER_MS;
 /// together: Whisper's 0.1 s was too little for Parakeet to hear the pause,
 /// so it ran sentences, and speakers' turns, together with commas.
 const PACK_GAP_SAMPLES: usize = 250 * SAMPLES_PER_MS;
-
-/// A pause this long always ends a segment, punctuated or not.
-const LONG_PAUSE_SAMPLES: usize = 1000 * SAMPLES_PER_MS;
 
 /// How much a hotword's tokens are favoured, per token: sherpa-onnx's
 /// default.
@@ -211,8 +208,12 @@ impl Transcriber for ParakeetTranscriber {
                         .collect();
                     (Cow::Owned(audio), Some(regions), cuts, Vec::new())
                 } else {
-                    let (audio, regions) =
-                        vad::pack_with_gap(pcm_16k_mono, &ranges, PACK_GAP_SAMPLES);
+                    let (audio, regions) = vad::pack_with_gap(
+                        pcm_16k_mono,
+                        &ranges,
+                        PACK_GAP_SAMPLES,
+                        PACK_GAP_SAMPLES,
+                    );
                     let cuts = regions
                         .iter()
                         .skip(1)

@@ -23,6 +23,25 @@ pub const SYSTEM_FLAC: &str = "system.flac";
 pub const ME: &str = "Me";
 pub const OTHERS: &str = "Others";
 
+/// Whisper's initial prompt for a meeting track, unless one is given. With
+/// none, a track sometimes came out all lowercase and unpunctuated: Whisper
+/// copies the style of what it has written so far. It's English, so it's
+/// used only when the language is English or detected.
+const MEETING_PROMPT: &str = "Hi, thanks for joining. Let's get started.";
+
+/// `opts` with [`MEETING_PROMPT`] where it applies.
+fn meeting_options(opts: &TranscribeOptions) -> TranscribeOptions {
+    let mut opts = opts.clone();
+    let english_or_detected = opts
+        .language
+        .as_deref()
+        .is_none_or(|l| matches!(l, "en" | "auto"));
+    if opts.initial_prompt.is_none() && english_or_detected {
+        opts.initial_prompt = Some(MEETING_PROMPT.to_string());
+    }
+    opts
+}
+
 /// Errors from processing a meeting recording.
 #[derive(Debug, thiserror::Error)]
 pub enum MeetingError {
@@ -134,6 +153,7 @@ pub fn transcribe_recording_with(
             call: system.is_some(),
         });
     }
+    let opts = &meeting_options(opts);
     let transcribe = |pcm: Option<Vec<f32>>, track: Track| -> Result<Vec<Segment>, MeetingError> {
         let Some(pcm) = pcm else {
             return Ok(Vec::new());
@@ -534,5 +554,21 @@ mod tests {
         let mic = vec![seg(60_000, 62_000, "Thanks everyone.")];
 
         assert_eq!(merge_tracks(mic, system).len(), 2);
+    }
+
+    #[test]
+    fn meetings_are_prompted_in_english_only() {
+        let prompt = |language: Option<&str>, given: Option<&str>| {
+            meeting_options(&TranscribeOptions {
+                language: language.map(str::to_string),
+                initial_prompt: given.map(str::to_string),
+                ..TranscribeOptions::default()
+            })
+            .initial_prompt
+        };
+        assert_eq!(prompt(None, None).as_deref(), Some(MEETING_PROMPT));
+        assert_eq!(prompt(Some("en"), None).as_deref(), Some(MEETING_PROMPT));
+        assert_eq!(prompt(Some("fr"), None), None);
+        assert_eq!(prompt(None, Some("Quill")).as_deref(), Some("Quill"));
     }
 }
