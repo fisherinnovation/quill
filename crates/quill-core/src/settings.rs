@@ -111,7 +111,7 @@ pub struct Spot {
 #[serde(default)]
 pub struct LiveNotesPlace {
     pub panel: Option<Spot>,
-    /// The tab it collapses to.
+    /// The bar it collapses to (it was a tab, hence the name).
     pub tab: Option<Spot>,
 }
 
