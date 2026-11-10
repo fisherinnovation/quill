@@ -8,7 +8,7 @@
 // call not yet split into speakers, ?nomodels for a fresh install, ?fn for
 // fn as the dictation key, ?about for the About window, ?prompt (or
 // ?prompt=stop) for the call prompt, ?live (or ?live=empty) for the live
-// notes panel, ?writeup (or ?writeup=failed) for a meeting being written
+// notes panel (?live=bar collapsed to its bar), ?writeup (or ?writeup=failed) for a meeting being written
 // up after recording (also what stopping a recording shows), ?update for a
 // new version waiting to be installed, ?backlog for enough older
 // meetings and dictations to need "Show more", ?voices for a meeting
@@ -242,7 +242,7 @@ if (flags.has("backlog")) {
 }
 
 // The live notes panel in the preview (?live; ?live=empty before the first
-// update).
+// update; ?live=bar collapsed).
 let live = {
   active: true,
   notes:
@@ -264,7 +264,7 @@ let live = {
   updating: false,
   heard: "and then we can look at pricing once the numbers are clean",
   error: null,
-  collapsed: false,
+  collapsed: flags.get("live") === "bar",
   // ?live&writeup: the panel after the recording, following the write-up.
   wrapping: (flags.has("writeup") ? { meeting_id: "m1", title: "Product sync" } : null) as {
     meeting_id: string;

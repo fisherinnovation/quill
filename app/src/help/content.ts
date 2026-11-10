@@ -152,9 +152,9 @@ A line at the top says where the conversation is. Every minute Quill updates the
 
 - **Tick** an item off yourself, or **dismiss** one with ✕ (it won't come back).
 - **Update now** refreshes the notes straight away.
-- **Collapse** the panel to a small tab on the screen edge; the tab shows how many questions are still open.
-- **Pause** and **Stop** are in its header. Stop asks once, so a stray click doesn't end your meeting.
-- **Drag** the panel by its header to move it out of the way, say off the camera views of your call. The tab and the card after the recording can be dragged too. Each stays where you put it for later meetings; double-click the header to put the panel and the tab back at the right edge.
+- **Collapse** the panel to a small bar with the timer, **Pause** and **Stop**; the button that opens the panel again shows how many questions are still open.
+- **Pause** and **Stop** are in the panel's header too. Stop asks once, so a stray click doesn't end your meeting.
+- **Drag** the panel by its header to move it out of the way, say off the camera views of your call. The bar and the card after the recording can be dragged too. Each stays where you put it for later meetings; double-click the header or the bar to put them back at the right edge.
 
 The panel is hidden from screen sharing and recordings, so others on the call don't see it, and clicking it doesn't bring Quill's window over your call.
 

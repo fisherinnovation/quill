@@ -759,7 +759,7 @@ On the Meetings page, a day with two or more meetings that have notes gets
   the page drags it, not the OS. Tauri's `startDragging()` would move the
   hidden Tauri window on macOS, not the panel, and on Windows a native
   caption drag risks activating an unfocusable window. A press that moves
-  4 px on the header, the tab or the wrap-up card becomes a drag: the page
+  4 px on the header, the bar or the wrap-up card becomes a drag: the page
   sends the pointer's offset since the press once a frame and Rust moves
   the window to where it started plus that (`floating::drag_by`), so
   nothing drifts and a lost or reordered message corrects itself on the
@@ -767,12 +767,19 @@ On the Meetings page, a day with two or more meetings that have notes gets
   still click. Where it ends up is saved in `settings.toml`
   (`live_notes_place`), in the desktop's own units (points with y up on
   macOS, pixels on Windows): one spot for the panel, which the wrap-up card
-  shares since it takes the panel's place, and one for the tab. Shown
+  shares since it takes the panel's place, and one for the bar (`tab` in
+  the file: it was a tab). Shown
   again, a saved spot is used if the middle of the window's top edge is on
   a screen, moved in to fit that screen's usable area; otherwise (a screen
   unplugged) it goes to the usual place. The wrap-up card fitting itself to
   its content keeps its top-left corner, so a dragged card stays put.
   Double-clicking the header resets both.
+- **Shadows** on these windows are CSS (the windows are transparent, with
+  no native shadow), so they must fit in the window's transparent margin
+  or its edges cut them off in a hard line. `--shadow-float` (4 px down,
+  12 px blur) fits the live notes' margin of 12 px at the sides and 16 px
+  below; `--shadow-lg` (12 px down, 32 px blur) didn't, and the collapsed
+  tab had almost no margin at all.
 
 ## Live notes
 
@@ -790,8 +797,10 @@ On the Meetings page, a day with two or more meetings that have notes gets
   so they can't come back renumbered; the model marks items done when the
   conversation deals with them, and the user can tick them too.
 - **Panel:** a floating panel (below) at the right edge, content-protected
-  (hidden from screen sharing and recording), collapsible to a tab with the open questions'
-  count. On by default (the owner's choice while they're its only user);
+  (hidden from screen sharing and recording), collapsible to a bar with
+  the timer, Pause, Stop and the open questions' count. It was a narrow
+  tab with only the count, so pausing or stopping meant opening the panel
+  first. On by default (the owner's choice while they're its only user);
   Settings → Meetings turns it off. Notes and transcript live in memory
   only.
 - **Cadence:** every two minutes, with 20 s chunks, felt behind the

@@ -133,7 +133,7 @@ To install a release build for the user, replace `~/Applications/Quill.app`:
   command. When you add a command or event, add it to the mock too.
 - **URL flags:** `?onboarding ?recording ?listening ?processing ?failed
   ?nopaste ?empty ?light ?dark ?indicator ?prompt ?prompt=stop
-  ?live ?live=empty ?about ?others ?nomodels ?noollama
+  ?live ?live=empty ?live=bar ?about ?others ?nomodels ?noollama
   ?nokey ?fn ?update ?backlog ?gpus ?voices ?nosearch ?indexing
   ?daily ?assistants ?assistants=busy ?cutoff ?suggested`.
 - **Themes:** check light (`?light`) and dark (`?dark`).

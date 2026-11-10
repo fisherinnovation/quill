@@ -36,10 +36,12 @@ pub const EVENT: &str = "live-notes";
 const NOTES_EVERY: Duration = Duration::from_secs(60);
 /// How often the worker reads new audio and transcribes what's ready.
 const TICK: Duration = Duration::from_secs(2);
-/// Logical sizes: the panel, and the tab it collapses to.
+/// Logical sizes: the panel, and the bar it collapses to (wide enough for
+/// "Paused · 1:02:34", Pause and "Stop?"). Both include the transparent
+/// margin the shadow falls in (`.live-stage`).
 const WIDTH: f64 = 340.0;
 const MAX_HEIGHT: f64 = 640.0;
-const TAB: (f64, f64) = (46.0, 140.0);
+const BAR: (f64, f64) = (324.0, 64.0);
 /// A track that has written nothing this long into the recording is
 /// missing (no permission, no device): count it as silence.
 const MISSING_AFTER: Duration = Duration::from_secs(10);
@@ -374,7 +376,7 @@ fn elapsed_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-/// Shows the panel, open or collapsed to a tab: where the user dragged it,
+/// Shows the panel, open or collapsed to a bar: where the user dragged it,
 /// else at the right edge of the screen the mouse is on.
 fn show(app: &AppHandle, collapsed: bool) {
     let Some(window) = app.get_webview_window(LABEL) else {
@@ -382,7 +384,7 @@ fn show(app: &AppHandle, collapsed: bool) {
     };
     let place = saved_place(app);
     if collapsed {
-        crate::floating::show(&window, TAB, Place::RightThird, place.tab);
+        crate::floating::show(&window, BAR, Place::RightThird, place.tab);
     } else {
         crate::floating::show(&window, (WIDTH, MAX_HEIGHT), Place::RightTop, place.panel);
     }
@@ -394,7 +396,7 @@ fn saved_place(app: &AppHandle) -> LiveNotesPlace {
         .clone()
 }
 
-/// Saves where the panel and the tab go.
+/// Saves where the panel and the bar go.
 fn save_place(app: &AppHandle, change: impl FnOnce(&mut LiveNotesPlace)) {
     let state = app.state::<AppState>();
     let mut settings = lock(&state.settings).clone();
@@ -406,7 +408,7 @@ fn save_place(app: &AppHandle, change: impl FnOnce(&mut LiveNotesPlace)) {
     *lock(&state.settings) = settings;
 }
 
-/// The pointer went down on the panel's handle: its header, the tab, or
+/// The pointer went down on the panel's handle: its header, the bar, or
 /// the wrap-up card.
 #[tauri::command]
 pub fn live_notes_drag_start(app: AppHandle) {
@@ -423,17 +425,17 @@ pub fn live_notes_drag(app: AppHandle, dx: f64, dy: f64) {
     }
 }
 
-/// The drag ended: the panel (or the tab) goes there from now on.
+/// The drag ended: the panel (or the bar) goes there from now on.
 #[tauri::command]
 pub fn live_notes_drag_end(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
-    let tab = lock(&live.state).collapsed;
+    let bar = lock(&live.state).collapsed;
     let handle = app.clone();
     crate::floating::drag_end(&window, move |spot| {
         save_place(&handle, |place| {
-            *(if tab {
+            *(if bar {
                 &mut place.tab
             } else {
                 &mut place.panel
@@ -442,7 +444,7 @@ pub fn live_notes_drag_end(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
     });
 }
 
-/// Puts the panel and the tab back at the right edge.
+/// Puts the panel and the bar back at the right edge.
 #[tauri::command]
 pub fn live_notes_reset_place(app: AppHandle, live: tauri::State<'_, LiveNotes>) {
     let (collapsed, wrapping) = {

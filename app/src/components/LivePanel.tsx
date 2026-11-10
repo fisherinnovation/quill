@@ -97,8 +97,8 @@ function useWindowDrag() {
  * screen, hidden from screen sharing; see src-tauri/src/live_notes.rs):
  * what to ask before the end, follow-ups and decisions, updated every
  * minute, with the recording's timer and Pause and Stop. Collapses to a
- * tab showing how many questions are open. Dragged by its header, the
- * tab or the card, it stays where it's put.
+ * bar with the timer, Pause and Stop, and how many questions are open.
+ * Dragged by its header, the bar or the card, it stays where it's put.
  */
 export function LivePanel() {
   const [state, setState] = useState<LiveState>(EMPTY);
@@ -159,18 +159,51 @@ export function LivePanel() {
 
   if (state.wrapping) return <WrapUp key={state.wrapping.meeting_id} wrapping={state.wrapping} />;
 
-  if (state.collapsed) {
-    return (
+  // The timer, Pause and Stop: in the header, and all the bar is.
+  const controls = (
+    <>
+      {recording.paused ? <Icon name="pause" size={12} /> : <span className="rec-dot pulsing" />}
+      <strong className="live-clock">{recording.paused ? `Paused · ${clock(elapsed)}` : clock(elapsed)}</strong>
+      <span className="spacer" />
       <button
-        className="live-tab"
-        {...dragHandle}
-        onClick={() => void api.liveNotesCollapse(false)}
-        title="Show live notes"
+        className="ghost icon-btn"
+        title={recording.paused ? "Resume recording" : "Pause recording"}
+        aria-label={recording.paused ? "Resume recording" : "Pause recording"}
+        disabled={busy !== null || !recording.recording}
+        onClick={() => void control(recording.paused ? "resume" : "pause")}
       >
-        <Icon name="chevron-left" size={14} />
-        <span className="rec-dot pulsing" />
-        {open > 0 && <span className="live-tab-count">{open}</span>}
+        <Icon name={recording.paused ? "play" : "pause"} size={14} />
       </button>
+      <button
+        className={`live-stop${confirmStop ? " confirm" : ""}`}
+        title="Stop recording and write the notes"
+        disabled={busy !== null || !recording.recording}
+        onClick={() => (confirmStop ? void control("stop") : setConfirmStop(true))}
+      >
+        <Icon name="stop" size={11} />
+        {confirmStop ? "Stop?" : "Stop"}
+      </button>
+    </>
+  );
+
+  if (state.collapsed) {
+    const questions = `${open} open question${open === 1 ? "" : "s"}`;
+    return (
+      <div className="live-stage">
+        <div className="live-bar" role="toolbar" aria-label="Recording" {...dragHandle}>
+          {controls}
+          <span className="live-bar-divider" />
+          <button
+            className="ghost live-expand"
+            title={open > 0 ? `Show live notes (${questions})` : "Show live notes"}
+            aria-label={open > 0 ? `Show live notes, ${questions}` : "Show live notes"}
+            onClick={() => void api.liveNotesCollapse(false)}
+          >
+            {open > 0 && <span className="live-count">{open}</span>}
+            <Icon name="chevron-left" size={14} />
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -186,31 +219,7 @@ export function LivePanel() {
     <div className="live-stage">
       <section className="live-panel" aria-label="Live notes">
         <header className="live-head" {...dragHandle}>
-          {recording.paused ? (
-            <Icon name="pause" size={12} />
-          ) : (
-            <span className="rec-dot pulsing" />
-          )}
-          <strong className="live-clock">{recording.paused ? `Paused · ${clock(elapsed)}` : clock(elapsed)}</strong>
-          <span className="spacer" />
-          <button
-            className="ghost icon-btn"
-            title={recording.paused ? "Resume recording" : "Pause recording"}
-            aria-label={recording.paused ? "Resume recording" : "Pause recording"}
-            disabled={busy !== null || !recording.recording}
-            onClick={() => void control(recording.paused ? "resume" : "pause")}
-          >
-            <Icon name={recording.paused ? "play" : "pause"} size={14} />
-          </button>
-          <button
-            className={`live-stop${confirmStop ? " confirm" : ""}`}
-            title="Stop recording and write the notes"
-            disabled={busy !== null || !recording.recording}
-            onClick={() => (confirmStop ? void control("stop") : setConfirmStop(true))}
-          >
-            <Icon name="stop" size={11} />
-            {confirmStop ? "Stop?" : "Stop"}
-          </button>
+          {controls}
           <button
             className="ghost icon-btn"
             title="Collapse"
@@ -329,7 +338,7 @@ function WrapUp({ wrapping }: { wrapping: NonNullable<LiveState["wrapping"]> }) 
     let last = 0;
     const observer = new ResizeObserver(() => {
       // The stage's padding around the card, top and bottom.
-      const height = Math.ceil(el.getBoundingClientRect().height) + 16;
+      const height = Math.ceil(el.getBoundingClientRect().height) + 24;
       if (Math.abs(height - last) > 2) {
         last = height;
         void api.liveNotesFit(height);
