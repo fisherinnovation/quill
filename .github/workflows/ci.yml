@@ -80,13 +80,23 @@ jobs:
         run: cargo build --workspace --locked
 
       # Windows: test binaries that link sherpa-onnx (quill-stt's
-      # parakeet_smoke) need its DLLs beside them in target/debug/deps.
-      # Cargo puts only link paths inside target/ on PATH, and Windows'
-      # own older onnxruntime.dll in System32 comes before PATH anyway.
+      # parakeet_smoke) need its DLLs beside them. Cargo puts only link
+      # paths inside target/ on PATH, and Windows' own older
+      # onnxruntime.dll in System32 comes before PATH anyway. Cargo says
+      # where it put each test binary: from Rust 1.100 that's no longer
+      # target/debug/deps, and its build-dir layout may change again.
       - name: sherpa-onnx DLLs beside the test binaries
         if: runner.os == 'Windows'
         shell: bash
-        run: cp "$(cygpath -u "$SHERPA_ONNX_LIB_DIR")"/*.dll target/debug/deps/
+        run: |
+          lib="$(cygpath -u "$SHERPA_ONNX_LIB_DIR")"
+          # Paths come JSON-escaped (D:\\a\\...): each \\ becomes /.
+          cargo test --workspace --locked --no-run --message-format=json \
+            | grep -o '"executable":"[^"]*"' \
+            | sed -e 's/^"executable":"//' -e 's/"$//' -e 's|\\\\|/|g' \
+            | while read -r exe; do dirname "$(cygpath -u "$exe")"; done \
+            | sort -u \
+            | while read -r dir; do cp "$lib"/*.dll "$dir/"; echo "copied to $dir"; done
 
       - name: Test
         run: cargo test --workspace --locked
