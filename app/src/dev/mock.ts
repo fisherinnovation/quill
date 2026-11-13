@@ -346,7 +346,7 @@ const settings = {
     about: "",
     vocabulary: ["Quill", "OpenRouter", "Priya"],
     replacements: [{ from: "open router", to: "OpenRouter" }],
-    censor: false,
+    censor: "off",
     keep_history: true,
     save_samples: false,
     live_captions: true,

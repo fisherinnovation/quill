@@ -602,7 +602,16 @@ On the Meetings page, a day with two or more meetings that have notes gets
   10 eval clips it changed one word and never leaked into the output.
 - **Hiding swear words** (opt-in, `quill_core::censor`) masks them as the
   first letter and stars ("f***"), the most familiar form and still
-  readable. Dictation only: meetings are a record, and masking them would
+  readable, or, as a second switch, leaves them out. Leaving out tidies
+  what's around the word, since dictation is typed as written: one space
+  between the neighbours, no space before punctuation, a comma or full
+  stop left at the start of a sentence dropped, and the next word
+  capitalized when the removed one began the sentence ("Shit, it broke."
+  → "It broke."). An attached "'s", trailing apostrophe or hyphen goes
+  with the word. A dictation of nothing but listed words becomes empty,
+  which the app already treats as no speech: nothing typed or kept. The
+  setting is one value (`Censor`: off, mask, remove) shown as two
+  switches. Dictation only: meetings are a record, and masking them would
   mean doing it everywhere text leaves the library (display, export,
   search, AI assistants). Whole words from a fixed English list, each form
   spelled out: matching stems ("ass", "hell") hits ordinary words, and

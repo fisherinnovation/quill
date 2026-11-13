@@ -1,7 +1,7 @@
 //! Dictation: a few seconds of speech in, text to type at the cursor out.
 //!
 //! 1. [`transcribe`]: Whisper in short-clip mode, with the vocabulary as its
-//!    prompt, then the replacement rules and, if it's on, masking swear
+//!    prompt, then the replacement rules and, if it's on, hiding swear
 //!    words ([`crate::censor`]).
 //! 2. [`polish`] (optional): an LLM removes fillers, applies self-corrections
 //!    and formats lists. Skipped when there's nothing for it to fix
@@ -14,7 +14,8 @@ use quill_llm::prompts::{DictationPrompts, RenderError, render};
 use quill_llm::{CompletionRequest, LlmError, LlmProvider, Message};
 use quill_stt::{SttError, TranscribeOptions, Transcriber};
 
-use crate::settings::{DictationSettings, Replacement, Style};
+use crate::censor;
+use crate::settings::{Censor, DictationSettings, Replacement, Style};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PolishError {
@@ -97,14 +98,14 @@ pub fn tidy(text: &str, settings: &DictationSettings) -> String {
 }
 
 /// The user's rules, last thing before typing: replacements, then swear
-/// words masked if that's on. In that order, so a replacement for a swear
+/// words hidden if that's on. In that order, so a replacement for a swear
 /// word ("shit → shoot") still applies.
 fn finish(text: &str, settings: &DictationSettings) -> String {
     let text = apply_replacements(text, &settings.replacements);
-    if settings.censor {
-        crate::censor::mask(&text)
-    } else {
-        text
+    match settings.censor {
+        Censor::Off => text,
+        Censor::Mask => censor::mask(&text),
+        Censor::Remove => censor::remove(&text),
     }
 }
 
@@ -392,7 +393,7 @@ pub async fn polish(
         }
     };
     Ok(Polish {
-        // With masking on, the model saw the text masked already; this
+        // With hiding on, the model saw the text that way already; this
         // catches one that filled a word back in.
         text: finish(&text, settings),
         rejected,
@@ -786,15 +787,17 @@ mod tests {
     }
 
     #[test]
-    fn swear_words_are_masked_after_replacements_when_on() {
+    fn swear_words_are_hidden_after_replacements_when_on() {
         let mut settings = DictationSettings {
             replacements: vec![rule("shit", "shoot")],
             ..DictationSettings::default()
         };
         let said = "Oh shit, the fucking build broke.";
         assert_eq!(tidy(said, &settings), "Oh shoot, the fucking build broke.");
-        settings.censor = true;
+        settings.censor = Censor::Mask;
         assert_eq!(tidy(said, &settings), "Oh shoot, the f****** build broke.");
+        settings.censor = Censor::Remove;
+        assert_eq!(tidy(said, &settings), "Oh shoot, the build broke.");
     }
 
     #[test]

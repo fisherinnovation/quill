@@ -161,9 +161,9 @@ pub struct DictationSettings {
     pub vocabulary: Vec<String>,
     /// Applied to the text before it's typed, whole words, ignoring case.
     pub replacements: Vec<Replacement>,
-    /// Type swear words and slurs as their first letter and stars
-    /// (`quill_core::censor`). Off unless the user turns it on.
-    pub censor: bool,
+    /// What to do with swear words and slurs (`quill_core::censor`). Off
+    /// unless the user turns it on.
+    pub censor: Censor,
     /// Keep a history of what was dictated (in the local library).
     pub keep_history: bool,
     /// Keep each dictation's audio and typed text, to measure accuracy
@@ -176,6 +176,19 @@ pub struct DictationSettings {
     /// Styles chosen for particular apps, overriding the built-in ones
     /// (`dictation::style_for`).
     pub app_styles: Vec<AppStyle>,
+}
+
+/// What dictation does with swear words and slurs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Censor {
+    /// Typed as said.
+    #[default]
+    Off,
+    /// Typed as their first letter and stars: "f***".
+    Mask,
+    /// Left out of the text.
+    Remove,
 }
 
 /// How dictated text should read in a particular app.
@@ -213,7 +226,7 @@ impl Default for DictationSettings {
             about: String::new(),
             vocabulary: Vec::new(),
             replacements: Vec::new(),
-            censor: false,
+            censor: Censor::Off,
             keep_history: true,
             save_samples: false,
             live_captions: true,
@@ -334,6 +347,7 @@ mod tests {
                     from: "open router".into(),
                     to: "OpenRouter".into(),
                 }],
+                censor: Censor::Remove,
                 app_styles: vec![AppStyle {
                     app_id: "com.apple.mail".into(),
                     name: "Mail".into(),
