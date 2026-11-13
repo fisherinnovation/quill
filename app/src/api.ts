@@ -303,6 +303,8 @@ export interface DictationSettings {
   about: string;
   vocabulary: string[];
   replacements: Replacement[];
+  /** Type swear words and slurs as their first letter and stars ("f***"). */
+  censor: boolean;
   keep_history: boolean;
   /** Keep each dictation's audio and typed text, to measure accuracy. */
   save_samples: boolean;

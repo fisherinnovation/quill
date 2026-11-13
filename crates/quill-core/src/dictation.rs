@@ -1,7 +1,8 @@
 //! Dictation: a few seconds of speech in, text to type at the cursor out.
 //!
 //! 1. [`transcribe`]: Whisper in short-clip mode, with the vocabulary as its
-//!    prompt, then the replacement rules.
+//!    prompt, then the replacement rules and, if it's on, masking swear
+//!    words ([`crate::censor`]).
 //! 2. [`polish`] (optional): an LLM removes fillers, applies self-corrections
 //!    and formats lists. Skipped when there's nothing for it to fix
 //!    ([`needs_polish`]), since the round trip roughly triples latency.
@@ -89,10 +90,22 @@ pub(crate) fn join(segments: &[quill_stt::Segment]) -> String {
         .join(" ")
 }
 
-/// Whisper's text as it should be typed: loops collapsed, replacements
-/// applied.
+/// Whisper's text as it should be typed: loops collapsed, then
+/// [`finish`]ed.
 pub fn tidy(text: &str, settings: &DictationSettings) -> String {
-    apply_replacements(&collapse_repeats(text), &settings.replacements)
+    finish(&collapse_repeats(text), settings)
+}
+
+/// The user's rules, last thing before typing: replacements, then swear
+/// words masked if that's on. In that order, so a replacement for a swear
+/// word ("shit → shoot") still applies.
+fn finish(text: &str, settings: &DictationSettings) -> String {
+    let text = apply_replacements(text, &settings.replacements);
+    if settings.censor {
+        crate::censor::mask(&text)
+    } else {
+        text
+    }
 }
 
 /// Whisper's prompt primes its spelling: listing the terms makes it use them.
@@ -379,7 +392,9 @@ pub async fn polish(
         }
     };
     Ok(Polish {
-        text: apply_replacements(&text, &settings.replacements),
+        // With masking on, the model saw the text masked already; this
+        // catches one that filled a word back in.
+        text: finish(&text, settings),
         rejected,
         model: response.model,
         latency_ms: response.latency_ms,
@@ -768,6 +783,18 @@ mod tests {
             style: Style::Casual,
         }));
         assert!(slack.starts_with("The text is going into Slack, a chat app"));
+    }
+
+    #[test]
+    fn swear_words_are_masked_after_replacements_when_on() {
+        let mut settings = DictationSettings {
+            replacements: vec![rule("shit", "shoot")],
+            ..DictationSettings::default()
+        };
+        let said = "Oh shit, the fucking build broke.";
+        assert_eq!(tidy(said, &settings), "Oh shoot, the fucking build broke.");
+        settings.censor = true;
+        assert_eq!(tidy(said, &settings), "Oh shoot, the f****** build broke.");
     }
 
     #[test]

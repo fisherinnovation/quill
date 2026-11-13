@@ -161,6 +161,9 @@ pub struct DictationSettings {
     pub vocabulary: Vec<String>,
     /// Applied to the text before it's typed, whole words, ignoring case.
     pub replacements: Vec<Replacement>,
+    /// Type swear words and slurs as their first letter and stars
+    /// (`quill_core::censor`). Off unless the user turns it on.
+    pub censor: bool,
     /// Keep a history of what was dictated (in the local library).
     pub keep_history: bool,
     /// Keep each dictation's audio and typed text, to measure accuracy
@@ -210,6 +213,7 @@ impl Default for DictationSettings {
             about: String::new(),
             vocabulary: Vec::new(),
             replacements: Vec::new(),
+            censor: false,
             keep_history: true,
             save_samples: false,
             live_captions: true,
