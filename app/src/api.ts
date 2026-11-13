@@ -303,6 +303,7 @@ export interface DictationSettings {
   about: string;
   vocabulary: string[];
   replacements: Replacement[];
+  censor: Censor;
   keep_history: boolean;
   /** Keep each dictation's audio and typed text, to measure accuracy. */
   save_samples: boolean;
@@ -312,6 +313,12 @@ export interface DictationSettings {
   sound: Sounds;
   app_styles: AppStyle[];
 }
+
+/**
+ * What dictation does with swear words and slurs (quill_core::settings::Censor):
+ * type them as said, as their first letter and stars ("f***"), or leave them out.
+ */
+export type Censor = "off" | "mask" | "remove";
 
 /** A set of dictation sounds (quill_audio::cue::Sounds). */
 export type Sounds = "classic" | "soft" | "bubble" | "wood" | "glass" | "marimba" | "chirp" | "digital" | "off";

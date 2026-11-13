@@ -409,11 +409,12 @@ A sentence is typed with a space after it, so you can dictate a paragraph a sent
       {
         id: "words",
         title: "Vocabulary and replacements",
-        keywords: "vocabulary names jargon spelling replacements custom words dictionary",
+        keywords: "vocabulary names jargon spelling replacements custom words dictionary swear words profanity censor",
         body: `In **Settings → Dictation → Words**:
 
 - **Vocabulary**: names and terms to spell exactly, one per line ("Priya", "Kubernetes"). These steer both speech recognition (with Parakeet, as words it listens out for) and clean-up. Meeting notes use them too: the model writing the notes is told how to spell them. Add people's full names: a first name or surname heard on its own is written in full when only one entry matches it, and when several do ("Dan" for Dan Ruiz and Dan Okafor), the notes list it under **Unresolved names** in Open questions. If you allow it, AI assistants can add to this list (see [AI assistants](#ai-assistants)).
-- **Replacements**: what you say → what to type, one per line ("open router → OpenRouter").`,
+- **Replacements**: what you say → what to type, one per line ("open router → OpenRouter").
+- **Hide swear words** (off unless you turn it on): types swear words and slurs as their first letter and stars, like "f***". Turn on **Leave them out** as well to drop them from the text altogether ("Oh shit, it broke." is typed as "Oh, it broke."); a dictation that was nothing but swearing types nothing. It covers a fixed list of English words, whole words only, and applies after your replacements, so a replacement for one of them still wins. Meetings stay word for word.`,
       },
       {
         id: "teaching",

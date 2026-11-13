@@ -238,6 +238,25 @@ export function DictationSettingsTab({
             onChange={(text) => update({ replacements: parseReplacements(text) })}
           />
         </div>
+        <Row
+          label="Hide swear words"
+          hint="Types swear words and slurs as their first letter and stars, like “f***”. English words only; replacements apply first."
+        >
+          <Switch
+            label="Hide swear words"
+            checked={settings.censor !== "off"}
+            onChange={(on) => update({ censor: on ? "mask" : "off" })}
+          />
+        </Row>
+        {settings.censor !== "off" && (
+          <Row label="Leave them out" hint="Drops them from the text instead, and tidies the sentence around them.">
+            <Switch
+              label="Leave them out"
+              checked={settings.censor === "remove"}
+              onChange={(remove) => update({ censor: remove ? "remove" : "mask" })}
+            />
+          </Row>
+        )}
         <Learned suggestions={suggestions} settings={settings} onUndo={undo} />
       </Group>
 
