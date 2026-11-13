@@ -1402,9 +1402,12 @@ the transcript-only search box on the Meetings page.
   recordings are decoded in windows of at most 30 s, cut at pauses: its
   encoder attends over the whole input.
 - **Windows 11 has its own `onnxruntime.dll`** in System32, older, and
-  found before `PATH`: a test binary in `target/debug/deps` without the
-  sherpa-onnx DLLs beside it crashes (`STATUS_ACCESS_VIOLATION`). The app
-  and the CLI have theirs beside the executable, which wins.
+  found before `PATH`: a test binary without the sherpa-onnx DLLs beside
+  it crashes (`STATUS_ACCESS_VIOLATION`). The app and the CLI have theirs
+  beside the executable, which wins. CI copies them beside each test
+  binary, where `cargo test --no-run --message-format=json` says it is:
+  Rust 1.100 moved test binaries out of `target/debug/deps` (Cargo's new
+  build-dir layout), and a fixed path broke the Windows job.
 - **Measured** (2026-10-25, Windows 11, i9-14900KF, RTX 4070 SUPER;
   `quill-cli dictate --no-polish -l en`, medians of two runs on a quiet
   machine). Clips: the 20 eval clips (10 utterances × the two SAPI voices,
