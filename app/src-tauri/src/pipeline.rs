@@ -553,8 +553,21 @@ fn identify_speakers(
         }
     };
     let state = app.state::<AppState>();
-    let recognize = lock(&state.settings).recognize_voices;
+    let (recognize, vocabulary) = {
+        let settings = lock(&state.settings);
+        (
+            settings.recognize_voices,
+            settings.dictation.vocabulary.clone(),
+        )
+    };
     let known = if recognize {
+        // Labelled as the vocabulary spells them, like the notes.
+        match state.library.spell_known_voices(&vocabulary) {
+            Ok(0) => {}
+            // A count only: names stay out of the logs.
+            Ok(respelled) => tracing::info!(respelled, "known voices take the vocabulary spelling"),
+            Err(e) => tracing::warn!("couldn't respell known voices: {e}"),
+        }
         state
             .library
             .known_voices_to_match(speakers::VOICE_MODEL)

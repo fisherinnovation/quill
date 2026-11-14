@@ -1169,6 +1169,18 @@ On the Meetings page, a day with two or more meetings that have notes gets
   Details and the full sweep: eval/diarization/README.md. AMI sessions of
   one group share a room and headsets, so real calls will match less often,
   which is the safe direction.
+- **Spelling:** a known voice's name is what the user typed, and a typo
+  in it showed up as the label in every meeting it was recognized in, while
+  the notes, written with the vocabulary, spelled it right. Before matching,
+  each known voice is renamed to the vocabulary's spelling when exactly one
+  term fits (`vocabulary::spelling`): the same words in another case, or
+  the same first word with later words a letter off (two from seven
+  letters up), never words under four letters ("Dan Ruiz" isn't "Dana
+  Ruiz"). The voice itself is renamed, not just the label: confirming a
+  speaker saves the sample under the label's name, so relabelling alone
+  would have started a second voice for the same person. A voice whose
+  spelling is already another's name joins it. Past transcripts keep their
+  labels.
 - **Storage:** `known_voices`, `voice_samples` and `meeting_voices` in
   SQLite. `meeting_voices` holds each meeting's people on the call by
   transcript label, kept in step with renames and replaced when speakers are
