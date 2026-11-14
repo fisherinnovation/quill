@@ -140,6 +140,57 @@ impl Library {
         Ok(self.conn().execute("DELETE FROM known_voices", [])?)
     }
 
+    /// Renames each known voice to how the user's vocabulary spells it
+    /// ([`crate::vocabulary::spelling`]), so the people it recognises are
+    /// labelled the way the notes write them. A voice whose spelling is
+    /// already another known voice's name joins it: its samples move there,
+    /// except from a meeting that one already has a sample from. Returns how
+    /// many were renamed or joined. Past transcripts keep their labels.
+    pub fn spell_known_voices(&self, vocabulary: &[String]) -> Result<usize, LibraryError> {
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let voices: Vec<(i64, String, String)> = {
+            let mut stmt = tx.prepare("SELECT id, name, voice_model FROM known_voices")?;
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+                .collect::<Result<_, _>>()?
+        };
+        let mut changed = 0;
+        for (id, name, voice_model) in voices {
+            let Some(spelled) = crate::vocabulary::spelling(&name, vocabulary) else {
+                continue;
+            };
+            let other: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM known_voices WHERE name = ?1 AND voice_model = ?2 AND id != ?3",
+                    params![spelled, voice_model, id],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            match other {
+                Some(other) => {
+                    tx.execute(
+                        "UPDATE OR IGNORE voice_samples SET voice_id = ?1 WHERE voice_id = ?2",
+                        params![other, id],
+                    )?;
+                    tx.execute(
+                        "UPDATE meeting_voices SET recognized = ?1 WHERE recognized = ?2",
+                        params![other, id],
+                    )?;
+                    tx.execute("DELETE FROM known_voices WHERE id = ?1", [id])?;
+                }
+                None => {
+                    tx.execute(
+                        "UPDATE known_voices SET name = ?1 WHERE id = ?2",
+                        params![spelled, id],
+                    )?;
+                }
+            }
+            changed += 1;
+        }
+        tx.commit()?;
+        Ok(changed)
+    }
+
     /// Records the people on a meeting's call after speakers were told
     /// apart, replacing what was there. Call after `save_transcript`, which
     /// clears them.
@@ -491,6 +542,42 @@ mod tests {
         assert!(priya.remembered && priya.enough_speech && !priya.recognized);
         let dan = voices.iter().find(|v| v.label == "Dan").unwrap();
         assert!(!dan.remembered && !dan.enough_speech);
+    }
+
+    #[test]
+    fn known_voices_take_the_vocabulary_spelling() {
+        let (lib, _dir) = library();
+        let first = meeting(&lib, &[call("Speaker 1", voice(0, 60_000))]);
+        lib.rename_speaker(&first, "Speaker 1", "Priya Ramaswam", true)
+            .unwrap();
+        let vocabulary = vec!["Priya Ramaswamy".to_string(), "Dana Ruiz".into()];
+        assert_eq!(lib.spell_known_voices(&vocabulary).unwrap(), 1);
+        assert_eq!(names(&lib), [("Priya Ramaswamy".to_string(), 1)]);
+        // Recognised from now on under that name, and confirming it adds to
+        // the same voice instead of making a second one.
+        let known = lib.known_voices_to_match(MODEL).unwrap();
+        assert_eq!(known[0].name, "Priya Ramaswamy");
+        let second = meeting(&lib, &[call("Speaker 1", voice(0, 60_000))]);
+        lib.rename_speaker(&second, "Speaker 1", "Priya Ramaswamy", true)
+            .unwrap();
+        assert_eq!(names(&lib), [("Priya Ramaswamy".to_string(), 2)]);
+        // Nothing left to change.
+        assert_eq!(lib.spell_known_voices(&vocabulary).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_misspelled_voice_joins_the_right_one() {
+        let (lib, _dir) = library();
+        let first = meeting(&lib, &[call("Speaker 1", voice(0, 60_000))]);
+        lib.rename_speaker(&first, "Speaker 1", "Priya Ramaswamy", true)
+            .unwrap();
+        let second = meeting(&lib, &[call("Speaker 1", voice(0, 60_000))]);
+        lib.rename_speaker(&second, "Speaker 1", "Priya Ramaswam", true)
+            .unwrap();
+        assert_eq!(names(&lib).len(), 2);
+        let vocabulary = vec!["Priya Ramaswamy".to_string()];
+        assert_eq!(lib.spell_known_voices(&vocabulary).unwrap(), 1);
+        assert_eq!(names(&lib), [("Priya Ramaswamy".to_string(), 2)]);
     }
 
     #[test]
