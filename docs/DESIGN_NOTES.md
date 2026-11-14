@@ -443,6 +443,23 @@ On the Meetings page, a day with two or more meetings that have notes gets
   `due_date` over MCP. Hedges ("hopefully", "ideally", "probably",
   "maybe", "around", "roughly", "sometime") and double quotes are now
   dropped before reading the date; migration 19 reads items again.
+- **Owners, tasks and notes kept apart** (work usage, ticket 6): of 56
+  items over MCP, 6 tasks ended in " —", co-owners and owners written
+  without bold stayed in the task (owner "Alex", task "and Sam — link
+  up…"; no owner, task "Sam — Send you the deck…"), attribution sat in
+  the task ("(per Sam) — …", "(Lee said it; Sam did not respond)"), and
+  shared items read "You and Sam" in one meeting and "Sam and you" in
+  another. Now co-owners after the first ("and **Sam**", ", Sam and
+  Dana") and an owner written as names before the dash join the owner;
+  commentary goes to `note`: a bracket before the task, or a bracket or
+  dash part at its end that reads like who asked or what happened ("per",
+  "said", "didn't respond", "unconfirmed"; "book the room (Friday)" keeps
+  its brackets); separators are trimmed off both ends; and the user is
+  put first among owners. "In a couple of hours" and "next couple of
+  days" leave the task as due phrases. An owner that's the first name of
+  a full `you_as` is the user's: v8 writes everyone else's full name.
+  Owners stay one string ("You and Sam"), which the MCP owner filter
+  already matches by part. Migration 21 adds `note` and reads items again.
 
 ## Dictation
 

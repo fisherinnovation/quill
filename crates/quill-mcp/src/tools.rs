@@ -255,8 +255,9 @@ impl Server {
     }
 
     /// The action items from meetings' notes, newest meeting first: the
-    /// task, who owns it ("mine" is the user), when it's due, and the
-    /// meeting it came from. Open ones only unless include_done. Narrow it
+    /// task, who owns it ("mine" is the user, listed first when they share
+    /// it), when it's due, a note on who asked or what happened ("per
+    /// Sam"), and the meeting it came from. Open ones only unless include_done. Narrow it
     /// down rather than reading them all: by meeting, by the days meetings
     /// were on (since, until), to the user's own (mine) or someone else's
     /// (owner), and with a limit.

@@ -370,6 +370,12 @@ ALTER TABLE suggested_speakers ADD COLUMN was TEXT;
 -- \"you\": action items owned by that name are theirs.
 ALTER TABLE summaries ADD COLUMN you_as TEXT;
 ",
+    "
+-- Who asked for an action item, or what happened to it, as the notes say
+-- (\"per Sam\"), kept out of its task. Action items are read again from
+-- each meeting's latest notes (see `Library::init`).
+ALTER TABLE action_items ADD COLUMN note TEXT;
+",
 ];
 
 /// The migration that added `meetings.transcribed`; meetings from before it
@@ -379,9 +385,10 @@ const TRANSCRIBED_MIGRATION: i64 = 6;
 /// The latest migration after which action items are read again from the
 /// notes already in the library (see `Library::init`): 8 added them, 15
 /// fixed how due dates and owners are read, 16 added timestamps and
-/// suggested items, 19 read hedged and quoted due dates. Ticks survive the
-/// re-read.
-const ACTION_ITEMS_MIGRATION: i64 = 19;
+/// suggested items, 19 read hedged and quoted due dates, 21 split owners,
+/// tasks and notes apart and put the user first among owners. Ticks
+/// survive the re-read.
+const ACTION_ITEMS_MIGRATION: i64 = 21;
 
 /// The migration that added `search_items`; each meeting's latest notes are
 /// read into it once (see `Library::init`).
@@ -505,6 +512,9 @@ pub struct ActionItem {
     /// The owner is the person recording ("You").
     pub mine: bool,
     pub task: String,
+    /// Who asked for it, or what happened to it, as the notes say ("per
+    /// Sam"); not part of the task.
+    pub note: Option<String>,
     /// As written, e.g. "by Thursday".
     pub due_text: Option<String>,
     /// `YYYY-MM-DD`, worked out from `due_text` and the meeting's day.
@@ -524,7 +534,7 @@ pub struct ActionItem {
 const ACTION_ITEM_COLUMNS: &str = "a.id, a.meeting_id, m.title, m.started_at, a.owner, a.task, \
      a.due_text, a.due_date, a.done_at, a.committed, a.source_ms, \
      (SELECT s.you_as FROM summaries s WHERE s.meeting_id = a.meeting_id \
-      ORDER BY s.id DESC LIMIT 1)";
+      ORDER BY s.id DESC LIMIT 1), a.note";
 
 fn action_item_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ActionItem> {
     let owner: Option<String> = r.get(4)?;
@@ -537,6 +547,7 @@ fn action_item_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<ActionItem> {
         mine: action_items::is_mine(owner.as_deref(), you_as.as_deref()),
         owner,
         task: r.get(5)?,
+        note: r.get(12)?,
         due_text: r.get(6)?,
         due_date: r.get(7)?,
         done_at: r.get(8)?,
@@ -565,6 +576,15 @@ fn sync_action_items(
         |r| r.get(0),
     )?;
     let day = meeting_day(&started_at);
+    // What the notes call the user, to put them first among owners.
+    let you_as: Option<String> = conn
+        .query_row(
+            "SELECT you_as FROM summaries WHERE meeting_id = ?1 ORDER BY id DESC LIMIT 1",
+            [meeting_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .flatten();
     let mut existing: Vec<(i64, Vec<String>, Option<String>)> = {
         let mut stmt =
             conn.prepare("SELECT id, task, done_at FROM action_items WHERE meeting_id = ?1")?;
@@ -586,6 +606,10 @@ fn sync_action_items(
             .map(|d| d.to_string());
         let words = action_items::words(&item.task);
         let source_ms = item.source_ms.map(to_i64);
+        let owner = item
+            .owner
+            .as_deref()
+            .map(|o| action_items::you_first(o, you_as.as_deref()));
         // The most alike earlier item, if alike enough to be the same task.
         let same = existing
             .iter()
@@ -598,31 +622,33 @@ fn sync_action_items(
         match same {
             Some((id, _, _)) => conn.execute(
                 "UPDATE action_items SET position = ?2, owner = ?3, task = ?4, due_text = ?5,
-                     due_date = ?6, committed = ?7, source_ms = ?8 WHERE id = ?1",
+                     due_date = ?6, committed = ?7, source_ms = ?8, note = ?9 WHERE id = ?1",
                 params![
                     id,
                     position,
-                    item.owner,
+                    owner,
                     item.task,
                     item.due,
                     due_date,
                     item.committed,
-                    source_ms
+                    source_ms,
+                    item.note
                 ],
             )?,
             None => conn.execute(
                 "INSERT INTO action_items (meeting_id, position, owner, task, due_text, due_date,
-                     committed, source_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                     committed, source_ms, note)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     meeting_id,
                     position,
-                    item.owner,
+                    owner,
                     item.task,
                     item.due,
                     due_date,
                     item.committed,
-                    source_ms
+                    source_ms,
+                    item.note
                 ],
             )?,
         };
@@ -2119,6 +2145,28 @@ mod tests {
     }
 
     #[test]
+    fn action_items_are_stored_with_you_first_and_notes_apart() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = open(dir.path());
+        let m = lib.create_meeting().unwrap();
+        lib.save_summary(
+            &m.id,
+            &summary(
+                "## Action items
+                 - **Sam** and you — review the budget (per Lee) — by Friday
+",
+            ),
+        )
+        .unwrap();
+        let items = lib.action_items().unwrap();
+        assert_eq!(items[0].owner.as_deref(), Some("You and Sam"));
+        assert_eq!(items[0].task, "review the budget");
+        assert_eq!(items[0].note.as_deref(), Some("per Lee"));
+        assert_eq!(items[0].due_text.as_deref(), Some("by Friday"));
+        assert!(items[0].mine);
+    }
+
+    #[test]
     fn action_items_read_the_old_way_are_read_again_keeping_ticks() {
         let dir = tempfile::tempdir().unwrap();
         let lib = open(dir.path());
@@ -2144,6 +2192,7 @@ mod tests {
                  ALTER TABLE action_items DROP COLUMN committed;
                  DROP TABLE suggested_speakers;
                  ALTER TABLE summaries DROP COLUMN you_as;
+                 ALTER TABLE action_items DROP COLUMN note;
                  PRAGMA user_version = 14;",
             )
             .unwrap();

@@ -214,6 +214,7 @@ function ActionRow({
         <span className="action-task">
           <TaskText text={item.task} />
         </span>
+        {item.note && <span className="action-note">{item.note}</span>}
         <span className="item-meta">
           {due && (
             <span className={`due-chip${state ? ` ${state}` : ""}`} title={item.due_text ?? undefined}>
@@ -297,6 +298,7 @@ export function ActionChecklist({
                   {item.owner && " — "}
                   <TaskText text={item.task} />
                 </span>
+                {item.note && <span className="action-note">{item.note}</span>}
                 {(due || !item.committed || (onJump && item.source_ms !== null)) && (
                   <span className="item-meta">
                     {due && (

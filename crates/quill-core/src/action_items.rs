@@ -17,6 +17,9 @@ pub struct Parsed {
     /// "You", "Priya", "Priya and Dan"…; `None` when no one was named.
     pub owner: Option<String>,
     pub task: String,
+    /// Who asked for it or other commentary the notes added ("per Sam",
+    /// "Sam didn't respond"), kept out of the task.
+    pub note: Option<String>,
     /// As written, e.g. "by Thursday".
     pub due: Option<String>,
     /// Someone took it on; false when the notes mark it "(suggested)".
@@ -48,32 +51,162 @@ fn parse_item(line: &str) -> Option<Parsed> {
 
     let (text, source_ms) = split_timestamp(text);
     let (owner, rest) = split_owner(text);
-    let separators = ['—', '–', '-', ':', ' '];
+    // "**Alex** and **Sam** — …": the others who share it.
+    let (owner, rest) = match owner {
+        Some(first) => match more_owners(rest) {
+            Some((more, rest)) => (Some(format!("{first}{more}")), rest),
+            None => (Some(first.to_string()), rest),
+        },
+        None => (None, rest),
+    };
+    let mut notes: Vec<String> = Vec::new();
     // "**Priya** (suggested) — …", or with no owner "(suggested) — …".
-    let (rest, suggested_first) = without_suggested(rest.trim_start_matches(separators));
-    let rest = rest.trim_start_matches(separators).trim();
+    let (rest, suggested_first) = without_suggested(rest.trim_start_matches(SEPARATORS));
+    let mut rest = rest.trim_start_matches(SEPARATORS).trim();
+    // "(per Sam) — finish the list": who asked, before the task.
+    if let Some(inside) = rest.strip_prefix('(')
+        && let Some((note, after)) = inside.split_once(')')
+        && !note.eq_ignore_ascii_case("suggested")
+    {
+        notes.push(note.trim().to_string());
+        rest = after.trim_start_matches(SEPARATORS).trim();
+    }
     let (task, due) = split_due(rest);
     let (task, suggested_last) = without_suggested(task);
-    let task = plain(task);
+    let task = without_commentary(task, &mut notes);
+    let task = plain(task.trim_matches(SEPARATORS));
     if task.is_empty() || (owner.is_none() && is_placeholder(&task)) {
         return None;
     }
-    let owner = owner.map(|o| plain(o).trim_end_matches(':').trim().to_string());
-    // "Priya (suggested): …" puts it in the owner.
+    let owner = owner.map(|o| plain(&o).trim_end_matches(':').trim().to_string());
+    // "Priya (suggested): …" puts it in the owner, and "Sam (per Lee)" who
+    // asked.
     let (owner, suggested_owner) = match owner {
         Some(o) => {
             let (o, suggested) = without_suggested(&o);
-            (Some(o.to_string()), suggested)
+            (
+                Some(without_commentary(o, &mut notes).to_string()),
+                suggested,
+            )
         }
         None => (None, false),
     };
+    let note = notes
+        .iter()
+        .map(|n| plain(n))
+        .filter(|n| !n.is_empty())
+        .collect::<Vec<_>>()
+        .join("; ");
     Some(Parsed {
         owner: owner.filter(|o| !o.is_empty() && !is_no_owner(o)),
         task,
+        note: (!note.is_empty()).then_some(note),
         due: due.map(|d| plain(strip_label(d))).filter(|d| !d.is_empty()),
         committed: !(suggested_first || suggested_last || suggested_owner),
         source_ms,
     })
+}
+
+/// What separates an item's owner, task and due date.
+const SEPARATORS: [char; 6] = ['—', '–', '-', ':', ',', ' '];
+
+/// `text` without commentary at its end, which goes to `notes`: a bracket
+/// ("(Lee said it; Sam did not respond)") or a dash-separated part ("— per
+/// Sam") that reads like who asked or what happened, rather than part of
+/// the task. "Book the room (Friday)" keeps its brackets.
+fn without_commentary<'a>(text: &'a str, notes: &mut Vec<String>) -> &'a str {
+    let t = text.trim().trim_end_matches(SEPARATORS);
+    if let Some(inner) = t.strip_suffix(')')
+        && let Some(at) = inner.rfind('(')
+        && is_commentary(&inner[at + 1..])
+        && !inner[..at].trim().is_empty()
+    {
+        notes.insert(0, inner[at + 1..].trim().to_string());
+        return without_commentary(&inner[..at], notes);
+    }
+    let cut = t.rfind(" — ").or_else(|| t.rfind(" – "));
+    if let Some(at) = cut {
+        let sep = t[at..].chars().nth(1).map_or(0, char::len_utf8) + 2;
+        let part = t[at + sep..].trim();
+        if is_commentary(part) && !t[..at].trim().is_empty() {
+            notes.insert(0, part.to_string());
+            return without_commentary(&t[..at], notes);
+        }
+    }
+    t
+}
+
+/// Reads like who asked for an item or what happened to it, not like the
+/// task: "per Sam", "Lee said it", "Sam didn't respond", "unconfirmed".
+fn is_commentary(text: &str) -> bool {
+    let t = format!(" {} ", text.trim().to_lowercase());
+    const STARTS: &[&str] = &[
+        " per ",
+        " as per ",
+        " according to ",
+        " via ",
+        " on behalf of ",
+        " asked by ",
+        " raised by ",
+        " suggested by ",
+        " requested by ",
+        " said by ",
+    ];
+    const ANYWHERE: &[&str] = &[
+        " said ",
+        " says ",
+        " asked ",
+        " did not ",
+        " didn't ",
+        " has not ",
+        " hasn't ",
+        " not confirmed",
+        " unconfirmed",
+        " respond",
+        " volunteered",
+        " offered",
+        " tentative",
+        " no response",
+    ];
+    STARTS.iter().any(|s| t.starts_with(s)) || ANYWHERE.iter().any(|w| t.contains(w))
+}
+
+/// "and **Sam** — link up…" after a first owner: the other owners, as
+/// they follow it (" and Sam", ", Sam and Dana"), and the rest. Only when
+/// what comes before the dash reads like names.
+fn more_owners(rest: &str) -> Option<(String, &str)> {
+    let t = rest.trim_start();
+    let connector = ["and ", "& ", ", "].iter().find(|c| t.starts_with(**c))?;
+    let (names, after) = t.split_once(" — ").or_else(|| t.split_once(" – "))?;
+    let names = names.replace("**", "");
+    if !looks_like_names(names[connector.len()..].trim()) {
+        return None;
+    }
+    let joined = if names.starts_with(',') {
+        names.trim_end().to_string()
+    } else {
+        format!(" {}", names.trim())
+    };
+    Some((joined, after))
+}
+
+/// "Sam", "Priya Ramaswamy", "Sam and you", "Alex, Sam and Dana", "Priya
+/// (suggested)": one to six words, each a capitalized name, "you", or a
+/// word joining names.
+fn looks_like_names(text: &str) -> bool {
+    let (text, _) = without_suggested(text);
+    let words: Vec<&str> = text
+        .split_whitespace()
+        .map(|w| w.trim_end_matches(','))
+        .collect();
+    let person = |w: &&str| {
+        w.starts_with(char::is_uppercase) || ["you", "me"].contains(&w.to_lowercase().as_str())
+    };
+    (1..=6).contains(&words.len())
+        && words.iter().any(person)
+        && words
+            .iter()
+            .all(|w| person(w) || ["and", "&"].contains(&w.to_lowercase().as_str()))
 }
 
 /// "send the deck [12:34]" → ("send the deck", 754 s in ms): the
@@ -176,6 +309,13 @@ fn split_owner(text: &str) -> (Option<&str>, &str) {
             return (Some(owner), rest);
         }
     }
+    // "Sam — send the deck": names, then the dash the prompts put after an
+    // owner. "Follow up with legal — …" isn't names, so it stays a task.
+    if let Some((owner, rest)) = text.split_once(" — ").or_else(|| text.split_once(" – "))
+        && looks_like_names(owner)
+    {
+        return (Some(owner), rest);
+    }
     (None, text)
 }
 
@@ -258,6 +398,11 @@ fn looks_like_a_date(text: &str) -> bool {
         "nov",
         "dec",
         "asap",
+        "hour",
+        "day",
+        "later",
+        "soon",
+        "next ",
     ];
     WORDS.iter().any(|w| t.contains(w)) || t.chars().any(|c| c.is_ascii_digit())
 }
@@ -307,18 +452,55 @@ fn is_placeholder(task: &str) -> bool {
         || t.contains("no action items")
 }
 
-/// Whether the owner is the person recording: "You" (or "Me", in older
-/// notes), or `you_as`, the name the notes call them by, alone or with
-/// others.
+/// Whether the owner is the person recording, alone or with others:
+/// "You" (or "Me", in older notes), or `you_as`, the name the notes call
+/// them by. A full name also counts by its first name alone ("Sam" for
+/// "Sam Lee"): the notes write anyone else's full name.
 pub fn is_mine(owner: Option<&str>, you_as: Option<&str>) -> bool {
+    owner.is_some_and(|o| owners(o).iter().any(|who| is_you(who, you_as)))
+}
+
+/// "You" or "Me", or `you_as` or its first name, ignoring case.
+fn is_you(who: &str, you_as: Option<&str>) -> bool {
+    let who = who.to_lowercase();
     let name = you_as.map(str::to_lowercase);
-    owner.is_some_and(|o| {
-        o.to_lowercase()
-            .split([',', '&', '/', '(', ')'])
-            .flat_map(|part| part.split(" and "))
-            .map(str::trim)
-            .any(|who| who == "you" || who == "me" || name.as_deref() == Some(who))
-    })
+    let first = name
+        .as_deref()
+        .filter(|n| n.split_whitespace().count() > 1)
+        .and_then(|n| n.split_whitespace().next());
+    who == "you" || who == "me" || name.as_deref() == Some(&*who) || first == Some(&*who)
+}
+
+/// "Priya, Dan and you" → ["Priya", "Dan", "you"].
+fn owners(owner: &str) -> Vec<&str> {
+    owner
+        .split([',', '&', '/', '(', ')'])
+        .flat_map(|part| part.split(" and "))
+        .map(str::trim)
+        .filter(|who| !who.is_empty())
+        .collect()
+}
+
+/// `owner` with the person recording first, so every meeting writes a
+/// shared item the same way: "Sam and you" → "You and Sam", "Dan, Sam
+/// Lee and Priya" → "Sam Lee, Dan and Priya" (with `you_as` "Sam Lee").
+/// Unchanged when they aren't among its owners.
+pub fn you_first(owner: &str, you_as: Option<&str>) -> String {
+    let mut names = owners(owner);
+    let Some(at) = names.iter().position(|who| is_you(who, you_as)) else {
+        return owner.to_string();
+    };
+    let you = names.remove(at);
+    let you = if ["you", "me"].contains(&you.to_lowercase().as_str()) {
+        "You"
+    } else {
+        you
+    };
+    names.insert(0, you);
+    match names.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+        _ => names.join(""),
+    }
 }
 
 /// The date a due phrase means, said in a meeting on `on`: "Thursday",
@@ -724,6 +906,90 @@ mod tests {
     }
 
     #[test]
+    fn owners_tasks_and_notes_come_apart() {
+        let items = parse(&notes(
+            "- **Alex** and **Sam** — link up on the rollout plan — [12:00]\n\
+             - Sam — Send you the deck — in another couple of hours [13:10]\n\
+             - **Lee** — (per Sam) — Finish the list of open roles [14:00]\n\
+             - **Sam** — be in touch about next steps (Lee said it; Sam did not respond in the meeting) [15:00]\n\
+             - **Priya** — write up the decision — per Dan — by Friday [16:00]\n\
+             - **Dana**, **Sam** and you — review the budget — [17:00]\n\
+             - **Jordan** — share the recording —\n",
+        ));
+        // Owner, task, note, due.
+        type Fields<'a> = (Option<&'a str>, &'a str, Option<&'a str>, Option<&'a str>);
+        let got: Vec<Fields> = items
+            .iter()
+            .map(|i| {
+                (
+                    i.owner.as_deref(),
+                    i.task.as_str(),
+                    i.note.as_deref(),
+                    i.due.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (
+                    Some("Alex and Sam"),
+                    "link up on the rollout plan",
+                    None,
+                    None
+                ),
+                (
+                    Some("Sam"),
+                    "Send you the deck",
+                    None,
+                    Some("in another couple of hours")
+                ),
+                (
+                    Some("Lee"),
+                    "Finish the list of open roles",
+                    Some("per Sam"),
+                    None
+                ),
+                (
+                    Some("Sam"),
+                    "be in touch about next steps",
+                    Some("Lee said it; Sam did not respond in the meeting"),
+                    None
+                ),
+                (
+                    Some("Priya"),
+                    "write up the decision",
+                    Some("per Dan"),
+                    Some("by Friday")
+                ),
+                (Some("Dana, Sam and you"), "review the budget", None, None),
+                (Some("Jordan"), "share the recording", None, None),
+            ]
+        );
+        assert_eq!(items[0].source_ms, Some(720_000));
+        // The person recording among the owners.
+        assert!(is_mine(items[5].owner.as_deref(), None));
+    }
+
+    #[test]
+    fn you_come_first_among_owners() {
+        assert_eq!(you_first("Sam and you", None), "You and Sam");
+        assert_eq!(you_first("Dana, Sam and you", None), "You, Dana and Sam");
+        assert_eq!(you_first("You and Sam", None), "You and Sam");
+        assert_eq!(
+            you_first("Dan, Sam Lee and Priya", Some("Sam Lee")),
+            "Sam Lee, Dan and Priya"
+        );
+        assert_eq!(
+            you_first("Jordan and Sam", Some("Sam Lee")),
+            "Sam and Jordan"
+        );
+        // Not theirs: as written.
+        assert_eq!(you_first("Priya & Dan", None), "Priya & Dan");
+        assert_eq!(you_first("You", None), "You");
+    }
+
+    #[test]
     fn knows_your_items_from_others() {
         assert!(is_mine(Some("You"), None));
         assert!(is_mine(Some("You and Priya"), None));
@@ -735,7 +1001,9 @@ mod tests {
         // Notes that call the user by name.
         assert!(is_mine(Some("Sam Lee"), Some("Sam Lee")));
         assert!(is_mine(Some("Priya and sam lee"), Some("Sam Lee")));
-        assert!(!is_mine(Some("Sam"), Some("Sam Lee")));
+        // A first name alone is yours: the notes write others' full names.
+        assert!(is_mine(Some("Sam and Jordan"), Some("Sam Lee")));
+        assert!(!is_mine(Some("Samuel"), Some("Sam Lee")));
         assert!(!is_mine(Some("Priya"), Some("Sam Lee")));
     }
 

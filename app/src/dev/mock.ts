@@ -70,6 +70,8 @@ const item = (
   owner,
   mine: owner === "You",
   task,
+  // Commentary the notes kept beside a task.
+  note: id === 9 ? "Northwind didn't confirm on the call" : null,
   due_text: due?.[0] ?? null,
   due_date: due ? dayFromNow(due[1]) : null,
   done_at: doneAgo === undefined ? null : iso(doneAgo),

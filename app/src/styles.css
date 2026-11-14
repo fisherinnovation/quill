@@ -6136,6 +6136,14 @@ html.indicator-window #root {
   transition: color 0.2s;
 }
 
+/* Who asked for an item, or what happened to it, as the notes say. */
+.action-note {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-3);
+  font-style: italic;
+}
+
 .action-row.done .action-task {
   color: var(--text-3);
   text-decoration: line-through;
