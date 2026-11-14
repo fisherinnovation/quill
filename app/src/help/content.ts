@@ -243,6 +243,7 @@ If notes weren't written (no model set up, or **Summarize automatically** is off
 
 - **Yours** come first, most pressing at the top: overdue, then due soonest, then those with no date.
 - **Waiting on others** lists what other people agreed to do, by person, for following up.
+- An item you share is yours too, and you're named first ("You and Sam"). Who asked for it, or what happened to it ("per Sam"), shows in grey under the task.
 - Click the circle to tick one off. It's ticked in the meeting's notes and on Home too, and moves to **Done**, where you can tick it back.
 - Click the meeting under an item to open it.
 - In a meeting's notes, an item someone only suggested, that nobody took on, is marked **Suggested**. The time next to an item opens the transcript where it was said.

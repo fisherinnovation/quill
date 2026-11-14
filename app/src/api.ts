@@ -70,6 +70,8 @@ export interface ActionItem {
   /** The owner is the person recording ("You"). */
   mine: boolean;
   task: string;
+  /** Who asked for it, or what happened to it, as the notes say ("per Sam"). */
+  note: string | null;
   /** As written, e.g. "by Thursday". */
   due_text: string | null;
   /** YYYY-MM-DD, worked out from due_text and the meeting's day. */
