@@ -285,7 +285,8 @@ pub struct Speaker {
     pub label: String,
     pub naming: Naming,
     pub lines: usize,
-    /// Seconds they speak for, over all their lines.
+    /// Seconds they speak for, over all their lines, each no longer than
+    /// its words take to say ([`crate::stats::talk_ms`]).
     pub talk_seconds: u64,
     /// When their first line starts and their last ends, `H:MM:SS` into
     /// the recording.
@@ -300,7 +301,7 @@ pub fn speakers(library: &Library, id: &str) -> Result<Vec<Speaker>, LibraryErro
     let mut out: Vec<(Speaker, u64, u64)> = Vec::new();
     for s in &segments {
         let label = s.speaker.as_deref().unwrap_or("Unknown");
-        let talk = s.end_ms.saturating_sub(s.start_ms);
+        let talk = crate::stats::talk_ms(s);
         match out.iter_mut().find(|(p, _, _)| p.label == label) {
             Some((p, talk_ms, last)) => {
                 p.lines += 1;

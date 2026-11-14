@@ -103,12 +103,41 @@ pub struct WordCount {
     pub count: usize,
 }
 
+/// Most a line can count as talking: a second, plus 0.4 s per letter or
+/// digit in it. That's about six times as long as English takes to say
+/// (three times for Japanese, written without spaces), so real lines,
+/// pauses for thought included, keep their own timings.
+const LINE_MS: u64 = 1_000;
+const LETTER_MS: u64 = 400;
+
+/// How long a line counts as talking: its timings, but no more than its
+/// text takes to say ([`LETTER_MS`]). A stray word the mic picks up while
+/// someone else is speaking comes out as a line timed across the whole
+/// quiet stretch around it: a few such words once counted for 18 minutes of
+/// a 92-minute meeting the user barely spoke in.
+pub fn talk_ms(segment: &Segment) -> u64 {
+    let letters = segment.text.chars().filter(|c| c.is_alphanumeric()).count();
+    let most = LINE_MS + LETTER_MS * u64::try_from(letters).unwrap_or(u64::MAX / LETTER_MS);
+    segment.end_ms.saturating_sub(segment.start_ms).min(most)
+}
+
 pub fn meeting(segments: &[Segment]) -> MeetingStats {
     let mut segs: Vec<&Segment> = segments
         .iter()
         .filter(|s| !s.text.trim().is_empty())
         .collect();
     segs.sort_by_key(|s| s.start_ms);
+    // The recording's length from the last line as timed; everything else
+    // from how long each line counts as talking.
+    let span_ms = segs.iter().map(|s| s.end_ms).max().unwrap_or(0);
+    let talked: Vec<Segment> = segs
+        .iter()
+        .map(|s| Segment {
+            end_ms: s.start_ms + talk_ms(s),
+            ..(*s).clone()
+        })
+        .collect();
+    let segs: Vec<&Segment> = talked.iter().collect();
     let speaker = |s: &Segment| s.speaker.clone().unwrap_or_else(|| OTHERS.to_string());
 
     // Speakers: "Me" first, then by first appearance.
@@ -125,7 +154,6 @@ pub fn meeting(segments: &[Segment]) -> MeetingStats {
     }
 
     let stretches = stretches(&segs, speaker);
-    let span_ms = segs.iter().map(|s| s.end_ms).max().unwrap_or(0);
     let all: Vec<(u64, u64)> = segs.iter().map(|s| (s.start_ms, s.end_ms)).collect();
     let speech = merged(all);
     let speech_ms = speech.iter().map(|(a, b)| b - a).sum();
@@ -469,6 +497,37 @@ mod tests {
             speaker: Some(speaker.into()),
             words: Vec::new(),
         }
+    }
+
+    #[test]
+    fn stray_words_count_as_long_as_they_take_to_say() {
+        // A 30-minute presentation on the call; the mic picks up three
+        // stray words, each timed across minutes of quiet.
+        let mut lines = vec![seg(0, 1800, "Speaker 1", &"word ".repeat(4000))];
+        lines.push(seg(300, 420, "Me", "I"));
+        lines.push(seg(900, 1080, "Me", "completely."));
+        lines.push(seg(1500, 1560, "Me", "Yeah"));
+        let stats = meeting(&lines);
+        let me = stats.speakers.iter().find(|s| s.name == "Me").unwrap();
+        assert!(me.talk_ms < 10_000, "{}", me.talk_ms);
+        assert_eq!(me.longest_stretch_ms, 5_000);
+        // The stray words were said over the presentation: they count for
+        // the user too, but nobody talked for longer than the recording.
+        assert_eq!(stats.span_ms, 1_800_000);
+        assert_eq!(stats.speech_ms, 1_800_000);
+    }
+
+    #[test]
+    fn lines_keep_their_timings_when_the_words_fill_them() {
+        let line = seg(10, 14, "Speaker 1", "The onboarding launch is Friday.");
+        assert_eq!(talk_ms(&line), 4_000);
+        // Text written without spaces still counts by its letters.
+        assert_eq!(
+            talk_ms(&seg(0, 5, "Speaker 1", "来週の金曜日に公開します。")),
+            5_000
+        );
+        assert_eq!(talk_ms(&seg(0, 60, "Me", "I")), 1_400);
+        assert_eq!(talk_ms(&seg(5, 5, "Me", "")), 0);
     }
 
     fn sample() -> Vec<Segment> {

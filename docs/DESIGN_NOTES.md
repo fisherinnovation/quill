@@ -709,6 +709,19 @@ On the Meetings page, a day with two or more meetings that have notes gets
   else starting; turns, the longest monologue and back-and-forths are
   counted in stretches. Talk time merges each person's overlapping
   segments so nothing is counted twice.
+- A line counts as talking for no longer than its text takes to say
+  (`stats::talk_ms`: 1 s plus 0.4 s per letter or digit). A stray word the
+  mic picks up during someone else's long stretch comes out of Whisper as
+  a one-word line timed across the whole quiet stretch around it: in a
+  92-minute meeting the user barely spoke in, six such lines ("I",
+  "completely") counted 1,056 s, and talk time added up to 105% of the
+  meeting (work usage, ticket 5). The allowance is about six times
+  English speech (three times Japanese, so text without spaces works by
+  letters, not words), so a slow line with pauses for thought keeps its
+  own timings. The MCP `speakers` tool and the Stats tab both use it, and
+  it applies to past meetings too, since stats are worked out when asked.
+  Two people talking at once still both count, so totals can pass the
+  meeting's length by that overlap; time anyone was talking can't.
 - Interruptions aren't counted: Whisper's segments are coarse (a segment
   can span a pause), so overlap between them doesn't reliably mean anyone
   talked over anyone.
