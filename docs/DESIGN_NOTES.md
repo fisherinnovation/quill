@@ -343,6 +343,22 @@ decision someone might otherwise undo.
   input tokens per request (~$0.0003 a summary). Not yet compared on real
   meetings.
 
+- **Names the user gave people reach later notes.** The user named a guest
+  with an uncommon spelling, and a debrief about them three hours later
+  spelled the name as heard, in the title and every section: nothing
+  linked the two meetings, and the name wasn't in the vocabulary. The
+  notes' name list is now the vocabulary, then the names the user gave
+  people on calls in the last 30 days (most recent first), then known
+  voices' names (`Library::names_for_notes`). Only names the user gave or
+  confirmed count: suggestions from the notes or an assistant could be
+  wrong. A name that's another spelling of one already listed
+  (`vocabulary::spelling`) is left out, since the notes would otherwise
+  take "Priya Ramaswam" and "Priya Ramaswamy" for two people and list
+  "Priya" as unresolved. Adding the names to the vocabulary instead was
+  ruled out: it would change a list the user curates, and dictation would
+  start priming every guest's name. The 500-term cap still applies, with
+  the vocabulary first.
+
 ## Daily summaries
 
 On the Meetings page, a day with two or more meetings that have notes gets
