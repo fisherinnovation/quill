@@ -463,13 +463,22 @@ async fn run(app: &AppHandle, id: &str, steps: Steps, job: &Arc<Job>) -> Result<
     job.start(StepKind::Notes);
     let (provider, model) = notes_provider(app, &settings)?;
     let date = meeting_date(&detail.meeting.started_at);
+    // With the people the user has named, so a name they spelled when
+    // naming someone is spelled that way in this meeting's notes too.
+    let names = state
+        .library
+        .names_for_notes(&settings.dictation.vocabulary)
+        .unwrap_or_else(|e| {
+            tracing::warn!("couldn't read the names given on calls: {e}");
+            settings.dictation.vocabulary.clone()
+        });
     let summary = summary::summarize(
         provider.as_ref(),
         &model,
         &quill_llm::prompts::SUMMARY,
         &detail.segments,
         &date,
-        &settings.dictation.vocabulary,
+        &names,
         settings
             .your_name
             .as_deref()

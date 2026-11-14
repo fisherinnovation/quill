@@ -34,6 +34,11 @@ use crate::speakers::{CallVoice, KnownVoice, rememberable};
 /// same as for matching, since a sample shorter than that is too noisy.
 pub const MIN_SPEECH_TO_REMEMBER_MS: u64 = DEFAULT_MIN_SPEECH_MS;
 
+/// How long a name the user gave someone in a meeting keeps reaching later
+/// meetings' notes ([`Library::names_for_notes`]). Known voices' names
+/// always do.
+pub const NAMED_RECENTLY: jiff::SignedDuration = jiff::SignedDuration::from_hours(30 * 24);
+
 /// A known voice, as Settings lists it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct KnownVoiceInfo {
@@ -189,6 +194,54 @@ impl Library {
         }
         tx.commit()?;
         Ok(changed)
+    }
+
+    /// The names and terms meeting notes are written with: the vocabulary,
+    /// then the people the user has named ([`Library::people_named`]) in the
+    /// last [`NAMED_RECENTLY`]. A name that's another spelling of one
+    /// already listed ([`crate::vocabulary::spelling`]: "Priya Ramaswam"
+    /// beside "Priya Ramaswamy") is left out, so the notes don't take one
+    /// person for two and list "Priya" as unresolved.
+    pub fn names_for_notes(&self, vocabulary: &[String]) -> Result<Vec<String>, LibraryError> {
+        let mut names = vocabulary.to_vec();
+        for name in self.people_named(jiff::Timestamp::now() - NAMED_RECENTLY)? {
+            if crate::vocabulary::spelling(&name, &names).is_none() {
+                names.push(name);
+            }
+        }
+        Ok(names)
+    }
+
+    /// The names the user has given people: speakers named in meetings
+    /// since `since`, most recent first, then every known voice. Names the
+    /// user hasn't confirmed (suggested by the notes or an assistant) and
+    /// labels like "Speaker 2" aren't included. For meeting notes, so a
+    /// name spelled one way when the user named someone is spelled that way
+    /// in later meetings too.
+    pub fn people_named(&self, since: jiff::Timestamp) -> Result<Vec<String>, LibraryError> {
+        let conn = self.conn();
+        let mut names: Vec<String> = Vec::new();
+        let mut add = |name: String| {
+            if rememberable(&name) && !names.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
+                names.push(name);
+            }
+        };
+        let mut stmt = conn.prepare(
+            "SELECT s.speaker, MAX(m.started_at) AS last
+             FROM segments s JOIN meetings m ON m.id = s.meeting_id
+             WHERE m.started_at >= ?1 AND s.speaker IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM suggested_speakers g
+                               WHERE g.meeting_id = s.meeting_id AND g.label = s.speaker)
+             GROUP BY s.speaker ORDER BY last DESC",
+        )?;
+        for name in stmt.query_map([since.to_string()], |r| r.get::<_, String>(0))? {
+            add(name?);
+        }
+        let mut stmt = conn.prepare("SELECT name FROM known_voices ORDER BY updated_at DESC")?;
+        for name in stmt.query_map([], |r| r.get::<_, String>(0))? {
+            add(name?);
+        }
+        Ok(names)
     }
 
     /// Records the people on a meeting's call after speakers were told
@@ -578,6 +631,42 @@ mod tests {
         let vocabulary = vec!["Priya Ramaswamy".to_string()];
         assert_eq!(lib.spell_known_voices(&vocabulary).unwrap(), 1);
         assert_eq!(names(&lib), [("Priya Ramaswamy".to_string(), 2)]);
+    }
+
+    #[test]
+    fn people_the_user_named_are_listed_for_the_notes() {
+        let (lib, _dir) = library();
+        let id = meeting(
+            &lib,
+            &[
+                call("Speaker 1", voice(0, 60_000)),
+                call("Speaker 2", voice(1, 5000)),
+                call("Speaker 3", voice(2, 60_000)),
+            ],
+        );
+        // Named by the user: kept, though too short to remember the voice.
+        lib.rename_speaker(&id, "Speaker 1", "Jorrick Tamsin", true)
+            .unwrap();
+        lib.rename_speaker(&id, "Speaker 2", "Dana Ruiz", true)
+            .unwrap();
+        // Suggested by the notes, not confirmed: left out until it is.
+        lib.suggest_speaker_name(&id, "Speaker 3", "Sam").unwrap();
+        let week_ago = jiff::Timestamp::now() - jiff::SignedDuration::from_hours(24 * 7);
+        let mut named = lib.people_named(week_ago).unwrap();
+        named.sort();
+        assert_eq!(named, ["Dana Ruiz", "Jorrick Tamsin"]);
+        lib.confirm_speaker(&id, "Sam", false).unwrap();
+        assert_eq!(lib.people_named(week_ago).unwrap().len(), 3);
+        // Meetings before `since` only count through known voices.
+        let later = jiff::Timestamp::now() + jiff::SignedDuration::from_hours(1);
+        assert_eq!(lib.people_named(later).unwrap(), ["Jorrick Tamsin"]);
+
+        // For the notes: after the vocabulary, leaving out other spellings
+        // of names already there.
+        let vocabulary = vec!["Quill".to_string(), "Dana Ruis".into()];
+        let mut names = lib.names_for_notes(&vocabulary).unwrap();
+        names[2..].sort();
+        assert_eq!(names, ["Quill", "Dana Ruis", "Jorrick Tamsin", "Sam"]);
     }
 
     #[test]

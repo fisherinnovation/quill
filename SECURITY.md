@@ -68,7 +68,9 @@ when notes are ready**. On macOS, Quill asks permission the first time.
 to the summary model, and dictated text to the clean-up model, only when
 those steps run, and only to the provider you chose. With them go your
 vocabulary and, if you set one, your name for the notes to call you
-(Settings → Meetings → Your name in notes). With live notes on
+(Settings → Meetings → Your name in notes). Meeting notes also get the
+names you've given people on calls in the last 30 days and the names of
+your known voices, so they're spelled the way you spelled them. With live notes on
 (Settings → Meetings, on by default), a rough transcript of the last 15
 minutes of a meeting is sent to the summary model every minute while
 it's being recorded; the live notes panel is excluded from screen sharing
