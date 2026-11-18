@@ -22,6 +22,7 @@ pub mod growing;
 pub mod live;
 pub mod mic_users;
 mod resample;
+pub mod volume;
 mod wav;
 
 pub use flac::{read_flac, write_flac};
@@ -61,6 +62,8 @@ pub enum AudioError {
     WriterPanicked,
     #[error("Core Audio couldn't {what} (OSStatus {status})")]
     CoreAudio { what: &'static str, status: i32 },
+    #[error("{0}")]
+    Volume(String),
     #[error("{0} isn't supported on this platform yet")]
     Unsupported(&'static str),
     #[error(transparent)]

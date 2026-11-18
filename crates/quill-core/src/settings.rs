@@ -171,6 +171,12 @@ pub struct DictationSettings {
     pub save_samples: bool,
     /// Show what's being said while dictating (`quill_core::live`).
     pub live_captions: bool,
+    /// Turn the computer's volume down while listening, so what it plays
+    /// is less likely to be typed (`quill_audio::volume`).
+    pub lower_volume: bool,
+    /// The volume while listening, in percent of full. A volume already
+    /// lower is left as it is.
+    pub lower_volume_to: u8,
     /// The sounds dictation plays to start, stop and cancel.
     pub sound: Sounds,
     /// Styles chosen for particular apps, overriding the built-in ones
@@ -230,6 +236,8 @@ impl Default for DictationSettings {
             keep_history: true,
             save_samples: false,
             live_captions: true,
+            lower_volume: true,
+            lower_volume_to: 10,
             sound: Sounds::Classic,
             app_styles: Vec::new(),
         }

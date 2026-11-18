@@ -376,6 +376,18 @@ Any other key needs \`key:Ctrl\`, \`key:Alt\` or \`key:Shift\` with it, so it do
 The captions are on your screen, so they show in screen shares. Turn them off in **Settings → Dictation → Show what you're saying**.`,
       },
       {
+        id: "dictation-volume",
+        title: "The volume goes down while you speak",
+        keywords: "volume lower quiet mute music video speakers duck sound playing",
+        body: `While you dictate, Quill turns your computer's volume down to 10%, so music, a video or a call playing on your speakers isn't picked up by the microphone and typed with what you say. The start sound plays first, at the usual volume. When you stop, the volume goes back to where it was, before the stop sound.
+
+- **Choose the level** in **Settings → Dictation → Volume while you speak**, from **Muted** to 50%. A volume already lower is left as it is.
+- **If you change the volume yourself** while dictating, Quill leaves your choice alone when you stop.
+- **Turn it off** in **Settings → Dictation → Turn the volume down**.
+
+It changes the volume of the output your computer is using, as the volume control in the menu bar or taskbar does. Some outputs, like some HDMI and USB speakers, have no volume of their own, and stay as they are.`,
+      },
+      {
         id: "clean-up",
         title: "Clean-up",
         keywords: "tidy polish filler um corrections lists formatting",

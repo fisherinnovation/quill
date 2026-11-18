@@ -104,6 +104,34 @@ struct Shared {
     hotkey: Mutex<Option<Shortcut>>,
     /// Set while the fn key is the trigger and being watched.
     fn_watching: AtomicBool,
+    /// The output volume, turned down while listening (Settings →
+    /// Dictation). Dropping it turns it back up.
+    lowered: Mutex<Option<quill_audio::volume::Lowered>>,
+    /// Counts listening starting and ending, so turning the volume down
+    /// after the start sound doesn't happen if listening has ended since.
+    turns: AtomicUsize,
+}
+
+impl Shared {
+    /// Turns the volume down to `level`, unless listening turn `turn` has
+    /// ended. Checked under the lock that [`Shared::restore_volume`] takes,
+    /// so the two can't cross.
+    fn lower_volume(&self, turn: usize, level: f32) {
+        let mut lowered = lock(&self.lowered);
+        if self.turns.load(Ordering::SeqCst) != turn || lowered.is_some() {
+            return;
+        }
+        match quill_audio::volume::lower_to(level) {
+            Ok(volume) => *lowered = volume,
+            Err(e) => tracing::warn!("couldn't turn the volume down for dictation: {e}"),
+        }
+    }
+
+    /// Turns the volume back up, if it was turned down.
+    fn restore_volume(&self) {
+        self.turns.fetch_add(1, Ordering::SeqCst);
+        drop(lock(&self.lowered).take());
+    }
 }
 
 impl Dictation {
@@ -117,6 +145,8 @@ impl Dictation {
             error: Mutex::new(None),
             hotkey: Mutex::new(None),
             fn_watching: AtomicBool::new(false),
+            lowered: Mutex::new(None),
+            turns: AtomicUsize::new(0),
         });
         let thread_shared = Arc::clone(&shared);
         let thread_tx = tx.clone();
@@ -127,6 +157,12 @@ impl Dictation {
             tracing::error!("could not start dictation: {e}");
         }
         Self { tx, shared }
+    }
+
+    /// Turns the volume back up if dictation turned it down: for quitting
+    /// mid-dictation.
+    pub fn restore_volume(&self) {
+        self.shared.restore_volume();
     }
 
     /// Binds the hotkey from settings (or unbinds it if dictation is off).
@@ -422,11 +458,32 @@ impl Controller {
             return;
         };
         mic.begin();
+        // Read now: the live worker takes `settings`.
+        let lower_volume = settings
+            .dictation
+            .lower_volume
+            .then_some((settings.dictation.lower_volume_to, settings.dictation.sound));
         if settings.dictation.live_captions {
             indicator::caption(&self.app, &Caption::default());
             self.live = Some(LiveWorker::spawn(self.app.clone(), mic.tap(), settings));
         }
         cue::play(Cue::Start, sounds(&self.app));
+        if let Some((to, sound)) = lower_volume {
+            // Once the start sound has played, so it isn't turned down too.
+            let wait = Cue::Start.duration(sound);
+            let level = f32::from(to.min(100)) / 100.0;
+            let shared = Arc::clone(&self.shared);
+            let turn = shared.turns.fetch_add(1, Ordering::SeqCst) + 1;
+            let spawned = std::thread::Builder::new()
+                .name("quill-volume".into())
+                .spawn(move || {
+                    std::thread::sleep(wait);
+                    shared.lower_volume(turn, level);
+                });
+            if let Err(e) = spawned {
+                tracing::debug!("couldn't turn the volume down: {e}");
+            }
+        }
         *lock(&self.shared.error) = None;
         self.listening = Some(Listening {
             since,
@@ -584,6 +641,8 @@ impl Controller {
 
     fn end_listening(&mut self) -> Option<Listening> {
         let listening = self.listening.take()?;
+        // Before the stop sound, so it's heard at the usual volume.
+        self.shared.restore_volume();
         self.shared.listening.store(false, Ordering::SeqCst);
         self.last_used = Instant::now();
         let _ = self.app.global_shortcut().unregister(escape());

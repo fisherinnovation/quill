@@ -23,6 +23,9 @@ thiserror.workspace = true
 objc2-core-audio.workspace = true
 objc2-core-foundation.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant"] }
+
 [dev-dependencies]
 tempfile.workspace = true
 

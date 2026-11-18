@@ -311,6 +311,10 @@ export interface DictationSettings {
   save_samples: boolean;
   /** Show what's being said, above the dictation pill, while speaking. */
   live_captions: boolean;
+  /** Turn the computer's volume down while listening. */
+  lower_volume: boolean;
+  /** The volume while listening, in percent of full. */
+  lower_volume_to: number;
   /** The sounds dictation plays to start, stop and cancel. */
   sound: Sounds;
   app_styles: AppStyle[];
