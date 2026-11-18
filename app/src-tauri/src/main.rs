@@ -289,6 +289,10 @@ fn main() {
         .expect("error while building Quill")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                // Quitting mid-dictation: the volume goes back up.
+                if let Some(dictation) = app.try_state::<dictation::Dictation>() {
+                    dictation.restore_volume();
+                }
                 // Unload Whisper before the process exits (quitting, or
                 // restarting after an update). whisper.cpp's Metal backend
                 // aborts in its exit-time destructor while a model is still

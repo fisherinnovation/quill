@@ -352,6 +352,8 @@ const settings = {
     keep_history: true,
     save_samples: false,
     live_captions: true,
+    lower_volume: true,
+    lower_volume_to: 10,
     sound: "classic",
     app_styles: [],
   },

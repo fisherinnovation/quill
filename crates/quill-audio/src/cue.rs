@@ -334,7 +334,7 @@ impl Cue {
             .collect()
     }
 
-    fn duration(self, sounds: Sounds) -> Duration {
+    pub fn duration(self, sounds: Sounds) -> Duration {
         Duration::from_secs_f32(self.shape(sounds).map_or(0.0, |s| s.length))
     }
 }

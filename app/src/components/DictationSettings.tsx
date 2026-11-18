@@ -115,6 +115,33 @@ export function DictationSettingsTab({
           />
         </Row>
         <Row
+          label="Turn the volume down"
+          hint="While you speak, so music or a video playing isn't typed with what you say. It goes back up when you stop, unless you've changed it yourself."
+        >
+          <Switch
+            label="Turn the volume down"
+            checked={settings.lower_volume}
+            onChange={(lower_volume) => update({ lower_volume })}
+          />
+        </Row>
+        {settings.lower_volume && (
+          <Row label="Volume while you speak" hint="A volume already lower is left as it is.">
+            <select
+              value={settings.lower_volume_to}
+              onChange={(e) => update({ lower_volume_to: Number(e.target.value) })}
+            >
+              {/* With the current one, if it was set by hand in settings.toml. */}
+              {[...new Set([0, 5, 10, 20, 30, 50, settings.lower_volume_to])]
+                .sort((a, b) => a - b)
+                .map((level) => (
+                  <option key={level} value={level}>
+                    {level === 0 ? "Muted" : `${level}%`}
+                  </option>
+                ))}
+            </select>
+          </Row>
+        )}
+        <Row
           label="Language"
           hint={
             !parakeet

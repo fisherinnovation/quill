@@ -631,6 +631,26 @@ On the Meetings page, a day with two or more meetings that have notes gets
   → replacement. Homophones, grammar edits, insertions, deletions and
   rewrites are ignored, because as rules they'd be wrong as often as
   right. Nothing is learned until the user accepts it.
+- **The volume goes down while listening** (on by default, to 10%;
+  `quill_audio::volume`), so what the speakers play isn't typed with what
+  the user says. The system output volume, as the volume control shows it:
+  Core Audio's `kAudioDevicePropertyVolumeScalar` on the default output
+  device (the main element, or each stereo channel when the device has no
+  main volume) on macOS, `IAudioEndpointVolume`'s master scalar on Windows;
+  both are the perceptual scale the user sees, so "10%" means the same
+  as on the slider. It's lowered once the start sound has played (the
+  cue's length after it starts), so the cue isn't quietened, and put back
+  as listening ends, before the stop sound. A counter of listening turns,
+  checked under the same lock as the restore, stops a lowering that comes
+  after listening has already ended. The device that was lowered is the
+  one put back (by Core Audio object id, or Windows endpoint id), even if
+  the default output changed meanwhile; a volume already at or below the
+  level is left alone, and if the user changed the volume while it was
+  down, theirs stands. Quitting mid-dictation puts it back
+  (`RunEvent::Exit`). A crash while listening would leave it down: not
+  handled, as it's rare and the user sees and fixes it at once. Not
+  per-app ducking: macOS has no public API for other apps' volume, and
+  one behaviour on both is simpler to explain.
 - **About you** goes to the clean-up model (prompt `dictation-v3`). On the
   10 eval clips it changed one word and never leaked into the output.
 - **Hiding swear words** (opt-in, `quill_core::censor`) masks them as the
